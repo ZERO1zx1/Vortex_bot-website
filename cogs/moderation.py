@@ -2,6 +2,7 @@ from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COL
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands, ui
+from utils.supabase_cog import SupabaseCog
 import datetime
 from typing import Optional
 import asyncio
@@ -31,13 +32,11 @@ class AddStaffModal(ui.Modal, title="Staff нэмэх"):
         member = interaction.guild.get_member(uid)
         if not member:
             return await interaction.response.send_message("❌ Хэрэглэгч серверт байхгүй.", ephemeral=True)
-        async with self.view.cog.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO staff_members (user_id, guild_id, staff_group) VALUES (%s, %s, %s) "
-                    "ON DUPLICATE KEY UPDATE staff_group = %s",
-                    (str(uid), str(interaction.guild.id), self.group.value, self.group.value)
-                )
+        await self.view.cog.update_data("staff_members", {
+            "user_id": str(uid),
+            "guild_id": str(interaction.guild.id),
+            "staff_group": self.group.value
+        })
         await interaction.response.send_message(f"✅ {member.mention} **{self.group.value}** бүлэгт нэмэгдлээ.", ephemeral=True)
 
 class RemoveStaffModal(ui.Modal, title="Staff хасах"):
@@ -52,12 +51,8 @@ class RemoveStaffModal(ui.Modal, title="Staff хасах"):
             uid = int(self.user_id.value)
         except ValueError:
             return await interaction.response.send_message("❌ ID тоо байх ёстой.", ephemeral=True)
-        async with self.view.cog.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM staff_members WHERE user_id=%s AND guild_id=%s",
-                                  (str(uid), str(interaction.guild.id)))
-                await cur.execute("DELETE FROM staff_activity WHERE user_id=%s AND guild_id=%s",
-                                  (str(uid), str(interaction.guild.id)))
+        await self.view.cog.delete_data("staff_members", {"user_id": str(uid), "guild_id": str(interaction.guild.id)})
+        await self.view.cog.delete_data("staff_activity", {"user_id": str(uid), "guild_id": str(interaction.guild.id)})
         member = interaction.guild.get_member(uid)
         await interaction.response.send_message(f"✅ {member.mention if member else f'<@{uid}>'} Staff-ээс хасагдлаа.", ephemeral=True)
 
@@ -82,13 +77,10 @@ class StaffSetupView(ui.View):
 
     async def build_embed(self, guild):
         guild_id = str(guild.id)
-        async with self.cog.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT log_channel, announcement_channel, stats_channel FROM staff_config WHERE guild_id = %s", (guild_id,))
-                row = await cur.fetchone()
-        log_ch = guild.get_channel(int(row[0])) if row and row[0] else None
-        ann_ch = guild.get_channel(int(row[1])) if row and row[1] else None
-        stats_ch = guild.get_channel(int(row[2])) if row and row[2] else None
+        row = await self.cog.get_data("staff_config", {"guild_id": guild_id})
+        log_ch = guild.get_channel(int(row["log_channel"])) if row and row.get("log_channel") else None
+        ann_ch = guild.get_channel(int(row["announcement_channel"])) if row and row.get("announcement_channel") else None
+        stats_ch = guild.get_channel(int(row["stats_channel"])) if row and row.get("stats_channel") else None
 
         embed = discord.Embed(title="🛡️ Staff тохиргоо", color=INFO_COLOR)
         embed.add_field(name="📋 Лог суваг", value=log_ch.mention if log_ch else "Тохируулаагүй", inline=False)
@@ -127,16 +119,19 @@ class StaffSetupView(ui.View):
     async def list_staff_button(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.response.defer(ephemeral=True)
         guild_id = str(interaction.guild.id)
-        async with self.cog.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT user_id, staff_group FROM staff_members WHERE guild_id=%s ORDER BY staff_group, user_id", (guild_id,))
-                rows = await cur.fetchall()
+        rows = await self.cog.get_all_data("staff_members", {"guild_id": guild_id})
         if not rows:
             return await interaction.followup.send("❌ Staff хоосон.", ephemeral=True)
+        
+        # Sort by staff_group and user_id manually as Supabase fetchall doesn't order here
+        rows.sort(key=lambda x: (x.get("staff_group", ""), x.get("user_id", "")))
+        
         embed = discord.Embed(title="👥 Staff жагсаалт", color=INFO_COLOR)
         current_group = None
         text = ""
-        for user_id, group in rows:
+        for row in rows:
+            user_id = row["user_id"]
+            group = row["staff_group"]
             if group != current_group:
                 if text:
                     embed.add_field(name=f"**{current_group}**", value=text, inline=False)
@@ -161,7 +156,7 @@ class StaffSetupView(ui.View):
             except: pass
 
 # ==================== ҮНДСЭН COG ====================
-class Moderation(commands.Cog):
+class Moderation(SupabaseCog):
     def __init__(self, bot):
         self.bot = bot
         self.voice_times = {}
@@ -169,48 +164,8 @@ class Moderation(commands.Cog):
         self.leaderboard_task.start()
 
     async def cog_load(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS warnings (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id VARCHAR(255),
-                    guild_id VARCHAR(255),
-                    moderator_id VARCHAR(255),
-                    reason TEXT,
-                    timestamp BIGINT
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS staff_members (
-                    user_id VARCHAR(255),
-                    guild_id VARCHAR(255),
-                    staff_group VARCHAR(100),
-                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (user_id, guild_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS staff_activity (
-                    user_id VARCHAR(255),
-                    guild_id VARCHAR(255),
-                    messages INT DEFAULT 0,
-                    voice_seconds BIGINT DEFAULT 0,
-                    tickets_closed INT DEFAULT 0,
-                    actions INT DEFAULT 0,
-                    last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    PRIMARY KEY (user_id, guild_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS staff_weekly_winners (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    guild_id VARCHAR(255),
-                    user_id VARCHAR(255),
-                    week_start DATE,
-                    kpi_score FLOAT,
-                    announced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS staff_config (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    log_channel VARCHAR(255),
-                    announcement_channel VARCHAR(255),
-                    stats_channel VARCHAR(255),
-                    leaderboard_message_id VARCHAR(255)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
+        # Tables are pre-configured in Supabase
+        pass
                 for col in ['log_channel', 'stats_channel', 'leaderboard_message_id']:
                     try: await cur.execute(f"ALTER TABLE staff_config ADD COLUMN {col} VARCHAR(255)")
                     except: pass

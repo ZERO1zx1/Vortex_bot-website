@@ -2,6 +2,7 @@ from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COL
 import discord
 from discord.ext import commands
 from discord.ui import View, Button, Modal, TextInput
+from utils.supabase_cog import SupabaseCog
 import random
 import time
 import asyncio
@@ -86,7 +87,7 @@ def _fmt_money(n: int) -> str:
     return f"{n:,} ₮"
 
 # ================== MAIN ECONOMY COG ==================
-class Economy(commands.Cog):
+class Economy(SupabaseCog):
     def __init__(self, bot):
         self.bot = bot
         self.max_balance = bot.config.get("max_balance", 100_000_000)
@@ -95,84 +96,36 @@ class Economy(commands.Cog):
         self.chat_money_cooldown = {}
         self.use_default_replies = True
 
-    async def _execute(self, query, *params, commit=True):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, params)
-                if commit:
-                    await conn.commit()
-                return cur
-
-    async def _fetchone(self, query, *params):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, params)
-                return await cur.fetchone()
-
-    async def _fetchall(self, query, *params):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, params)
-                return await cur.fetchall()
-
-    async def init_db(self):
-        await self._execute('''CREATE TABLE IF NOT EXISTS economy (
-            user_id VARCHAR(255), guild_id VARCHAR(255),
-            balance BIGINT DEFAULT 0, bank_balance BIGINT DEFAULT 0,
-            last_daily BIGINT, last_work BIGINT,
-            bank_protect_until BIGINT DEFAULT 0, prison_until BIGINT DEFAULT 0,
-            hunger INT DEFAULT 0, mood INT DEFAULT 0,
-            PRIMARY KEY (user_id, guild_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-        await self._execute('''CREATE TABLE IF NOT EXISTS economy_config (
-            guild_id VARCHAR(255), `key` VARCHAR(255), value TEXT,
-            PRIMARY KEY (guild_id, `key`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-        await self._execute('''CREATE TABLE IF NOT EXISTS custom_replies (
-            id INT AUTO_INCREMENT PRIMARY KEY, guild_id VARCHAR(255),
-            command VARCHAR(255), type VARCHAR(50), text TEXT
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-        await self._execute('''CREATE TABLE IF NOT EXISTS economy_cooldowns_config (
-            guild_id VARCHAR(255), command VARCHAR(255), cooldown_seconds INT,
-            PRIMARY KEY (guild_id, command)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-        await self._execute('''CREATE TABLE IF NOT EXISTS economy_fines_config (
-            guild_id VARCHAR(255), command VARCHAR(255),
-            fine_min INT, fine_max INT, fine_type VARCHAR(50) DEFAULT 'fixed',
-            PRIMARY KEY (guild_id, command)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-        await self._execute('''CREATE TABLE IF NOT EXISTS economy_payouts_config (
-            guild_id VARCHAR(255), command VARCHAR(255),
-            payout_min INT, payout_max INT,
-            PRIMARY KEY (guild_id, command)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-        await self._execute('''CREATE TABLE IF NOT EXISTS economy_fail_rates (
-            guild_id VARCHAR(255), command VARCHAR(255), fail_rate DOUBLE,
-            PRIMARY KEY (guild_id, command)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-        await self._execute('''CREATE TABLE IF NOT EXISTS role_income (
-            guild_id VARCHAR(255), role_id BIGINT, amount INT, interval_seconds INT,
-            PRIMARY KEY (guild_id, role_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-        await self._execute('''CREATE TABLE IF NOT EXISTS chat_money_config (
-            guild_id VARCHAR(255) PRIMARY KEY, min_amount INT DEFAULT 1,
-            max_amount INT DEFAULT 5, cooldown INT DEFAULT 60
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-        await self._execute('''CREATE TABLE IF NOT EXISTS chat_money_channels (
-            guild_id VARCHAR(255), channel_id BIGINT,
-            PRIMARY KEY (guild_id, channel_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-        await self._execute('''CREATE TABLE IF NOT EXISTS game_cooldowns (
-            guild_id VARCHAR(255), command VARCHAR(255), cooldown INT,
-            PRIMARY KEY (guild_id, command)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-        await self._execute('''CREATE TABLE IF NOT EXISTS work_phrases (
-            id INT AUTO_INCREMENT PRIMARY KEY, guild_id VARCHAR(255), phrase TEXT
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase
         self.role_income_task = self.bot.loop.create_task(self._role_income_loop())
+
+    async def ensure_user(self, uid, gid):
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        if not row:
+            await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+
+    async def get_balance(self, uid, gid):
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        return row.get("balance", 0) if row else 0
+
+    async def update_balance(self, uid, gid, delta):
+        await self.ensure_user(uid, gid)
+        cur = await self.get_balance(uid, gid)
+        new = max(0, min(self.max_balance, cur + delta))
+        await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "balance": new})
+        return new
+
+    async def get_bank(self, uid, gid):
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        return row.get("bank_balance", 0) if row else 0
+
+    async def update_bank(self, uid, gid, delta):
+        await self.ensure_user(uid, gid)
+        cur = await self.get_bank(uid, gid)
+        new = max(0, min(self.max_balance, cur + delta))
+        await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "bank_balance": new})
+        return new
 
     # ------- USER MANAGEMENT (FIXED: no warning) -------
     async def ensure_user(self, uid, gid):
@@ -215,8 +168,8 @@ class Economy(commands.Cog):
 
     # ------- HUNGER / MOOD -------
     async def get_hunger_mood(self, uid, gid):
-        row = await self._fetchone("SELECT hunger, mood FROM economy WHERE user_id=%s AND guild_id=%s", str(uid), str(gid))
-        return (row[0], row[1]) if row else (0, 0)
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        return (row.get("hunger", 0), row.get("mood", 0)) if row else (0, 0)
 
     async def set_hunger_mood(self, uid, gid, hunger=None, mood=None):
         updates = []
@@ -235,9 +188,9 @@ class Economy(commands.Cog):
     async def get_discord_level(self, uid, gid):
         level_cog = self.bot.get_cog("Leveling")
         if level_cog:
-            row = await self._fetchone("SELECT level FROM levels WHERE user_id=%s AND guild_id=%s", str(uid), str(gid))
+            row = await self.get_data("levels", {"user_id": str(uid), "guild_id": str(gid)})
             if row:
-                return row[0]
+                return row.get("level", 1)
         return 1
 
     def get_job_for_level(self, lvl):
@@ -248,8 +201,8 @@ class Economy(commands.Cog):
 
     # ------- PRISON / BANK PROTECTION -------
     async def is_in_prison(self, uid, gid):
-        row = await self._fetchone("SELECT prison_until FROM economy WHERE user_id=%s AND guild_id=%s", str(uid), str(gid))
-        return row and row[0] and row[0] > int(time.time())
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        return row and row.get("prison_until") and row["prison_until"] > int(time.time())
 
     async def set_prison(self, uid, gid, hours=2):
         until = int(time.time()) + (hours * 3600)

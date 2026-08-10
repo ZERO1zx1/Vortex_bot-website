@@ -1,60 +1,55 @@
-# Gurten | LGC Discord Bot
+# 🛡️ Gurten Discord Bot (Modernized)
 
-Монголын анхны бүрэн функцт, олон төрлийн командуудтай Discord бот.  
-Эдийн засаг, тоглоом, түвшин, хөгжилтэй үйлдлүүд, модераци, гэр бүл, дуут суваг, зах зээл зэрэг олон системтэй.
+A feature-rich Discord bot modernized with Python and Supabase for high-performance data persistence and scalability.
 
----
+## ✨ Features
+- **Economy System**: Comprehensive economy with jobs, crimes, banking, and global stats.
+- **Leveling & XP**: Advanced leveling system with customizable rank cards and XP drops.
+- **Moderation**: Robust moderation tools with staff activity tracking and warning systems.
+- **Social & Fun**: Marriage, adoptions, casino games (Blackjack), counting, and confessions.
+- **Customizable**: Guild-specific configurations for almost every module.
 
-## ✨ Шинэчлэгдсэн бүтэц (Refactored Structure)
+## 🚀 Modernization Highlights
+- **Supabase Integration**: Replaced legacy MySQL/SQLite with Supabase (PostgreSQL) for better reliability and ease of management.
+- **Refactored Architecture**: Introduced `SupabaseCog` base class and `SupabaseManager` for clean database interactions.
+- **Feature Restoration**: Restored high-quality legacy features like `casino`, `register`, and `greetings`.
+- **Interaction Safety**: Improved UI components with better acknowledgement checks and error handling.
 
-Төслийн файлыг илүү эмх цэгцтэй, удирдахад хялбар болгож шинэчиллээ:
-- **`main.py`**: Ботыг ажиллуулах үндсэн файл.
-- **`database/`**: Өгөгдлийн сангийн удирдлага болон хүснэгтийн тохиргоо (Manager & Schema).
-- **`utils/`**: Туслах функцууд болон тогтмол утгууд (Constants & Font Utils).
-- **`assets/`**: Бүх медиа файлууд (GIF, Fonts, Assets).
-- **`cogs/`**: Ботын бүх функцүүд (Cogs).
+## 🛠️ Installation
 
----
+### 1. Prerequisites
+- Python 3.10+
+- Supabase Project (URL and Service Role Key)
+- Discord Bot Token
 
-## ⚙️ Суулгах ба Ажиллуулах
-
-1. **Шаардлагатай пакетуудыг суулгах:**
+### 2. Setup
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/ZERO1zx1/gurtendev.git
+   cd gurtendev
+   ```
+2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
+3. Configure environment variables:
+   - Copy `.env.example` to `.env`.
+   - Fill in your `DISCORD_TOKEN`, `SUPABASE_URL`, and `SUPABASE_KEY`.
 
-2. **Орчны хувьсагчуудыг тохируулах:**
-   `.env` файл үүсгэж, дараах утгуудыг оруулна.
-   ```env
-   DISCORD_TOKEN=your_bot_token_here
-   MYSQLHOST=localhost
-   MYSQLPORT=3306
-   MYSQLUSER=root
-   MYSQLPASSWORD=your_mysql_password
-   MYSQLDATABASE=bot_db
-   ```
+### 3. Database Setup
+- Apply the schema provided in `database/supabase_schema.sql` to your Supabase project via the SQL Editor in the Supabase Dashboard.
 
-3. **Ботыг ажиллуулах:**
-   ```bash
-   python main.py
-   ```
+### 4. Run the Bot
+```bash
+python main.py
+```
 
----
+## 📜 Documentation
+- Detailed documentation for each module can be found in the `docs/` directory (coming soon).
+- Use `ghelp` in Discord to see all available commands.
 
-## 📋 Командуудын жагсаалт
+## 🤝 Contributing
+Contributions are welcome! Please open an issue or submit a pull request for any improvements.
 
-Бүх командууд `g` эсвэл `G` үсгээр эхлэнэ. Мөн `/` слаш командууд идэвхтэй.
-
-| Команд | Тайлбар |
-|--------|---------|
-| `gbalance` | Үлдэгдэл харах |
-| `gwork` | Ажил хийх |
-| `gdaily` | Өдрийн урамшуулал |
-| `gstatus` | Ботын төлөв харах (Шинэ!) |
-| `grank` | Түвшин карт харах |
-| `ghelp` | Тусламж |
-
----
-
-**Gurten | LGC** – Discord серверээ амьд, хөгжилтэй, бүрэн удирдаарай!
-"# gurtendev" 
+## 📄 License
+This project is licensed under the MIT License.

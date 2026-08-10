@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands, ui
 from discord.ui import View, Button
+from utils.supabase_cog import SupabaseCog
 from discord import ButtonStyle
 import time
 import datetime
@@ -268,76 +269,26 @@ class MarriageRoleModal(ui.Modal, title="Гэрлэлтийн роль ID"):
         except: await interaction.response.send_message("❌ Буруу ID.", ephemeral=True)
 
 # ══════════════ ҮНДСЭН COG ══════════════
-class Marriage(commands.Cog):
+class Marriage(SupabaseCog):
     def __init__(self, bot):
         self.bot = bot
 
     async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS marriages (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id VARCHAR(255), partner_id VARCHAR(255), guild_id VARCHAR(255),
-                    marriage_date BIGINT, ring_name VARCHAR(100), ring_emoji VARCHAR(100),
-                    love_points INT DEFAULT 0,
-                    UNIQUE KEY unique_marriage (user_id, partner_id, guild_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS adoptions (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    guild_id VARCHAR(255), parent_id VARCHAR(255), child_id VARCHAR(255),
-                    type VARCHAR(20) DEFAULT 'adoption',
-                    adopted_since BIGINT,
-                    UNIQUE KEY unique_adoption (guild_id, parent_id, child_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS marriage_proposals (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    guild_id VARCHAR(255), from_id VARCHAR(255), to_id VARCHAR(255),
-                    proposal_type VARCHAR(20), ring_id INT, expires_at BIGINT,
-                    UNIQUE KEY unique_proposal (guild_id, to_id, proposal_type)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS marriage_user_settings (
-                    guild_id VARCHAR(255), user_id VARCHAR(255),
-                    blocked TINYINT(1) DEFAULT 0, auto_accept_marriage TINYINT(1) DEFAULT 0,
-                    last_love_daily BIGINT, last_gift_daily BIGINT,
-                    PRIMARY KEY (guild_id, user_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS marriage_gifts (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    guild_id VARCHAR(255), from_id VARCHAR(255), to_id VARCHAR(255),
-                    gift_type VARCHAR(50), love_points INT, given_at BIGINT
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS marriage_guild_config (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    enabled TINYINT(1) DEFAULT 1, polygamy TINYINT(1) DEFAULT 0,
-                    max_spouses INT DEFAULT 1, announce_channel BIGINT, marriage_role BIGINT
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                # Нэмэлт баганууд
-                for col, dtype in [("announce_channel", "BIGINT"), ("marriage_role", "BIGINT")]:
-                    try: await cur.execute(f"ALTER TABLE marriage_guild_config ADD COLUMN {col} {dtype}")
-                    except: pass
-                try: await cur.execute("ALTER TABLE adoptions ADD COLUMN type VARCHAR(20) DEFAULT 'adoption'")
-                except: pass
+        # Tables are pre-configured in Supabase
+        pass
 
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase
+        pass
 
-    async def _execute(self, query, *params):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, params)
-                await conn.commit()
+    async def _execute(self, table, data):
+        return await self.update_data(table, data)
 
-    async def _fetchone(self, query, *params):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, params)
-                return await cur.fetchone()
+    async def _fetchone(self, table, query_filter):
+        return await self.get_data(table, query_filter)
 
-    async def _fetchall(self, query, *params):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, params)
-                return await cur.fetchall()
+    async def _fetchall(self, table, query_filter=None):
+        return await self.get_all_data(table, query_filter)
 
     # ═════════ ХЭРЭГЛЭГЧИЙН ФУНКЦУУД ═════════
     async def get_guild_config(self, guild_id):

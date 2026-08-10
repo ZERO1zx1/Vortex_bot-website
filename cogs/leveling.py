@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 import aiohttp, discord
 from discord.ext import commands, tasks
 from discord import ui
+from utils.supabase_cog import SupabaseCog
 from PIL import Image, ImageDraw, ImageFont
 from PIL.Image import Resampling
 
@@ -163,11 +164,8 @@ def _load_asset_font(size: int, bold: bool = True):
         return ImageFont.load_default()
 
 # ---------- Config load/save ----------
-async def get_config(db, guild_id: int) -> Dict[str, Any]:
-    async with db.acquire() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("SELECT * FROM leveling_config WHERE guild_id = %s", (str(guild_id),))
-            row = await cur.fetchone()
+async def get_config(db_manager, guild_id: int) -> Dict[str, Any]:
+    row = await db_manager.fetchone("leveling_config", {"guild_id": str(guild_id)})
     if not row:
         return {
             "enabled": True, "announce_channel": None, "voice_xp_enabled": True,
@@ -208,44 +206,33 @@ async def get_config(db, guild_id: int) -> Dict[str, Any]:
         "marriage_bonus": _safe_float(data.get("marriage_bonus"), 0.1),
     }
 
-async def set_config(db, guild_id: int, cfg: Dict[str, Any]):
-    async with db.acquire() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("""
-                INSERT INTO leveling_config
-                (guild_id, enabled, announce_channel, voice_xp_enabled,
-                 prog_type, prog_base, prog_step, xp_tiers,
-                 xp_media, xp_reaction, xp_voice_silent, xp_voice_talking,
-                 msg_cooldown, react_cooldown, background_url,
-                 xp_drop_enabled, xp_drop_channel, xp_drop_min, xp_drop_max, xp_drop_interval,
-                 cafe_buff_enabled, invite_xp, marriage_bonus)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                ON DUPLICATE KEY UPDATE
-                    enabled = VALUES(enabled), announce_channel = VALUES(announce_channel),
-                    voice_xp_enabled = VALUES(voice_xp_enabled), prog_type = VALUES(prog_type),
-                    prog_base = VALUES(prog_base), prog_step = VALUES(prog_step),
-                    xp_tiers = VALUES(xp_tiers), xp_media = VALUES(xp_media),
-                    xp_reaction = VALUES(xp_reaction), xp_voice_silent = VALUES(xp_voice_silent),
-                    xp_voice_talking = VALUES(xp_voice_talking), msg_cooldown = VALUES(msg_cooldown),
-                    react_cooldown = VALUES(react_cooldown), background_url = VALUES(background_url),
-                    xp_drop_enabled = VALUES(xp_drop_enabled), xp_drop_channel = VALUES(xp_drop_channel),
-                    xp_drop_min = VALUES(xp_drop_min), xp_drop_max = VALUES(xp_drop_max),
-                    xp_drop_interval = VALUES(xp_drop_interval), cafe_buff_enabled = VALUES(cafe_buff_enabled),
-                    invite_xp = VALUES(invite_xp), marriage_bonus = VALUES(marriage_bonus)
-            """, (
-                str(guild_id), int(cfg.get("enabled",True)), cfg.get("announce_channel"),
-                int(cfg.get("voice_xp_enabled",True)), cfg.get("prog_type","arithmetic"),
-                int(cfg.get("prog_base",100)), float(cfg.get("prog_step",150)),
-                json.dumps(cfg.get("xp_tiers",DEFAULT_XP_TIERS)),
-                int(cfg.get("xp_media",15)), int(cfg.get("xp_reaction",1)),
-                int(cfg.get("xp_voice_silent",5)), int(cfg.get("xp_voice_talking",15)),
-                int(cfg.get("msg_cooldown",60)), int(cfg.get("react_cooldown",10)),
-                cfg.get("background_url"), int(cfg.get("xp_drop_enabled",False)),
-                cfg.get("xp_drop_channel"), int(cfg.get("xp_drop_min",100)),
-                int(cfg.get("xp_drop_max",500)), int(cfg.get("xp_drop_interval",3600)),
-                int(cfg.get("cafe_buff_enabled",True)), int(cfg.get("invite_xp",0)),
-                float(cfg.get("marriage_bonus",0.1)),
-            ))
+async def set_config(db_manager, guild_id: int, cfg: Dict[str, Any]):
+    data = {
+        "guild_id": str(guild_id),
+        "enabled": bool(cfg.get("enabled", True)),
+        "announce_channel": cfg.get("announce_channel"),
+        "voice_xp_enabled": bool(cfg.get("voice_xp_enabled", True)),
+        "prog_type": cfg.get("prog_type", "arithmetic"),
+        "prog_base": int(cfg.get("prog_base", 100)),
+        "prog_step": float(cfg.get("prog_step", 150)),
+        "xp_tiers": json.dumps(cfg.get("xp_tiers", DEFAULT_XP_TIERS)),
+        "xp_media": int(cfg.get("xp_media", 15)),
+        "xp_reaction": int(cfg.get("xp_reaction", 1)),
+        "xp_voice_silent": int(cfg.get("xp_voice_silent", 5)),
+        "xp_voice_talking": int(cfg.get("xp_voice_talking", 15)),
+        "msg_cooldown": int(cfg.get("msg_cooldown", 60)),
+        "react_cooldown": int(cfg.get("react_cooldown", 10)),
+        "background_url": cfg.get("background_url"),
+        "xp_drop_enabled": bool(cfg.get("xp_drop_enabled", False)),
+        "xp_drop_channel": cfg.get("xp_drop_channel"),
+        "xp_drop_min": int(cfg.get("xp_drop_min", 100)),
+        "xp_drop_max": int(cfg.get("xp_drop_max", 500)),
+        "xp_drop_interval": int(cfg.get("xp_drop_interval", 3600)),
+        "cafe_buff_enabled": bool(cfg.get("cafe_buff_enabled", True)),
+        "invite_xp": int(cfg.get("invite_xp", 0)),
+        "marriage_bonus": float(cfg.get("marriage_bonus", 0.1))
+    }
+    await db_manager.execute("leveling_config", data)
 
 # ---------- Rank card renderer (DiscordLevelingCard) ----------
 async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, background_url=None):
@@ -516,7 +503,7 @@ class LevelingSetupView(ui.View):
         await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
 
 # ================== MAIN COG ==================
-class Leveling(commands.Cog):
+class Leveling(SupabaseCog):
     def __init__(self, bot):
         self.bot = bot
         self.session: Optional[aiohttp.ClientSession] = None
@@ -528,7 +515,6 @@ class Leveling(commands.Cog):
         self.xp_drop_task = None
 
     async def cog_load(self):
-        await self.init_db()
         self.session = aiohttp.ClientSession()
         self.voice_task = asyncio.create_task(self._voice_xp_loop())
         self.xp_drop_task = self.xp_drop_loop.start()
@@ -539,41 +525,8 @@ class Leveling(commands.Cog):
         if self.session: await self.session.close()
 
     async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("""CREATE TABLE IF NOT EXISTS levels (
-                    user_id VARCHAR(255), guild_id VARCHAR(255),
-                    xp BIGINT DEFAULT 0, level INT DEFAULT 1,
-                    message_count INT DEFAULT 0, voice_seconds BIGINT DEFAULT 0,
-                    reaction_count INT DEFAULT 0, PRIMARY KEY (user_id, guild_id)) ENGINE=InnoDB""")
-                await cur.execute("""CREATE TABLE IF NOT EXISTS leveling_config (
-                    guild_id VARCHAR(255) PRIMARY KEY, enabled TINYINT DEFAULT 1,
-                    announce_channel BIGINT, voice_xp_enabled TINYINT DEFAULT 1,
-                    prog_type VARCHAR(20) DEFAULT 'arithmetic', prog_base INT DEFAULT 100,
-                    prog_step FLOAT DEFAULT 150, xp_tiers TEXT, xp_media INT DEFAULT 15,
-                    xp_reaction INT DEFAULT 1, xp_voice_silent INT DEFAULT 5,
-                    xp_voice_talking INT DEFAULT 15, msg_cooldown INT DEFAULT 60,
-                    react_cooldown INT DEFAULT 10, background_url TEXT,
-                    xp_drop_enabled TINYINT DEFAULT 0, xp_drop_channel BIGINT,
-                    xp_drop_min INT DEFAULT 100, xp_drop_max INT DEFAULT 500,
-                    xp_drop_interval INT DEFAULT 3600, cafe_buff_enabled TINYINT DEFAULT 1,
-                    invite_xp INT DEFAULT 0, marriage_bonus FLOAT DEFAULT 0.1) ENGINE=InnoDB""")
-                await cur.execute("""CREATE TABLE IF NOT EXISTS leveling_exceptions (
-                    guild_id VARCHAR(255), type VARCHAR(10), target_id BIGINT,
-                    PRIMARY KEY (guild_id, type, target_id)) ENGINE=InnoDB""")
-                await cur.execute("""CREATE TABLE IF NOT EXISTS level_roles (
-                    guild_id VARCHAR(255), level INT, role_id BIGINT,
-                    PRIMARY KEY (guild_id, level)) ENGINE=InnoDB""")
-                await cur.execute("""CREATE TABLE IF NOT EXISTS level_rewards (
-                    guild_id VARCHAR(255), level INT, money INT DEFAULT 0,
-                    PRIMARY KEY (guild_id, level)) ENGINE=InnoDB""")
-                # Add missing columns if they don't exist
-                for col, dtype in [("message_count","INT DEFAULT 0"),("voice_seconds","BIGINT DEFAULT 0"),("reaction_count","INT DEFAULT 0")]:
-                    try: await cur.execute(f"ALTER TABLE levels ADD COLUMN {col} {dtype}")
-                    except: pass
-                for col, dtype in [("cafe_buff_enabled","TINYINT DEFAULT 1"),("invite_xp","INT DEFAULT 0"),("marriage_bonus","FLOAT DEFAULT 0.1")]:
-                    try: await cur.execute(f"ALTER TABLE leveling_config ADD COLUMN {col} {dtype}")
-                    except: pass
+        # Tables are pre-configured in Supabase
+        pass
 
     def _on_cooldown(self, storage, user_id, seconds, guild_id=0):
         now = time.monotonic()
@@ -588,7 +541,7 @@ class Leveling(commands.Cog):
         try:
             cafe = self.bot.get_cog("Cafe")
             if cafe:
-                cfg = await get_config(self.bot.db, guild_id)
+                cfg = await get_config(self.db, guild_id)
                 if cfg.get("cafe_buff_enabled", True) and hasattr(cafe, 'get_buff'):
                     buff = cafe.get_buff(user_id, guild_id)
                     if asyncio.iscoroutine(buff): buff = await buff
@@ -622,7 +575,7 @@ class Leveling(commands.Cog):
                 xp, level = row if row else (0,1)
                 old_level = level
                 new_xp = xp + amount
-                cfg = await get_config(self.bot.db, guild_id)
+                cfg = await get_config(self.db, guild_id)
                 leveled_up = False
                 while new_xp < 0 and level > 1:
                     level -= 1
@@ -704,7 +657,7 @@ class Leveling(commands.Cog):
                 row = await cur.fetchone()
         if not row: return 0
         xp, level = row
-        cfg = await get_config(self.bot.db, guild_id)
+        cfg = await get_config(self.db, guild_id)
         return sum(xp_for_level(l,cfg) for l in range(level)) + xp
     async def get_level(self, user_id, guild_id):
         async with self.bot.db.acquire() as conn:
@@ -723,7 +676,7 @@ class Leveling(commands.Cog):
     async def set_xp(self, user_id, guild_id, xp):
         async with self.bot.db.acquire() as conn:
             async with conn.cursor() as cur:
-                cfg = await get_config(self.bot.db, guild_id)
+                cfg = await get_config(self.db, guild_id)
                 level = 1; remaining = xp
                 while True:
                     needed = xp_for_level(level, cfg)
@@ -749,7 +702,7 @@ class Leveling(commands.Cog):
         return "Домог", "👑"
 
     async def award_invite_xp(self, inviter_id, guild_id):
-        cfg = await get_config(self.bot.db, guild_id)
+        cfg = await get_config(self.db, guild_id)
         xp_reward = cfg.get("invite_xp", 0)
         if xp_reward > 0:
             guild = self.bot.get_guild(guild_id)

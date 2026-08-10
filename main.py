@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 # Local imports
 from config_manager import load_config
-from database.manager import DatabaseManager
+from database.supabase_manager import SupabaseManager as DatabaseManager
 from database.schema import TABLES, ALTER_QUERIES, INDEXES
 from utils.constants import PREFIXES
 
@@ -29,6 +29,7 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix=PREFIXES, intents=intents, help_command=None)
         
         self.db_manager = DatabaseManager()
+        self.db = None
         self.owner_ids = set()
         owner = config.get("owner_id")
         if owner:
@@ -40,26 +41,16 @@ class MyBot(commands.Bot):
         self.config = config
 
     async def setup_hook(self):
-        # Connect to Database
-        max_retries = 5
-        for attempt in range(max_retries):
-            try:
-                self.db = await self.db_manager.connect()
-                print(f"✅ MySQL connected (Attempt {attempt+1})")
-                break
-            except Exception as e:
-                print(f"Waiting for MySQL... ({attempt+1}/{max_retries}) - {e}")
-                if attempt == max_retries - 1:
-                    raise RuntimeError("Could not connect to MySQL") from e
-                await asyncio.sleep(5)
+        # Connect to Supabase
+        try:
+            self.db = self.db_manager.connect()
+            print("✅ Supabase connected")
+        except Exception as e:
+            print(f"❌ Supabase connection error: {e}")
+            raise RuntimeError("Could not connect to Supabase") from e
 
-        # Initialize Tables
-        await self.db_manager.init_tables(TABLES)
-        for query in ALTER_QUERIES + INDEXES:
-            try:
-                await self.db_manager.execute(query)
-            except:
-                pass
+        # Initialize Tables (Handled via Dashboard/Migrations)
+        await self.db_manager.init_tables()
 
         # Load Cogs
         print("\n📂 Loading Cogs...")
@@ -69,7 +60,7 @@ class MyBot(commands.Bot):
             "help", "invite_tracker", "leveling", "mafia", "mines",
             "moderation", "pvp", "roles", "shop", "stock",
             "stick", "marriage", "announcement", "tempvoice", "trade",
-            "quests", "leaderboard"
+            "quests", "leaderboard", "casino", "register", "greetings"
         ]
 
         for cog in cogs_to_load:
