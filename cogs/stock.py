@@ -100,19 +100,8 @@ class Stock(commands.Cog):
         self.daily_restock.cancel()
 
     # ================== ӨГӨГДЛИЙН САНГИЙН ТОХИРГОО ==================
-    async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS shop_stock (
-                    guild_id VARCHAR(255),
-                    item_id INT,
-                    current_stock INT DEFAULT 0,
-                    last_restock BIGINT,
-                    PRIMARY KEY (guild_id, item_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase via SQL migrations
         for guild in self.bot.guilds:
             await self.ensure_stocks_for_guild(guild.id)
 
@@ -141,15 +130,19 @@ class Stock(commands.Cog):
     # ================== СЕРВЕРИЙГ ЭХЛҮҮЛЭХ (ЗАСВАР: INSERT IGNORE) ==================
     async def _ensure_item_stock(self, guild_id: int, item_id: int):
         """Нэг барааны мөр байхгүй бол санамсаргүй нөөцтэй үүсгэх."""
+        existing = await self.bot.db_manager.fetch_one(
+            "shop_stock", {"guild_id": str(guild_id), "item_id": str(item_id)}
+        )
+        if existing:
+            return
         lo, hi = self._get_range(item_id)
         random_stock = random.randint(lo, hi)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT IGNORE INTO shop_stock (guild_id, item_id, current_stock, last_restock) "
-                    "VALUES (%s, %s, %s, %s)",
-                    (str(guild_id), item_id, random_stock, int(datetime.datetime.now().timestamp()))
-                )
+        await self.bot.db_manager.insert("shop_stock", {
+            "guild_id": str(guild_id),
+            "item_id": item_id,
+            "current_stock": random_stock,
+            "last_restock": int(datetime.datetime.now().timestamp()),
+        })
 
     async def ensure_stocks_for_guild(self, guild_id: int):
         """Дутуу бараануудыг санамсаргүй нөөцтэй оруулах."""
@@ -159,42 +152,42 @@ class Stock(commands.Cog):
     # ================== НЭЭЛТТЭЙ API (УРАЛДААНЫ АЮУЛГҮЙ) ==================
     async def get_stock(self, guild_id, item_id):
         """Одоогийн нөөцийг унших. Хэрэв мөр байхгүй бол 0 буцаана."""
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT current_stock FROM shop_stock WHERE guild_id = %s AND item_id = %s",
-                    (str(guild_id), item_id)
-                )
-                row = await cur.fetchone()
-        return row[0] if row else 0
+        row = await self.bot.db_manager.fetch_one(
+            "shop_stock", {"guild_id": str(guild_id), "item_id": str(item_id)}
+        )
+        return row.get("current_stock", 0) or 0 if row else 0
 
     async def consume_stock(self, guild_id, item_id, quantity=1):
         """
         Атомар байдлаар нөөц хасах.
         Амжилттай бол True, хүрэлцэхгүй эсвэл бараа байхгүй бол False буцаана.
         """
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "UPDATE shop_stock SET current_stock = current_stock - %s "
-                    "WHERE guild_id = %s AND item_id = %s AND current_stock >= %s",
-                    (quantity, str(guild_id), item_id, quantity)
-                )
-                return cur.rowcount > 0
+        row = await self.bot.db_manager.fetch_one(
+            "shop_stock", {"guild_id": str(guild_id), "item_id": str(item_id)}
+        )
+        if not row or (row.get("current_stock", 0) or 0) < quantity:
+            return False
+        await self.bot.db_manager.update(
+            "shop_stock",
+            {"guild_id": str(guild_id), "item_id": str(item_id)},
+            {"current_stock": (row.get("current_stock", 0) or 0) - quantity},
+        )
+        return True
 
     async def set_stock(self, guild_id, item_id, amount):
         """
         Нөөцийг яг тодорхой хэмжээнд тавих. Хэрэв мөр байхгүй бол үүсгэнэ.
         """
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO shop_stock (guild_id, item_id, current_stock, last_restock) "
-                    "VALUES (%s, %s, %s, %s) "
-                    "ON DUPLICATE KEY UPDATE current_stock = %s, last_restock = %s",
-                    (str(guild_id), item_id, amount, int(datetime.datetime.now().timestamp()),
-                     amount, int(datetime.datetime.now().timestamp()))
-                )
+        await self.bot.db_manager.upsert(
+            "shop_stock",
+            {
+                "guild_id": str(guild_id),
+                "item_id": item_id,
+                "current_stock": amount,
+                "last_restock": int(datetime.datetime.now().timestamp()),
+            },
+            on_conflict="guild_id,item_id",
+        )
 
     # ================== ӨДӨР БҮРИЙН НӨӨЦ ШИНЭЧЛЭЛТ ==================
     @tasks.loop(hours=24)
@@ -203,22 +196,18 @@ class Stock(commands.Cog):
         now_ts = int(datetime.datetime.now().timestamp())
         for guild in self.bot.guilds:
             await self.ensure_stocks_for_guild(guild.id)
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(
-                        "SELECT item_id FROM shop_stock WHERE guild_id = %s",
-                        (str(guild.id),)
-                    )
-                    rows = await cur.fetchall()
-                for (item_id,) in rows:
-                    lo, hi = self._get_range(item_id)
-                    random_val = random.randint(lo, hi)
-                    async with conn.cursor() as cur:
-                        await cur.execute(
-                            "UPDATE shop_stock SET current_stock = %s, last_restock = %s "
-                            "WHERE guild_id = %s AND item_id = %s",
-                            (random_val, now_ts, str(guild.id), item_id)
-                        )
+            stock_rows = await self.bot.db_manager.fetch_all(
+                "shop_stock", {"guild_id": str(guild.id)}
+            )
+            for row in stock_rows:
+                item_id = row.get("item_id")
+                lo, hi = self._get_range(item_id)
+                random_val = random.randint(lo, hi)
+                await self.bot.db_manager.update(
+                    "shop_stock",
+                    {"guild_id": str(guild.id), "item_id": item_id},
+                    {"current_stock": random_val, "last_restock": now_ts},
+                )
         logger.info("Өдөр бүрийн нөөц шинэчлэлт бүх серверт хийгдлээ.")
 
     @daily_restock.before_loop
@@ -251,13 +240,11 @@ class Stock(commands.Cog):
     @stock_group.command(name='status', description="Одоогийн нөөцийн түвшинг харуулах")
     async def stock_status(self, ctx):
         await self.ensure_stocks_for_guild(ctx.guild.id)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT item_id, current_stock FROM shop_stock WHERE guild_id = %s ORDER BY item_id",
-                    (str(ctx.guild.id),)
-                )
-                rows = await cur.fetchall()
+        stock_rows = await self.bot.db_manager.fetch_all(
+            "shop_stock", {"guild_id": str(ctx.guild.id)},
+            order_by="item_id",
+        )
+        rows = [(r["item_id"], r.get("current_stock", 0) or 0) for r in stock_rows]
 
         if not rows:
             return await self._send_hybrid(ctx, embed=discord.Embed(
@@ -314,17 +301,18 @@ class Stock(commands.Cog):
     async def stock_add(self, ctx, item_id: int, amount: int):
         if amount <= 0:
             return await self._send_hybrid(ctx, "❌ Нэмэх тоо эерэг байх ёстой.", ephemeral=True)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "UPDATE shop_stock SET current_stock = current_stock + %s "
-                    "WHERE guild_id = %s AND item_id = %s",
-                    (amount, str(ctx.guild.id), item_id)
-                )
-                if cur.rowcount == 0:
-                    return await self._send_hybrid(
-                        ctx, "❌ Бараа олдсонгүй. Эхлээд `/stock set` ашиглана уу.", ephemeral=True
-                    )
+        row = await self.bot.db_manager.fetch_one(
+            "shop_stock", {"guild_id": str(ctx.guild.id), "item_id": str(item_id)}
+        )
+        if not row:
+            return await self._send_hybrid(
+                ctx, "❌ Бараа олдсонгүй. Эхлээд `/stock set` ашиглана уу.", ephemeral=True
+            )
+        await self.bot.db_manager.update(
+            "shop_stock",
+            {"guild_id": str(ctx.guild.id), "item_id": str(item_id)},
+            {"current_stock": (row.get("current_stock", 0) or 0) + amount},
+        )
         current = await self.get_stock(ctx.guild.id, item_id)
         await self._send_hybrid(ctx, f"✅ {item_id} бараанд {amount} нэмэгдлээ (одоо {current}).", ephemeral=True)
 
@@ -335,19 +323,19 @@ class Stock(commands.Cog):
     async def stock_remove(self, ctx, item_id: int, amount: int):
         if amount <= 0:
             return await self._send_hybrid(ctx, "❌ Хасах тоо эерэг байх ёстой.", ephemeral=True)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "UPDATE shop_stock SET current_stock = current_stock - %s "
-                    "WHERE guild_id = %s AND item_id = %s AND current_stock >= %s",
-                    (amount, str(ctx.guild.id), item_id, amount)
-                )
-                if cur.rowcount == 0:
-                    exists = await self.get_stock(ctx.guild.id, item_id)
-                    if exists is not None and exists < amount:
-                        return await self._send_hybrid(ctx, "❌ Нөөц хүрэлцэхгүй.", ephemeral=True)
-                    else:
-                        return await self._send_hybrid(ctx, "❌ Бараа олдсонгүй.", ephemeral=True)
+        row = await self.bot.db_manager.fetch_one(
+            "shop_stock", {"guild_id": str(ctx.guild.id), "item_id": str(item_id)}
+        )
+        if not row:
+            return await self._send_hybrid(ctx, "❌ Бараа олдсонгүй.", ephemeral=True)
+        exists = row.get("current_stock", 0) or 0
+        if exists < amount:
+            return await self._send_hybrid(ctx, "❌ Нөөц хүрэлцэхгүй.", ephemeral=True)
+        await self.bot.db_manager.update(
+            "shop_stock",
+            {"guild_id": str(ctx.guild.id), "item_id": str(item_id)},
+            {"current_stock": exists - amount},
+        )
         current = await self.get_stock(ctx.guild.id, item_id)
         await self._send_hybrid(ctx, f"✅ {item_id} бараанаас {amount} хасагдлаа (одоо {current}).", ephemeral=True)
 
@@ -357,22 +345,18 @@ class Stock(commands.Cog):
     async def stock_reset(self, ctx):
         await self.ensure_stocks_for_guild(ctx.guild.id)
         now_ts = int(datetime.datetime.now().timestamp())
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT item_id FROM shop_stock WHERE guild_id = %s",
-                    (str(ctx.guild.id),)
-                )
-                rows = await cur.fetchall()
-            for (item_id,) in rows:
-                lo, hi = self._get_range(item_id)
-                random_val = random.randint(lo, hi)
-                async with conn.cursor() as cur:
-                    await cur.execute(
-                        "UPDATE shop_stock SET current_stock = %s, last_restock = %s "
-                        "WHERE guild_id = %s AND item_id = %s",
-                        (random_val, now_ts, str(ctx.guild.id), item_id)
-                    )
+        stock_rows = await self.bot.db_manager.fetch_all(
+            "shop_stock", {"guild_id": str(ctx.guild.id)}
+        )
+        for row in stock_rows:
+            item_id = row.get("item_id")
+            lo, hi = self._get_range(item_id)
+            random_val = random.randint(lo, hi)
+            await self.bot.db_manager.update(
+                "shop_stock",
+                {"guild_id": str(ctx.guild.id), "item_id": item_id},
+                {"current_stock": random_val, "last_restock": now_ts},
+            )
         await self._send_hybrid(ctx, "✅ Бүх нөөц санамсаргүй болгогдлоо.", ephemeral=True)
 
     @stock_group.command(name='refresh', description="Бүх серверийн нөөцийг дахин дүүргэх (админ)")

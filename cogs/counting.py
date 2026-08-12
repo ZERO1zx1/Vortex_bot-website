@@ -87,12 +87,11 @@ class RoleIDModal(ui.Modal, title="Роль ID оруулах"):
             "save": "save_role_id"
         }
         column = column_map[self.role_type]
-        async with self.view.cog.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    f"UPDATE counting_config SET {column} = %s WHERE guild_id = %s",
-                    (role.id, str(interaction.guild.id))
-                )
+        await self.view.cog.bot.db_manager.update(
+            "counting_config",
+            {"guild_id": str(interaction.guild.id)},
+            {column: role.id},
+        )
         await interaction.response.send_message(f"✅ {role.mention} роль тохируулагдлаа.", ephemeral=True)
         await self.view.refresh(interaction)
 
@@ -188,13 +187,11 @@ class CountingSetupView(ui.View):
     @ui.select(cls=ui.ChannelSelect, channel_types=[discord.ChannelType.text], placeholder="📢 Тоолох сувгаа сонго...", min_values=1, max_values=1, row=0)
     async def select_channel(self, interaction: discord.Interaction, select: ui.ChannelSelect):
         channel = select.values[0]
-        async with self.cog.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO counting_config (guild_id, channel_id) VALUES (%s, %s) "
-                    "ON DUPLICATE KEY UPDATE channel_id = %s, enabled = 1",
-                    (str(interaction.guild.id), channel.id, channel.id)
-                )
+        await self.cog.bot.db_manager.upsert(
+            "counting_config",
+            {"guild_id": str(interaction.guild.id), "channel_id": channel.id, "enabled": 1},
+            on_conflict="guild_id",
+        )
         await interaction.response.defer()
         await self.refresh(interaction)
 
@@ -206,12 +203,11 @@ class CountingSetupView(ui.View):
             await interaction.response.send_message("❌ Эхлээд сувгаа сонгоно уу.", ephemeral=True)
             return
         new_state = not cfg['enabled']
-        async with self.cog.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "UPDATE counting_config SET enabled = %s WHERE guild_id = %s",
-                    (int(new_state), str(interaction.guild.id))
-                )
+        await self.cog.bot.db_manager.update(
+            "counting_config",
+            {"guild_id": str(interaction.guild.id)},
+            {"enabled": int(new_state)},
+        )
         await interaction.response.defer()
         await self.refresh(interaction)
 
@@ -222,12 +218,11 @@ class CountingSetupView(ui.View):
             await interaction.response.send_message("❌ Эхлээд сувгаа сонгоно уу.", ephemeral=True)
             return
         new_state = not cfg['math_mode']
-        async with self.cog.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "UPDATE counting_config SET math_mode = %s WHERE guild_id = %s",
-                    (int(new_state), str(interaction.guild.id))
-                )
+        await self.cog.bot.db_manager.update(
+            "counting_config",
+            {"guild_id": str(interaction.guild.id)},
+            {"math_mode": int(new_state)},
+        )
         await interaction.response.defer()
         await self.refresh(interaction)
 
@@ -238,12 +233,11 @@ class CountingSetupView(ui.View):
             await interaction.response.send_message("❌ Эхлээд сувгаа сонгоно уу.", ephemeral=True)
             return
         new_state = not cfg['delete_messages']
-        async with self.cog.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "UPDATE counting_config SET delete_messages = %s WHERE guild_id = %s",
-                    (int(new_state), str(interaction.guild.id))
-                )
+        await self.cog.bot.db_manager.update(
+            "counting_config",
+            {"guild_id": str(interaction.guild.id)},
+            {"delete_messages": int(new_state)},
+        )
         await interaction.response.defer()
         await self.refresh(interaction)
 
@@ -272,10 +266,8 @@ class CountingSetupView(ui.View):
 
     @ui.button(label="🧹 Бүх тохиргоог устгах", style=discord.ButtonStyle.danger, row=3)
     async def reset_config(self, interaction: discord.Interaction, button: ui.Button):
-        async with self.cog.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM counting_config WHERE guild_id = %s", (str(interaction.guild.id),))
-                await cur.execute("DELETE FROM counting_progress WHERE guild_id = %s", (str(interaction.guild.id),))
+        await self.cog.bot.db_manager.delete("counting_config", {"guild_id": str(interaction.guild.id)})
+        await self.cog.bot.db_manager.delete("counting_progress", {"guild_id": str(interaction.guild.id)})
         await interaction.response.send_message("✅ Бүх тохиргоо устлаа.", ephemeral=True)
         await self.refresh(interaction)
 
@@ -293,147 +285,105 @@ class Counting(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def init_tables(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS counting_config (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    channel_id BIGINT,
-                    enabled TINYINT(1) DEFAULT 1,
-                    delete_messages TINYINT(1) DEFAULT 0,
-                    math_mode TINYINT(1) DEFAULT 0,
-                    failed_role_id BIGINT,
-                    reliable_role_id BIGINT,
-                    save_role_id BIGINT,
-                    high_score BIGINT DEFAULT 0,
-                    best_streak BIGINT DEFAULT 0
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS counting_progress (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    current_count BIGINT DEFAULT 0,
-                    last_user_id BIGINT,
-                    streak BIGINT DEFAULT 0
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS counting_stats (
-                    guild_id VARCHAR(255),
-                    user_id VARCHAR(255),
-                    correct INT DEFAULT 0,
-                    wrong INT DEFAULT 0,
-                    saves INT DEFAULT 0,
-                    strikes INT DEFAULT 0,
-                    best_streak INT DEFAULT 0,
-                    PRIMARY KEY (guild_id, user_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                for col, dtype in [("math_mode", "TINYINT(1) DEFAULT 0"),
-                                   ("save_role_id", "BIGINT"),
-                                   ("best_streak", "BIGINT DEFAULT 0")]:
-                    try: await cur.execute(f"ALTER TABLE counting_config ADD COLUMN {col} {dtype}")
-                    except: pass
-                try: await cur.execute("ALTER TABLE counting_progress ADD COLUMN streak BIGINT DEFAULT 0")
-                except: pass
-                try: await cur.execute("ALTER TABLE counting_stats ADD COLUMN best_streak INT DEFAULT 0")
-                except: pass
-
     async def cog_load(self):
-        await self.init_tables()
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
     # ---------- DB туслахууд ----------
     async def get_config(self, guild_id: int) -> Dict[str, Any]:
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT channel_id, enabled, delete_messages, math_mode, failed_role_id, "
-                    "reliable_role_id, save_role_id, high_score, best_streak FROM counting_config WHERE guild_id = %s",
-                    (str(guild_id),)
-                )
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one("counting_config", {"guild_id": str(guild_id)})
         if not row: return None
-        keys = ["channel_id", "enabled", "delete_messages", "math_mode",
-                "failed_role_id", "reliable_role_id", "save_role_id", "high_score", "best_streak"]
-        config = dict(zip(keys, row))
-        config["enabled"] = bool(config["enabled"])
-        config["delete_messages"] = bool(config["delete_messages"])
-        config["math_mode"] = bool(config["math_mode"])
-        config["high_score"] = config["high_score"] or 0
-        config["best_streak"] = config["best_streak"] or 0
+        config = {
+            "channel_id": row.get("channel_id"),
+            "enabled": bool(row.get("enabled", 1)),
+            "delete_messages": bool(row.get("delete_messages", 0)),
+            "math_mode": bool(row.get("math_mode", 0)),
+            "failed_role_id": row.get("failed_role_id"),
+            "reliable_role_id": row.get("reliable_role_id"),
+            "save_role_id": row.get("save_role_id"),
+            "high_score": row.get("high_score") or 0,
+            "best_streak": row.get("best_streak") or 0,
+        }
         return config
 
     async def get_progress(self, guild_id: int) -> Dict[str, Any]:
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT current_count, last_user_id, streak FROM counting_progress WHERE guild_id = %s",
-                    (str(guild_id),)
-                )
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one("counting_progress", {"guild_id": str(guild_id)})
         if not row: return {"current": 0, "last_user": None, "streak": 0}
-        return {"current": row[0], "last_user": row[1], "streak": row[2]}
+        return {"current": row.get("current_count", 0), "last_user": row.get("last_user_id"), "streak": row.get("streak", 0)}
 
     async def update_progress(self, guild_id: int, current: int, last_user: Optional[int], streak: int):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO counting_progress (guild_id, current_count, last_user_id, streak) "
-                    "VALUES (%s, %s, %s, %s) "
-                    "ON DUPLICATE KEY UPDATE current_count = %s, last_user_id = %s, streak = %s",
-                    (str(guild_id), current, last_user, streak, current, last_user, streak)
-                )
+        await self.bot.db_manager.upsert(
+            "counting_progress",
+            {
+                "guild_id": str(guild_id),
+                "current_count": current,
+                "last_user_id": last_user,
+                "streak": streak,
+            },
+            on_conflict="guild_id",
+        )
 
     async def reset_count(self, guild_id: int):
         await self.update_progress(guild_id, 0, None, 0)
 
     async def update_high_score(self, guild_id: int, new_score: int):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("UPDATE counting_config SET high_score = %s WHERE guild_id = %s",
-                                  (new_score, str(guild_id)))
+        await self.bot.db_manager.update(
+            "counting_config", {"guild_id": str(guild_id)}, {"high_score": new_score}
+        )
 
     async def update_best_streak(self, guild_id: int, new_streak: int):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("UPDATE counting_config SET best_streak = %s WHERE guild_id = %s",
-                                  (new_streak, str(guild_id)))
+        await self.bot.db_manager.update(
+            "counting_config", {"guild_id": str(guild_id)}, {"best_streak": new_streak}
+        )
 
     async def add_stats(self, guild_id: int, user_id: int, correct: bool, streak: int = 0):
         col = "correct" if correct else "wrong"
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    f"INSERT INTO counting_stats (guild_id, user_id, {col}) VALUES (%s, %s, 1) "
-                    f"ON DUPLICATE KEY UPDATE {col} = {col} + 1",
-                    (str(guild_id), str(user_id))
-                )
-                if correct:
-                    await cur.execute(
-                        "UPDATE counting_stats SET best_streak = GREATEST(best_streak, %s) "
-                        "WHERE guild_id = %s AND user_id = %s",
-                        (streak, str(guild_id), str(user_id))
-                    )
+        existing = await self.bot.db_manager.fetch_one(
+            "counting_stats", {"guild_id": str(guild_id), "user_id": str(user_id)}
+        )
+        if existing:
+            current = existing.get(col, 0) or 0
+            data = {col: current + 1}
+            if correct:
+                data["best_streak"] = max(existing.get("best_streak", 0) or 0, streak)
+            await self.bot.db_manager.update(
+                "counting_stats",
+                {"guild_id": str(guild_id), "user_id": str(user_id)},
+                data,
+            )
+        else:
+            data = {"guild_id": str(guild_id), "user_id": str(user_id), col: 1}
+            if correct:
+                data["best_streak"] = streak
+            await self.bot.db_manager.insert("counting_stats", data)
 
     async def add_save_stat(self, guild_id: int, user_id: int):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO counting_stats (guild_id, user_id, saves) VALUES (%s, %s, 1) "
-                    "ON DUPLICATE KEY UPDATE saves = saves + 1",
-                    (str(guild_id), str(user_id))
-                )
+        existing = await self.bot.db_manager.fetch_one(
+            "counting_stats", {"guild_id": str(guild_id), "user_id": str(user_id)}
+        )
+        if existing:
+            await self.bot.db_manager.update(
+                "counting_stats",
+                {"guild_id": str(guild_id), "user_id": str(user_id)},
+                {"saves": (existing.get("saves", 0) or 0) + 1},
+            )
+        else:
+            await self.bot.db_manager.insert("counting_stats", {
+                "guild_id": str(guild_id), "user_id": str(user_id), "saves": 1,
+            })
 
     # ========== PUBLIC API: LEADERBOARD ХОЛБОЛТ ==========
     async def get_top_counters(self, guild_id: int, limit=10, offset=0):
         """Хамгийн олон зөв тоолсон хэрэглэгчдийг буцаана (Leaderboard ког ашиглах)."""
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """SELECT user_id, correct
-                       FROM counting_stats
-                       WHERE guild_id = %s
-                       ORDER BY correct DESC
-                       LIMIT %s OFFSET %s""",
-                    (str(guild_id), limit, offset)
-                )
-                rows = await cur.fetchall()
-        return [(int(row[0]), row[1]) for row in rows]
+        rows = await self.bot.db_manager.fetch_all(
+            "counting_stats",
+            {"guild_id": str(guild_id)},
+            order_by="correct",
+            desc=True,
+            limit=limit,
+            offset=offset,
+        )
+        return [(int(r["user_id"]), r.get("correct", 0)) for r in rows]
 
     # ==================== ТООЛЛОГО СОНСОГЧ ====================
     @commands.Cog.listener()
@@ -510,18 +460,19 @@ class Counting(commands.Cog):
     @app_commands.command(name="count_stats_user", description="Хэрэглэгчийн тооллогын статистик")
     async def count_stats_user(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         target = member or interaction.user
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT correct, wrong, saves, strikes, best_streak FROM counting_stats "
-                    "WHERE guild_id = %s AND user_id = %s",
-                    (str(interaction.guild.id), str(target.id)))
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one(
+            "counting_stats",
+            {"guild_id": str(interaction.guild.id), "user_id": str(target.id)},
+        )
         if not row:
             embed = discord.Embed(title="📊 Тооллогын статистик",
                 description=f"{target.mention} одоогоор тооллогод оролцоогүй байна.", color=INFO_COLOR)
         else:
-            correct, wrong, saves, strikes, best_streak = row
+            correct = row.get("correct", 0) or 0
+            wrong = row.get("wrong", 0) or 0
+            saves = row.get("saves", 0) or 0
+            strikes = row.get("strikes", 0) or 0
+            best_streak = row.get("best_streak", 0) or 0
             total = correct + wrong
             accuracy = (correct / total * 100) if total > 0 else 0
             embed = discord.Embed(title=f"📊 {target.display_name} - ТООЛЛОГЫН СТАТИСТИК", color=INFO_COLOR)
@@ -576,7 +527,6 @@ class Counting(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     async def counting_setup(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        await self.init_tables()
         cfg = await self.get_config(interaction.guild.id)
         view = CountingSetupView(self, interaction.guild.id, interaction.user.id)
         embed = view.build_embed(cfg, interaction.guild)

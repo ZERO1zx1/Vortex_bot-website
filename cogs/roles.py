@@ -32,23 +32,8 @@ class RoleManagement(commands.Cog):
         except:
             pass
 
-    async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS temproles (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id VARCHAR(255),
-                    guild_id VARCHAR(255),
-                    role_id BIGINT,
-                    end_time BIGINT
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS temprole_config (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    max_duration_seconds INT DEFAULT 604800
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase via SQL migrations
         self.temprole_loop.start()
 
     def can_manage_role(self, guild, role):
@@ -175,11 +160,8 @@ class RoleManagement(commands.Cog):
             embed = discord.Embed(title="❌ Хүчингүй хугацаа", description="Эерэг тоо оруулна уу.", color=ERROR_COLOR)
             return await ctx.send(embed=embed)
 
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT max_duration_seconds FROM temprole_config WHERE guild_id = %s", (str(ctx.guild.id),))
-                cfg = await cur.fetchone()
-        max_sec = cfg[0] if cfg else 604800
+        cfg = await self.bot.db_manager.fetch_one("temprole_config", {"guild_id": str(ctx.guild.id)})
+        max_sec = cfg.get("max_duration_seconds", 604800) if cfg else 604800
         if seconds > max_sec:
             embed = discord.Embed(title="❌ Хэт урт хугацаа",
                                   description=f"Энэ серверт түр үүргийн хамгийн их хугацаа {max_sec//86400} хоног байна.",
@@ -188,23 +170,23 @@ class RoleManagement(commands.Cog):
 
         end_time = int((datetime.now(timezone.utc) + timedelta(seconds=seconds)).timestamp())
 
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id FROM temproles WHERE user_id = %s AND guild_id = %s AND role_id = %s",
-                    (str(user.id), str(ctx.guild.id), role.id)
-                )
-                existing = await cur.fetchone()
-                if existing:
-                    await cur.execute(
-                        "UPDATE temproles SET end_time = %s WHERE user_id = %s AND guild_id = %s AND role_id = %s",
-                        (end_time, str(user.id), str(ctx.guild.id), role.id)
-                    )
-                else:
-                    await cur.execute(
-                        "INSERT INTO temproles (user_id, guild_id, role_id, end_time) VALUES (%s, %s, %s, %s)",
-                        (str(user.id), str(ctx.guild.id), role.id, end_time)
-                    )
+        existing = await self.bot.db_manager.fetch_one(
+            "temproles",
+            {"user_id": str(user.id), "guild_id": str(ctx.guild.id), "role_id": str(role.id)},
+        )
+        if existing:
+            await self.bot.db_manager.update(
+                "temproles",
+                {"user_id": str(user.id), "guild_id": str(ctx.guild.id), "role_id": str(role.id)},
+                {"end_time": end_time},
+            )
+        else:
+            await self.bot.db_manager.insert("temproles", {
+                "user_id": str(user.id),
+                "guild_id": str(ctx.guild.id),
+                "role_id": str(role.id),
+                "end_time": end_time,
+            })
 
         if role not in user.roles:
             try:
@@ -246,25 +228,20 @@ class RoleManagement(commands.Cog):
     @commands.has_permissions(manage_roles=True)
     async def temprole_remove(self, ctx, user: discord.Member, role: discord.Role):
         await ctx.defer(ephemeral=False)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id FROM temproles WHERE user_id = %s AND guild_id = %s AND role_id = %s",
-                    (str(user.id), str(ctx.guild.id), role.id)
-                )
-                entry = await cur.fetchone()
+        entry = await self.bot.db_manager.fetch_one(
+            "temproles",
+            {"user_id": str(user.id), "guild_id": str(ctx.guild.id), "role_id": str(role.id)},
+        )
         if not entry:
             embed = discord.Embed(title="⚠️ Түр үүрэг биш",
                                   description=f"{user.mention} -д {role.mention} нь түр үүрэг биш (өгөгдлийн санд байхгүй).",
                                   color=WARNING_COLOR)
             return await ctx.send(embed=embed)
 
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "DELETE FROM temproles WHERE user_id = %s AND guild_id = %s AND role_id = %s",
-                    (str(user.id), str(ctx.guild.id), role.id)
-                )
+        await self.bot.db_manager.delete(
+            "temproles",
+            {"user_id": str(user.id), "guild_id": str(ctx.guild.id), "role_id": str(role.id)},
+        )
 
         if role in user.roles:
             try:
@@ -287,19 +264,20 @@ class RoleManagement(commands.Cog):
     @app_commands.describe(user="Тухайн хэрэглэгчийн түр үүргүүд (хоосон орхивол бүгд)")
     async def temprole_list(self, ctx, user: discord.Member = None):
         await ctx.defer()
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                if user:
-                    await cur.execute(
-                        "SELECT role_id, end_time FROM temproles WHERE guild_id = %s AND user_id = %s",
-                        (str(ctx.guild.id), str(user.id))
-                    )
-                else:
-                    await cur.execute(
-                        "SELECT user_id, role_id, end_time FROM temproles WHERE guild_id = %s ORDER BY end_time",
-                        (str(ctx.guild.id),)
-                    )
-                rows = await cur.fetchall()
+        if user:
+            rows = await self.bot.db_manager.fetch_all(
+                "temproles",
+                {"guild_id": str(ctx.guild.id), "user_id": str(user.id)},
+                order_by="end_time",
+            )
+            rows = [(r["role_id"], r["end_time"]) for r in rows]
+        else:
+            rows = await self.bot.db_manager.fetch_all(
+                "temproles",
+                {"guild_id": str(ctx.guild.id)},
+                order_by="end_time",
+            )
+            rows = [(r["user_id"], r["role_id"], r["end_time"]) for r in rows]
 
         if not rows:
             return await ctx.send(embed=discord.Embed(description="ℹ️ Идэвхтэй түр үүрэг байхгүй.", color=INFO_COLOR))
@@ -329,24 +307,22 @@ class RoleManagement(commands.Cog):
     @commands.has_permissions(manage_roles=True)
     async def temprole_clear(self, ctx, user: discord.Member):
         await ctx.defer()
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT role_id FROM temproles WHERE guild_id = %s AND user_id = %s",
-                    (str(ctx.guild.id), str(user.id))
-                )
-                rows = await cur.fetchall()
-                if not rows:
-                    return await ctx.send(embed=discord.Embed(description=f"{user.mention} -д түр үүрэг байхгүй.", color=WARNING_COLOR))
-                for (rid,) in rows:
-                    role = ctx.guild.get_role(rid)
-                    if role and role in user.roles:
-                        try:
-                            await user.remove_roles(role, reason=f"Түр үүргүүд цуцлагдсан: {ctx.author}")
-                        except:
-                            pass
-                await cur.execute("DELETE FROM temproles WHERE guild_id = %s AND user_id = %s",
-                                  (str(ctx.guild.id), str(user.id)))
+        rows = await self.bot.db_manager.fetch_all(
+            "temproles", {"guild_id": str(ctx.guild.id), "user_id": str(user.id)}
+        )
+        if not rows:
+            return await ctx.send(embed=discord.Embed(description=f"{user.mention} -д түр үүрэг байхгүй.", color=WARNING_COLOR))
+        for r in rows:
+            rid = r.get("role_id")
+            role = ctx.guild.get_role(rid)
+            if role and role in user.roles:
+                try:
+                    await user.remove_roles(role, reason=f"Түр үүргүүд цуцлагдсан: {ctx.author}")
+                except:
+                    pass
+        await self.bot.db_manager.delete(
+            "temproles", {"guild_id": str(ctx.guild.id), "user_id": str(user.id)}
+        )
         await ctx.send(embed=discord.Embed(description=f"✅ {user.mention} -н бүх түр үүрэг цуцлагдлаа.", color=SUCCESS_COLOR))
 
     # ══════════════ TEMPROLE CONFIG ══════════════
@@ -355,11 +331,8 @@ class RoleManagement(commands.Cog):
     async def temprole_config(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         view = TemproleConfigView(self, interaction.guild_id, interaction.user.id)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT max_duration_seconds FROM temprole_config WHERE guild_id = %s", (str(interaction.guild_id),))
-                row = await cur.fetchone()
-        max_sec = row[0] if row else 604800
+        row = await self.bot.db_manager.fetch_one("temprole_config", {"guild_id": str(interaction.guild_id)})
+        max_sec = row.get("max_duration_seconds", 604800) if row else 604800
         embed = discord.Embed(title="⏱️ Түр үүргийн тохиргоо", color=INFO_COLOR)
         embed.add_field(name="Хамгийн их хугацаа", value=f"{max_sec // 86400} хоног ({max_sec} секунд)", inline=False)
         embed.set_footer(text="Доорх товчлуураар тохиргоог өөрчилнө үү")
@@ -370,15 +343,14 @@ class RoleManagement(commands.Cog):
     async def temprole_loop(self):
         await self.bot.wait_until_ready()
         now = int(datetime.now(timezone.utc).timestamp())
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id, user_id, guild_id, role_id FROM temproles WHERE end_time <= %s",
-                    (now,)
-                )
-                expired = await cur.fetchall()
+        rows = await self.bot.db_manager.fetch_all("temproles", {})
+        expired = [r for r in rows if (r.get("end_time") or 0) <= now]
 
-        for eid, uid, gid, rid in expired:
+        for r in expired:
+            eid = r.get("id")
+            uid = r.get("user_id")
+            gid = r.get("guild_id")
+            rid = r.get("role_id")
             guild = self.bot.get_guild(int(gid))
             if guild:
                 user = guild.get_member(int(uid))
@@ -388,9 +360,7 @@ class RoleManagement(commands.Cog):
                         await user.remove_roles(role, reason="Түр үүрэг хугацаа дууссан")
                     except (discord.Forbidden, discord.HTTPException):
                         pass
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("DELETE FROM temproles WHERE id = %s", (eid,))
+            await self.bot.db_manager.delete("temproles", {"id": eid})
 
 
 # ══════════════ VIEW / MODAL ══════════════
@@ -426,13 +396,11 @@ class MaxDurationModal(ui.Modal, title="Хамгийн их хугацаа (өд
         except ValueError:
             return await interaction.response.send_message("❌ Эерэг бүхэл тоо оруулна уу.", ephemeral=True)
         seconds = days * 86400
-        async with self.view.cog.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO temprole_config (guild_id, max_duration_seconds) VALUES (%s, %s) "
-                    "ON DUPLICATE KEY UPDATE max_duration_seconds = %s",
-                    (str(interaction.guild_id), seconds, seconds)
-                )
+        await self.view.cog.bot.db_manager.upsert(
+            "temprole_config",
+            {"guild_id": str(interaction.guild_id), "max_duration_seconds": seconds},
+            on_conflict="guild_id",
+        )
         await interaction.response.send_message(f"✅ Хамгийн их хугацаа: {days} хоног боллоо.", ephemeral=True)
 
 async def setup(bot):

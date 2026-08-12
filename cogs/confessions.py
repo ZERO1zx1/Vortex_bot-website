@@ -163,78 +163,35 @@ class Confessions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS confession_config (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    confess_channel_id BIGINT,
-                    output_channel_id BIGINT,
-                    anonymity TINYINT(1) DEFAULT 1,
-                    cooldown INT DEFAULT 30,
-                    next_id INT DEFAULT 1
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS confession_blacklist (
-                    guild_id VARCHAR(255),
-                    word VARCHAR(255),
-                    PRIMARY KEY (guild_id, word)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS confession_cooldown (
-                    user_id VARCHAR(255),
-                    guild_id VARCHAR(255),
-                    last_time BIGINT,
-                    PRIMARY KEY (user_id, guild_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS confession_messages (
-                    guild_id VARCHAR(255),
-                    confession_id INT,
-                    message_id BIGINT,
-                    user_id VARCHAR(255),
-                    content TEXT,
-                    PRIMARY KEY (guild_id, confession_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-
     # ----- DB туслахууд -----
     async def get_config(self, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT confess_channel_id, output_channel_id, anonymity, cooldown, next_id FROM confession_config WHERE guild_id = %s",
-                    (str(guild_id),)
-                )
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one("confession_config", {"guild_id": str(guild_id)})
         if not row:
             return None
         return {
-            "confess_channel": row[0],
-            "output_channel": row[1],
-            "anonymity": bool(row[2]),
-            "cooldown": row[3],
-            "next_id": row[4]
+            "confess_channel": row.get("confess_channel_id"),
+            "output_channel": row.get("output_channel_id"),
+            "anonymity": bool(row.get("anonymity", 1)),
+            "cooldown": row.get("cooldown", 30),
+            "next_id": row.get("next_id", 1)
         }
 
     async def update_config(self, guild_id, **kwargs):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT 1 FROM confession_config WHERE guild_id = %s", (str(guild_id),))
-                exists = await cur.fetchone()
-                if exists:
-                    set_clause = ", ".join([f"{k} = %s" for k in kwargs])
-                    values = list(kwargs.values()) + [str(guild_id)]
-                    await cur.execute(f"UPDATE confession_config SET {set_clause} WHERE guild_id = %s", values)
-                else:
-                    cols = ", ".join(kwargs.keys())
-                    placeholders = ", ".join(["%s"] * len(kwargs))
-                    await cur.execute(f"INSERT INTO confession_config (guild_id, {cols}) VALUES (%s, {placeholders})",
-                                      [str(guild_id)] + list(kwargs.values()))
+        data = {"guild_id": str(guild_id)}
+        data.update(kwargs)
+        await self.bot.db_manager.upsert("confession_config", data, on_conflict="guild_id")
 
     async def increment_id(self, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("UPDATE confession_config SET next_id = next_id + 1 WHERE guild_id = %s", (str(guild_id),))
-                await cur.execute("SELECT next_id - 1 FROM confession_config WHERE guild_id = %s", (str(guild_id),))
-                row = await cur.fetchone()
-                return row[0] if row else 1
+        cfg = await self.get_config(guild_id)
+        if not cfg:
+            return 1
+        new_id = cfg["next_id"] + 1
+        await self.bot.db_manager.update(
+            "confession_config",
+            {"guild_id": str(guild_id)},
+            {"next_id": new_id},
+        )
+        return new_id - 1
 
     # ----- ГОЛ БОЛОВСРУУЛАЛТ -----
     async def process_confession(self, user, guild, content, interaction=None):
@@ -246,11 +203,10 @@ class Confessions(commands.Cog):
 
         now = int(datetime.datetime.now().timestamp())
         # Күүдаун шалгах
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT last_time FROM confession_cooldown WHERE user_id = %s AND guild_id = %s",
-                                  (str(user.id), str(guild.id)))
-                row = await cur.fetchone()
+        cd_row = await self.bot.db_manager.fetch_one(
+            "confession_cooldown", {"user_id": str(user.id), "guild_id": str(guild.id)}
+        )
+        row = (cd_row.get("last_time", 0),) if cd_row else None
         if row and now - row[0] < cfg["cooldown"]:
             remaining = cfg["cooldown"] - (now - row[0])
             msg = f"⏳ Та {remaining} секундын дараа дахин илгээх боломжтой."
@@ -262,10 +218,8 @@ class Confessions(commands.Cog):
             return
 
         # Хар жагсаалт шалгах
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT word FROM confession_blacklist WHERE guild_id = %s", (str(guild.id),))
-                blacklist = [r[0] for r in await cur.fetchall()]
+        blacklist_rows = await self.bot.db_manager.fetch_all("confession_blacklist", {"guild_id": str(guild.id)})
+        blacklist = [r.get("word", "") for r in blacklist_rows]
         for w in blacklist:
             if w in content.lower():
                 msg = "🚫 Таны захиа хориотой үг агуулж байна."
@@ -298,16 +252,18 @@ class Confessions(commands.Cog):
         sent_msg = await output_channel.send(embed=embed)
 
         # Күүдаун бүртгэх + түүх хадгалах
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO confession_messages (guild_id, confession_id, message_id, user_id, content) VALUES (%s, %s, %s, %s, %s)",
-                    (str(guild.id), confess_id, sent_msg.id, str(user.id), content[:500])
-                )
-                await cur.execute(
-                    "INSERT INTO confession_cooldown (user_id, guild_id, last_time) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE last_time = %s",
-                    (str(user.id), str(guild.id), now, now)
-                )
+        await self.bot.db_manager.insert("confession_messages", {
+            "guild_id": str(guild.id),
+            "confession_id": confess_id,
+            "message_id": str(sent_msg.id),
+            "user_id": str(user.id),
+            "content": content[:500],
+        })
+        await self.bot.db_manager.upsert(
+            "confession_cooldown",
+            {"user_id": str(user.id), "guild_id": str(guild.id), "last_time": now},
+            on_conflict="user_id,guild_id",
+        )
 
         # Даалгаврын системд мэдэгдэх
         quests_cog = self.bot.get_cog("Quests")
@@ -335,7 +291,6 @@ class Confessions(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     async def confess_setup(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        await self.init_db()
         cfg = await self.get_config(interaction.guild_id)
         view = SetupView(self, interaction.guild_id, interaction.user.id)
         embed = view.build_embed(cfg, interaction.guild)
@@ -345,32 +300,31 @@ class Confessions(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     async def confess_blacklist(self, interaction: discord.Interaction, action: str, word: str = None):
         await interaction.response.defer(ephemeral=True)
-        await self.init_db()
         if action.lower() == "add":
             if not word:
                 return await interaction.followup.send("❌ Үг оруулна уу.", ephemeral=True)
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("INSERT IGNORE INTO confession_blacklist (guild_id, word) VALUES (%s, %s)",
-                                      (str(interaction.guild_id), word.lower()))
+            await self.bot.db_manager.upsert(
+                "confession_blacklist",
+                {"guild_id": str(interaction.guild_id), "word": word.lower()},
+                on_conflict="guild_id,word",
+            )
             await interaction.followup.send(f"✅ `{word}` хар жагсаалтад нэмэгдлээ.", ephemeral=True)
         elif action.lower() == "remove":
             if not word:
                 return await interaction.followup.send("❌ Үг оруулна уу.", ephemeral=True)
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("DELETE FROM confession_blacklist WHERE guild_id = %s AND word = %s",
-                                      (str(interaction.guild_id), word.lower()))
+            await self.bot.db_manager.delete(
+                "confession_blacklist",
+                {"guild_id": str(interaction.guild_id), "word": word.lower()},
+            )
             await interaction.followup.send(f"✅ `{word}` хар жагсаалтаас хасагдлаа.", ephemeral=True)
         elif action.lower() == "list":
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("SELECT word FROM confession_blacklist WHERE guild_id = %s", (str(interaction.guild_id),))
-                    rows = await cur.fetchall()
+            rows = await self.bot.db_manager.fetch_all(
+                "confession_blacklist", {"guild_id": str(interaction.guild_id)}
+            )
             if not rows:
                 await interaction.followup.send("📭 Хориотой үг байхгүй.", ephemeral=True)
             else:
-                words = ", ".join([f"`{r[0]}`" for r in rows])
+                words = ", ".join([f"`{r.get('word', '')}`" for r in rows])
                 await interaction.followup.send(f"🚫 Хориотой үгс: {words}", ephemeral=True)
         else:
             await interaction.followup.send("❌ `add`, `remove`, `list` сонголтыг ашиглана уу.", ephemeral=True)
@@ -382,16 +336,13 @@ class Confessions(commands.Cog):
         cfg = await self.get_config(interaction.guild_id)
         if not cfg:
             return await interaction.followup.send("❌ Систем тохируулагдаагүй.", ephemeral=True)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT message_id, user_id, content FROM confession_messages WHERE guild_id = %s AND confession_id = %s",
-                    (str(interaction.guild_id), confession_id)
-                )
-                row = await cur.fetchone()
-        if not row:
+        msg_row = await self.bot.db_manager.fetch_one(
+            "confession_messages",
+            {"guild_id": str(interaction.guild_id), "confession_id": confession_id},
+        )
+        if not msg_row:
             return await interaction.followup.send(f"❌ #{confession_id} олдсонгүй.", ephemeral=True)
-        msg_id, user_id, content = row
+        msg_id, user_id, content = msg_row.get("message_id"), msg_row.get("user_id"), msg_row.get("content", "")
         channel = interaction.guild.get_channel(cfg["output_channel"])
         if channel:
             try:
@@ -399,10 +350,10 @@ class Confessions(commands.Cog):
                 await msg.delete()
             except:
                 pass
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM confession_messages WHERE guild_id = %s AND confession_id = %s",
-                                  (str(interaction.guild_id), confession_id))
+        await self.bot.db_manager.delete(
+            "confession_messages",
+            {"guild_id": str(interaction.guild_id), "confession_id": confession_id},
+        )
         embed = discord.Embed(title="🗑️ Захиа устгагдлаа",
                               description=f"Захиа #{confession_id} устгагдсан.\nАгуулга: {content[:100]}...",
                               color=WARNING_COLOR)
@@ -414,12 +365,14 @@ class Confessions(commands.Cog):
         cfg = await self.get_config(interaction.guild_id)
         if not cfg:
             return await interaction.followup.send("❌ Систем тохируулагдаагүй.", ephemeral=True)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT COUNT(*) FROM confession_cooldown WHERE guild_id = %s", (str(interaction.guild_id),))
-                active = (await cur.fetchone())[0]
-                await cur.execute("SELECT COUNT(*) FROM confession_messages WHERE guild_id = %s", (str(interaction.guild_id),))
-                total_msgs = (await cur.fetchone())[0]
+        cooldown_rows = await self.bot.db_manager.fetch_all(
+            "confession_cooldown", {"guild_id": str(interaction.guild_id)}
+        )
+        active = len(cooldown_rows)
+        msg_rows = await self.bot.db_manager.fetch_all(
+            "confession_messages", {"guild_id": str(interaction.guild_id)}
+        )
+        total_msgs = len(msg_rows)
         embed = discord.Embed(
             title="📊 Нууц захианы статистик",
             color=INFO_COLOR,
@@ -442,7 +395,8 @@ class Confessions(commands.Cog):
             pass
 
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
 async def setup(bot):
     await bot.add_cog(Confessions(bot))

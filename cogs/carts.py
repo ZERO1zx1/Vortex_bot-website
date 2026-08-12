@@ -333,13 +333,12 @@ class Cards(commands.Cog):
 
         xp, level = 0, 1
         try:
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("SELECT xp, level FROM levels WHERE user_id=%s AND guild_id=%s",
-                                      (str(member.id), str(guild_id)))
-                    row = await cur.fetchone()
+            row = await self.bot.db_manager.fetch_one(
+                "levels", {"user_id": str(member.id), "guild_id": str(guild_id)}
+            )
             if row:
-                xp, level = row
+                xp = row.get("xp", 0) or 0
+                level = row.get("level", 1) or 1
         except:
             pass
 
@@ -358,12 +357,12 @@ class Cards(commands.Cog):
 
         rank = 1
         try:
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("SELECT user_id FROM levels WHERE guild_id=%s ORDER BY level DESC, xp DESC",
-                                      (str(guild_id),))
-                    rows = await cur.fetchall()
-            rank = next((i for i, (uid,) in enumerate(rows, 1) if str(uid) == str(member.id)), len(rows) + 1)
+            level_rows = await self.bot.db_manager.fetch_all(
+                "levels", {"guild_id": str(guild_id)},
+                order_by="level", desc=True,
+            )
+            level_rows.sort(key=lambda r: (r.get("level", 0) or 0, r.get("xp", 0) or 0), reverse=True)
+            rank = next((i for i, r in enumerate(level_rows, 1) if str(r.get("user_id")) == str(member.id)), len(level_rows) + 1)
         except:
             pass
 
@@ -377,13 +376,11 @@ class Cards(commands.Cog):
 
         drunk_level = 0
         try:
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("SELECT level FROM user_drunk WHERE user_id=%s AND guild_id=%s",
-                                      (str(member.id), str(guild_id)))
-                    row = await cur.fetchone()
-                    if row:
-                        drunk_level = min(100, row[0])
+            drunk_row = await self.bot.db_manager.fetch_one(
+                "user_drunk", {"user_id": str(member.id), "guild_id": str(guild_id)}
+            )
+            if drunk_row:
+                drunk_level = min(100, drunk_row.get("level", 0) or 0)
         except:
             pass
 

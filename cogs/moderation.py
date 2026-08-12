@@ -164,22 +164,17 @@ class Moderation(SupabaseCog):
         self.leaderboard_task.start()
 
     async def cog_load(self):
-        # Tables are pre-configured in Supabase
+        # Tables are pre-configured in Supabase via SQL migrations
         pass
-                for col in ['log_channel', 'stats_channel', 'leaderboard_message_id']:
-                    try: await cur.execute(f"ALTER TABLE staff_config ADD COLUMN {col} VARCHAR(255)")
-                    except: pass
 
     async def _set_config_field(self, guild_id: int, field: str, value: str):
-        """Тохиргооны талбарт утга оруулах (INSERT ... ON DUPLICATE KEY UPDATE)"""
+        """Тохиргооны талбарт утга оруулах (upsert)"""
         gid = str(guild_id)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO staff_config (guild_id, {}) VALUES (%s, %s) "
-                    "ON DUPLICATE KEY UPDATE {} = %s".format(field, field),
-                    (gid, value, value)
-                )
+        await self.bot.db_manager.upsert(
+            "staff_config",
+            {"guild_id": gid, field: value},
+            on_conflict="guild_id",
+        )
 
     # ================== Еженедельный победитель ==================
     @tasks.loop(seconds=30)
@@ -196,16 +191,15 @@ class Moderation(SupabaseCog):
 
     async def process_weekly_winner(self, guild: discord.Guild):
         guild_id = str(guild.id)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT sm.user_id, sa.messages, sa.voice_seconds, sa.tickets_closed, sa.actions "
-                    "FROM staff_members sm "
-                    "JOIN staff_activity sa ON sm.user_id = sa.user_id AND sm.guild_id = sa.guild_id "
-                    "WHERE sm.guild_id = %s",
-                    (guild_id,)
-                )
-                rows = await cur.fetchall()
+        members = await self.bot.db_manager.fetch_all("staff_members", {"guild_id": guild_id})
+        activity_rows = await self.bot.db_manager.fetch_all("staff_activity", {"guild_id": guild_id})
+        activity_map = {a["user_id"]: a for a in activity_rows}
+        rows = [
+            (m["user_id"], a.get("messages", 0), a.get("voice_seconds", 0),
+             a.get("tickets_closed", 0), a.get("actions", 0))
+            for m in members
+            if (a := activity_map.get(m["user_id"]))
+        ]
 
         if not rows: return
 
@@ -221,13 +215,17 @@ class Moderation(SupabaseCog):
         top_user_id, top_score = max(scores, key=lambda x: x[1])
         week_start = datetime.date.today() - datetime.timedelta(days=datetime.date.today().weekday())
 
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO staff_weekly_winners (guild_id, user_id, week_start, kpi_score) VALUES (%s, %s, %s, %s)",
-                    (guild_id, top_user_id, week_start, top_score)
-                )
-                await cur.execute("UPDATE staff_activity SET messages=0, voice_seconds=0, tickets_closed=0, actions=0 WHERE guild_id=%s", (guild_id,))
+        await self.bot.db_manager.insert("staff_weekly_winners", {
+            "guild_id": guild_id,
+            "user_id": str(top_user_id),
+            "week_start": str(week_start),
+            "points": float(top_score),
+        })
+        await self.bot.db_manager.update(
+            "staff_activity",
+            {"guild_id": guild_id},
+            {"messages": 0, "voice_seconds": 0, "tickets_closed": 0, "actions": 0},
+        )
 
         channel = await self._get_configured_channel(guild, "announcement")
         if not channel:
@@ -261,16 +259,15 @@ class Moderation(SupabaseCog):
         channel = await self._get_configured_channel(guild, "stats")
         if not channel: return
 
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT sm.user_id, sm.staff_group, sa.messages, sa.voice_seconds, sa.tickets_closed, sa.actions "
-                    "FROM staff_members sm "
-                    "JOIN staff_activity sa ON sm.user_id = sa.user_id AND sm.guild_id = sa.guild_id "
-                    "WHERE sm.guild_id = %s",
-                    (guild_id,)
-                )
-                rows = await cur.fetchall()
+        members = await self.bot.db_manager.fetch_all("staff_members", {"guild_id": guild_id})
+        activity_rows = await self.bot.db_manager.fetch_all("staff_activity", {"guild_id": guild_id})
+        activity_map = {a["user_id"]: a for a in activity_rows}
+        rows = [
+            (m["user_id"], m.get("staff_group", ""), a.get("messages", 0),
+             a.get("voice_seconds", 0), a.get("tickets_closed", 0), a.get("actions", 0))
+            for m in members
+            if (a := activity_map.get(m["user_id"]))
+        ]
 
         scores = []
         for row in rows:
@@ -297,10 +294,8 @@ class Moderation(SupabaseCog):
         else:
             embed.description = "Одоогоор Staff-ийн идэвх бүртгэгдээгүй байна."
 
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT leaderboard_message_id FROM staff_config WHERE guild_id = %s", (guild_id,))
-                row = await cur.fetchone()
+        cfg_row = await self.bot.db_manager.fetch_one("staff_config", {"guild_id": guild_id})
+        row = (cfg_row.get("leaderboard_message_id"),) if cfg_row and cfg_row.get("leaderboard_message_id") else None
 
         if row and row[0]:
             try:
@@ -311,13 +306,11 @@ class Moderation(SupabaseCog):
             except: pass
 
         msg = await channel.send(embed=embed)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO staff_config (guild_id, stats_channel, leaderboard_message_id) VALUES (%s, %s, %s) "
-                    "ON DUPLICATE KEY UPDATE stats_channel = %s, leaderboard_message_id = %s",
-                    (guild_id, str(channel.id), str(msg.id), str(channel.id), str(msg.id))
-                )
+        await self.bot.db_manager.upsert("staff_config", {
+            "guild_id": guild_id,
+            "stats_channel": str(channel.id),
+            "leaderboard_message_id": str(msg.id),
+        }, on_conflict="guild_id")
 
     # ================== Staff тохиргоо (шинэ самбар) ==================
     @app_commands.command(name="staff_setup", description="Staff тохиргооны самбар нээх")
@@ -331,28 +324,24 @@ class Moderation(SupabaseCog):
 
     async def _get_configured_channel(self, guild: discord.Guild, channel_type: str):
         column = {"log": "log_channel", "announcement": "announcement_channel", "stats": "stats_channel"}[channel_type]
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(f"SELECT {column} FROM staff_config WHERE guild_id = %s", (str(guild.id),))
-                row = await cur.fetchone()
-        if row and row[0]:
-            return guild.get_channel(int(row[0]))
+        cfg_row = await self.bot.db_manager.fetch_one("staff_config", {"guild_id": str(guild.id)})
+        if cfg_row and cfg_row.get(column):
+            return guild.get_channel(int(cfg_row[column]))
         return None
 
     # ================== Хэрэглэгчийн мэдээлэл командууд ==================
     @app_commands.command(name="staff_counts", description="Долоо хоногийн Staff онооны эрэмбэ")
     async def staff_counts(self, interaction: discord.Interaction):
         guild_id = str(interaction.guild.id)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT sm.user_id, sm.staff_group, sa.messages, sa.voice_seconds, sa.tickets_closed, sa.actions "
-                    "FROM staff_members sm "
-                    "JOIN staff_activity sa ON sm.user_id = sa.user_id AND sm.guild_id = sa.guild_id "
-                    "WHERE sm.guild_id = %s",
-                    (guild_id,)
-                )
-                rows = await cur.fetchall()
+        members = await self.bot.db_manager.fetch_all("staff_members", {"guild_id": guild_id})
+        activity_rows = await self.bot.db_manager.fetch_all("staff_activity", {"guild_id": guild_id})
+        activity_map = {a["user_id"]: a for a in activity_rows}
+        rows = [
+            (m["user_id"], m.get("staff_group", ""), a.get("messages", 0),
+             a.get("voice_seconds", 0), a.get("tickets_closed", 0), a.get("actions", 0))
+            for m in members
+            if (a := activity_map.get(m["user_id"]))
+        ]
         if not rows:
             return await interaction.response.send_message("❌ Одоогоор Staff-ийн идэвх бүртгэгдээгүй байна.", ephemeral=True)
 
@@ -379,19 +368,18 @@ class Moderation(SupabaseCog):
     @app_commands.describe(member="Харах Staff гишүүн")
     async def staff_status(self, interaction: discord.Interaction, member: discord.Member):
         guild_id = str(interaction.guild.id)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT staff_group FROM staff_members WHERE user_id=%s AND guild_id=%s", (str(member.id), guild_id))
-                staff_row = await cur.fetchone()
-                if not staff_row:
-                    return await interaction.response.send_message(f"❌ {member.mention} нь Staff-д бүртгэлтэй биш байна.", ephemeral=True)
-                group = staff_row[0]
+        staff_row = await self.bot.db_manager.fetch_one("staff_members", {"user_id": str(member.id), "guild_id": guild_id})
+        if not staff_row:
+            return await interaction.response.send_message(f"❌ {member.mention} нь Staff-д бүртгэлтэй биш байна.", ephemeral=True)
+        group = staff_row.get("staff_group", "")
 
-                await cur.execute("SELECT messages, voice_seconds, tickets_closed, actions FROM staff_activity WHERE user_id=%s AND guild_id=%s", (str(member.id), guild_id))
-                activity_row = await cur.fetchone()
-                if not activity_row:
-                    return await interaction.response.send_message(f"ℹ️ {member.mention} идэвхийн мэдээлэл олдсонгүй.", ephemeral=True)
-                messages, voice_seconds, tickets, actions = activity_row
+        activity_row = await self.bot.db_manager.fetch_one("staff_activity", {"user_id": str(member.id), "guild_id": guild_id})
+        if not activity_row:
+            return await interaction.response.send_message(f"ℹ️ {member.mention} идэвхийн мэдээлэл олдсонгүй.", ephemeral=True)
+        messages = activity_row.get("messages", 0)
+        voice_seconds = activity_row.get("voice_seconds", 0)
+        tickets = activity_row.get("tickets_closed", 0)
+        actions = activity_row.get("actions", 0)
 
         voice_hours = voice_seconds / 3600.0
         kpi = (messages * 0.1) + (tickets * 5) + (actions * 3) + (voice_hours * 10)
@@ -409,21 +397,27 @@ class Moderation(SupabaseCog):
 
     # ================== Идэвх бүртгэл ==================
     async def increment_staff_activity(self, user_id: int, guild_id: int, field: str, amount=1):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT 1 FROM staff_members WHERE user_id=%s AND guild_id=%s", (str(user_id), str(guild_id)))
-                if not await cur.fetchone():
-                    return
-                await cur.execute(
-                    "INSERT INTO staff_activity (user_id, guild_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE user_id=user_id",
-                    (str(user_id), str(guild_id))
-                )
-                if field == "voice_seconds":
-                    await cur.execute("UPDATE staff_activity SET voice_seconds = voice_seconds + %s WHERE user_id=%s AND guild_id=%s",
-                                      (amount, str(user_id), str(guild_id)))
-                else:
-                    await cur.execute(f"UPDATE staff_activity SET {field} = {field} + %s WHERE user_id=%s AND guild_id=%s",
-                                      (amount, str(user_id), str(guild_id)))
+        member_row = await self.bot.db_manager.fetch_one(
+            "staff_members", {"user_id": str(user_id), "guild_id": str(guild_id)}
+        )
+        if not member_row:
+            return
+        existing = await self.bot.db_manager.fetch_one(
+            "staff_activity", {"user_id": str(user_id), "guild_id": str(guild_id)}
+        )
+        if not existing:
+            await self.bot.db_manager.insert("staff_activity", {
+                "user_id": str(user_id),
+                "guild_id": str(guild_id),
+                field: int(amount),
+            })
+        else:
+            current = existing.get(field, 0) or 0
+            await self.bot.db_manager.update(
+                "staff_activity",
+                {"user_id": str(user_id), "guild_id": str(guild_id)},
+                {field: current + int(amount)},
+            )
 
     async def add_staff_action(self, user_id: int, guild_id: int):
         await self.increment_staff_activity(user_id, guild_id, "actions")
@@ -443,11 +437,11 @@ class Moderation(SupabaseCog):
             return
         guild_id = member.guild.id
         user_id = member.id
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT 1 FROM staff_members WHERE user_id=%s AND guild_id=%s", (str(user_id), str(guild_id)))
-                if not await cur.fetchone():
-                    return
+        member_row = await self.bot.db_manager.fetch_one(
+            "staff_members", {"user_id": str(user_id), "guild_id": str(guild_id)}
+        )
+        if not member_row:
+            return
         now = time.time()
         if before.channel is None and after.channel is not None:
             if not after.self_mute and not after.deaf:
@@ -718,12 +712,13 @@ class Moderation(SupabaseCog):
     async def warn(self, ctx, member: discord.Member, *, reason: str):
         await ctx.defer(ephemeral=False)
         now_ts = int(datetime.datetime.now().timestamp())
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO warnings (user_id, guild_id, moderator_id, reason, timestamp) VALUES (%s, %s, %s, %s, %s)",
-                    (str(member.id), str(ctx.guild.id), str(ctx.author.id), reason, now_ts)
-                )
+        await self.bot.db_manager.insert("warnings", {
+            "user_id": str(member.id),
+            "guild_id": str(ctx.guild.id),
+            "moderator_id": str(ctx.author.id),
+            "reason": reason,
+            "timestamp": now_ts,
+        })
         warn_count = await self.get_warn_count(member.id, ctx.guild.id)
         embed = discord.Embed(title="⚠️ АНХААРУУЛГА ӨГЛӨӨ", description=f"{member.mention} -д анхааруулга өглөө.", color=WARNING_COLOR)
         embed.add_field(name="📝 Шалтгаан", value=f"```fix\n{reason}```", inline=False)
@@ -744,16 +739,13 @@ class Moderation(SupabaseCog):
     @app_commands.describe(warning_id="Устгах анхааруулгын ID")
     async def unwarn(self, ctx, warning_id: int):
         await ctx.defer(ephemeral=False)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT user_id, moderator_id, reason FROM warnings WHERE id=%s AND guild_id=%s", (warning_id, str(ctx.guild.id)))
-                row = await cur.fetchone()
-        if not row:
+        warn_row = await self.bot.db_manager.fetch_one(
+            "warnings", {"id": warning_id, "guild_id": str(ctx.guild.id)}
+        )
+        if not warn_row:
             return await ctx.send(embed=discord.Embed(title="❌ АЛДАА", description=f"`{warning_id}` ID-тай анхааруулга олдсонгүй.", color=ERROR_COLOR))
-        user_id, mod_id, reason = row
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM warnings WHERE id=%s", (warning_id,))
+        user_id, mod_id, reason = warn_row["user_id"], warn_row["moderator_id"], warn_row["reason"]
+        await self.bot.db_manager.delete("warnings", {"id": warning_id})
         user = ctx.guild.get_member(int(user_id))
         user_mention = user.mention if user else f"<@{user_id}>"
         mod = ctx.guild.get_member(int(mod_id))
@@ -778,10 +770,16 @@ class Moderation(SupabaseCog):
     @app_commands.describe(member="Анхааруулгыг харах хэрэглэгч")
     async def warnings(self, ctx, member: discord.Member):
         await ctx.defer(ephemeral=False)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT id, moderator_id, reason, timestamp FROM warnings WHERE user_id=%s AND guild_id=%s ORDER BY timestamp DESC", (str(member.id), str(ctx.guild.id)))
-                rows = await cur.fetchall()
+        warning_rows = await self.bot.db_manager.fetch_all(
+            "warnings",
+            {"user_id": str(member.id), "guild_id": str(ctx.guild.id)},
+            order_by="timestamp",
+            desc=True,
+        )
+        rows = [
+            (w["id"], w["moderator_id"], w["reason"], w["timestamp"])
+            for w in warning_rows
+        ]
         if not rows:
             return await ctx.send(f"📋 {member.mention} -д анхааруулга байхгүй.", ephemeral=True)
         embed = discord.Embed(title=f"📋 **{member.display_name} -ИЙН АНХААРУУЛГУУД**", description=f"Нийт {len(rows)} анхааруулга", color=WARNING_COLOR)
@@ -802,10 +800,18 @@ class Moderation(SupabaseCog):
     @commands.has_permissions(kick_members=True)
     async def warned_users(self, ctx):
         await ctx.defer(ephemeral=False)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT user_id, COUNT(*) as cnt, MAX(timestamp) as last FROM warnings WHERE guild_id=%s GROUP BY user_id ORDER BY cnt DESC LIMIT 50", (str(ctx.guild.id),))
-                rows = await cur.fetchall()
+        warning_rows = await self.bot.db_manager.fetch_all("warnings", {"guild_id": str(ctx.guild.id)})
+        counts = {}
+        for w in warning_rows:
+            uid = w["user_id"]
+            counts.setdefault(uid, {"cnt": 0, "last": 0})
+            counts[uid]["cnt"] += 1
+            counts[uid]["last"] = max(counts[uid]["last"], w.get("timestamp", 0) or 0)
+        rows = sorted(
+            ((uid, data["cnt"], data["last"]) for uid, data in counts.items()),
+            key=lambda x: x[1],
+            reverse=True,
+        )[:50]
         if not rows:
             return await ctx.send("⚠️ Анхааруулга авсан хэрэглэгч байхгүй.", ephemeral=True)
         embed = discord.Embed(title="⚠️ АНХААРУУЛГА АВСАН ХЭРЭГЛЭГЧИД", color=WARNING_COLOR)
@@ -821,11 +827,10 @@ class Moderation(SupabaseCog):
         await ctx.send(embed=embed)
 
     async def get_warn_count(self, user_id, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT COUNT(*) FROM warnings WHERE user_id=%s AND guild_id=%s", (str(user_id), str(guild_id)))
-                row = await cur.fetchone()
-                return row[0] if row else 0
+        rows = await self.bot.db_manager.fetch_all(
+            "warnings", {"user_id": str(user_id), "guild_id": str(guild_id)}
+        )
+        return len(rows)
 
 async def setup(bot):
     await bot.add_cog(Moderation(bot))

@@ -105,19 +105,18 @@ class GiveawayEnterView(discord.ui.View):
 
     @discord.ui.button(label="🎉 Оролцох", style=discord.ButtonStyle.success, custom_id="giveaway_enter")
     async def enter_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        async with interaction.client.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id, prize, end_time, required_role_id, ended FROM giveaways WHERE message_id = %s",
-                    (interaction.message.id,)
-                )
-                giveaway = await cur.fetchone()
+        gw = await interaction.client.db_manager.fetch_one(
+            "giveaways", {"message_id": str(interaction.message.id)}
+        )
 
-        if not giveaway:
+        if not gw:
             await interaction.response.send_message("❌ Энэ giveaway олдсонгүй.", ephemeral=True)
             return
 
-        gid, prize, end_time, req_role_id, ended = giveaway
+        gid, prize, end_time, req_role_id, ended = (
+            gw.get("id"), gw.get("prize"), gw.get("end_time"),
+            gw.get("required_role_id"), gw.get("ended", 0)
+        )
 
         if ended:
             await interaction.response.send_message("❌ Энэ giveaway аль хэдийн дууссан.", ephemeral=True)
@@ -133,20 +132,18 @@ class GiveawayEnterView(discord.ui.View):
                 await interaction.response.send_message(f"❌ Танд {role.mention} роль байхгүй.", ephemeral=True)
                 return
 
-        async with interaction.client.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT 1 FROM giveaway_entries WHERE giveaway_id = %s AND user_id = %s",
-                    (gid, str(interaction.user.id))
-                )
-                if await cur.fetchone():
-                    await interaction.response.send_message("⚠️ Та аль хэдийн оролцсон!", ephemeral=True)
-                    return
+        existing = await interaction.client.db_manager.fetch_one(
+            "giveaway_entries",
+            {"giveaway_id": gid, "user_id": str(interaction.user.id)},
+        )
+        if existing:
+            await interaction.response.send_message("⚠️ Та аль хэдийн оролцсон!", ephemeral=True)
+            return
 
-                await cur.execute(
-                    "INSERT INTO giveaway_entries (giveaway_id, user_id) VALUES (%s, %s)",
-                    (gid, str(interaction.user.id))
-                )
+        await interaction.client.db_manager.insert("giveaway_entries", {
+            "giveaway_id": gid,
+            "user_id": str(interaction.user.id),
+        })
 
         # Даалгаврын системд мэдэгдэх
         quests_cog = interaction.client.get_cog("Quests")
@@ -281,14 +278,16 @@ class GiveawaySetupView(ui.View):
         view = GiveawayEnterView()
         message = await self.channel.send(embed=embed, view=view)
 
-        async with self.ctx.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO giveaways (guild_id, channel_id, message_id, prize, winner_count, end_time, host_id, required_role_id) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (interaction.guild.id, self.channel.id, message.id, self.prize, self.winners, end_timestamp,
-                     interaction.user.id, self.required_role.id if self.required_role else None)
-                )
+        await self.ctx.bot.db_manager.insert("giveaways", {
+            "guild_id": str(interaction.guild.id),
+            "channel_id": str(self.channel.id),
+            "message_id": str(message.id),
+            "prize": self.prize,
+            "winner_count": self.winners,
+            "end_time": end_timestamp,
+            "host_id": str(interaction.user.id),
+            "required_role_id": str(self.required_role.id) if self.required_role else None,
+        })
 
         await interaction.followup.send(f"✅ Giveaway {self.channel.mention}-д амжилттай үүслээ!", ephemeral=True)
         await self.refresh(interaction)  # самбарыг шинэчлэх
@@ -317,39 +316,15 @@ class Giveaway(commands.Cog):
     def cog_unload(self):
         self.giveaway_check.cancel()
 
-    async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS giveaways (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    guild_id BIGINT,
-                    channel_id BIGINT,
-                    message_id BIGINT,
-                    prize VARCHAR(255),
-                    winner_count INT,
-                    end_time BIGINT,
-                    host_id BIGINT,
-                    required_role_id BIGINT DEFAULT NULL,
-                    ended TINYINT(1) DEFAULT 0
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS giveaway_entries (
-                    giveaway_id INT,
-                    user_id VARCHAR(255),
-                    PRIMARY KEY (giveaway_id, user_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase via SQL migrations
         self.bot.add_view(GiveawayEnterView())
 
     async def get_entries(self, giveaway_id: int, required_role_id: int, guild: discord.Guild):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT user_id FROM giveaway_entries WHERE giveaway_id = %s", (giveaway_id,)
-                )
-                rows = await cur.fetchall()
-        entries = [uid for (uid,) in rows]
+        rows = await self.bot.db_manager.fetch_all(
+            "giveaway_entries", {"giveaway_id": giveaway_id}
+        )
+        entries = [r["user_id"] for r in rows]
         if required_role_id:
             role = guild.get_role(required_role_id)
             if role:
@@ -372,18 +347,21 @@ class Giveaway(commands.Cog):
             for uid in winners:
                 await quests_cog.trigger_event(int(uid), message.guild.id, "giveaway_win", 1)
 
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("UPDATE giveaways SET ended = 1 WHERE id = %s", (giveaway_id,))
+        await self.bot.db_manager.update(
+            "giveaways", {"id": giveaway_id}, {"ended": 1}
+        )
 
     async def _get_giveaway_by_message(self, message_id: int):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id, channel_id, message_id, prize, winner_count, host_id, required_role_id, ended, end_time, guild_id FROM giveaways WHERE message_id = %s",
-                    (message_id,)
-                )
-                return await cur.fetchone()
+        gw = await self.bot.db_manager.fetch_one(
+            "giveaways", {"message_id": str(message_id)}
+        )
+        if not gw:
+            return None
+        return (
+            gw.get("id"), gw.get("channel_id"), gw.get("message_id"), gw.get("prize"),
+            gw.get("winner_count"), gw.get("host_id"), gw.get("required_role_id"),
+            gw.get("ended", 0), gw.get("end_time"), gw.get("guild_id")
+        )
 
     # ==================== АДМИН КОМАНДУУД ====================
     giveaway_group = app_commands.Group(name="giveaway", description="Giveaway удирдлага")
@@ -492,9 +470,7 @@ class Giveaway(commands.Cog):
             except:
                 pass
 
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("UPDATE giveaways SET ended = 1 WHERE id = %s", (gid,))
+        await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": 1})
         await interaction.followup.send(f"✅ Giveaway (ID: {message_id}) цуцлагдлаа.")
 
     @giveaway_group.command(name="entries", description="Оролцогчдын тоог харах")
@@ -515,13 +491,14 @@ class Giveaway(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def list_giveaways(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT message_id, prize, end_time, channel_id FROM giveaways WHERE guild_id = %s AND ended = 0",
-                    (interaction.guild.id,)
-                )
-                rows = await cur.fetchall()
+        rows = await self.bot.db_manager.fetch_all(
+            "giveaways",
+            {"guild_id": str(interaction.guild.id), "ended": 0},
+        )
+        rows = [
+            (r["message_id"], r["prize"], r["end_time"], r["channel_id"])
+            for r in rows
+        ]
         if not rows:
             return await interaction.followup.send(embed=discord.Embed(title="📭 Идэвхтэй giveaway байхгүй", color=WARNING_COLOR))
 
@@ -541,24 +518,29 @@ class Giveaway(commands.Cog):
     async def giveaway_check(self):
         await self.bot.wait_until_ready()
         now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id, channel_id, message_id, prize, winner_count, host_id, required_role_id FROM giveaways WHERE end_time <= %s AND ended = 0",
-                    (now,)
-                )
-                expired = await cur.fetchall()
+        giveaway_rows = await self.bot.db_manager.fetch_all("giveaways", {"ended": 0})
+        expired = [
+            r for r in giveaway_rows
+            if (r.get("end_time") or 0) <= now
+        ]
 
-        for gid, channel_id, msg_id, prize, winner_count, host_id, req_role_id in expired:
+        for gw in expired:
+            gid = gw.get("id")
+            channel_id = gw.get("channel_id")
+            msg_id = gw.get("message_id")
+            prize = gw.get("prize")
+            winner_count = gw.get("winner_count", 1)
+            host_id = gw.get("host_id")
+            req_role_id = gw.get("required_role_id")
+
             channel = self.bot.get_channel(channel_id)
             if not channel:
+                await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": 1})
                 continue
             try:
                 message = await channel.fetch_message(msg_id)
             except:
-                async with self.bot.db.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        await cur.execute("UPDATE giveaways SET ended = 1 WHERE id = %s", (gid,))
+                await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": 1})
                 continue
 
             guild = channel.guild
@@ -575,9 +557,7 @@ class Giveaway(commands.Cog):
                 )
                 await message.edit(embed=embed, view=None)
                 await message.channel.send(embed=embed)
-                async with self.bot.db.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        await cur.execute("UPDATE giveaways SET ended = 1 WHERE id = %s", (gid,))
+                await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": 1})
 
     @giveaway_check.before_loop
     async def before_giveaway_check(self):

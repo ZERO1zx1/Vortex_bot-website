@@ -263,30 +263,16 @@ class ShopCog(commands.Cog):
         self.pending_trades = {}
         self._trade_counter = 0
 
-    async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS user_inventory (
-                    user_id VARCHAR(255), guild_id VARCHAR(255),
-                    item_id INT, quantity INT DEFAULT 1,
-                    PRIMARY KEY (user_id, guild_id, item_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS user_drunk (
-                    user_id VARCHAR(255), guild_id VARCHAR(255),
-                    level INT DEFAULT 0, last_update BIGINT,
-                    PRIMARY KEY (user_id, guild_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
     async def get_user_inventory(self, uid, guild_id):
         inv = {}
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT item_id, quantity FROM user_inventory WHERE user_id=%s AND guild_id=%s", (str(uid), str(guild_id)))
-                rows = await cur.fetchall()
-        for row in rows: inv[row[0]] = row[1]
+        rows = await self.bot.db_manager.fetch_all(
+            "user_inventory", {"user_id": str(uid), "guild_id": str(guild_id)}
+        )
+        for row in rows: inv[row["item_id"]] = row.get("quantity", 1)
         return inv
 
     async def get_item(self, item_id):
@@ -296,44 +282,59 @@ class ShopCog(commands.Cog):
         return None
 
     async def add_item(self, uid, guild_id, iid, qty=1):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO user_inventory (user_id, guild_id, item_id, quantity) VALUES (%s,%s,%s,%s) "
-                    "ON DUPLICATE KEY UPDATE quantity = quantity + %s",
-                    (str(uid), str(guild_id), iid, qty, qty))
+        existing = await self.bot.db_manager.fetch_one(
+            "user_inventory", {"user_id": str(uid), "guild_id": str(guild_id), "item_id": iid}
+        )
+        if existing:
+            await self.bot.db_manager.update(
+                "user_inventory",
+                {"user_id": str(uid), "guild_id": str(guild_id), "item_id": iid},
+                {"quantity": (existing.get("quantity", 0) or 0) + qty},
+            )
+        else:
+            await self.bot.db_manager.insert("user_inventory", {
+                "user_id": str(uid),
+                "guild_id": str(guild_id),
+                "item_id": iid,
+                "quantity": qty,
+            })
 
     async def remove_item(self, uid, guild_id, iid, qty=1):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT quantity FROM user_inventory WHERE user_id=%s AND guild_id=%s AND item_id=%s", (str(uid), str(guild_id), iid))
-                row = await cur.fetchone()
-        if not row or row[0] < qty: return False
-        new_qty = row[0] - qty
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                if new_qty == 0:
-                    await cur.execute("DELETE FROM user_inventory WHERE user_id=%s AND guild_id=%s AND item_id=%s", (str(uid), str(guild_id), iid))
-                else:
-                    await cur.execute("UPDATE user_inventory SET quantity=%s WHERE user_id=%s AND guild_id=%s AND item_id=%s", (new_qty, str(uid), str(guild_id), iid))
+        row = await self.bot.db_manager.fetch_one(
+            "user_inventory", {"user_id": str(uid), "guild_id": str(guild_id), "item_id": iid}
+        )
+        if not row or (row.get("quantity", 0) or 0) < qty: return False
+        new_qty = (row.get("quantity", 0) or 0) - qty
+        if new_qty == 0:
+            await self.bot.db_manager.delete(
+                "user_inventory", {"user_id": str(uid), "guild_id": str(guild_id), "item_id": iid}
+            )
+        else:
+            await self.bot.db_manager.update(
+                "user_inventory",
+                {"user_id": str(uid), "guild_id": str(guild_id), "item_id": iid},
+                {"quantity": new_qty},
+            )
         return True
 
     async def get_drunk_level(self, uid, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT level, last_update FROM user_drunk WHERE user_id=%s AND guild_id=%s", (str(uid), str(guild_id)))
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one(
+            "user_drunk", {"user_id": str(uid), "guild_id": str(guild_id)}
+        )
         if not row: return 0
-        level, last = row
+        level = row.get("level", 0) or 0
+        last = row.get("last_update")
         if last is None: return level
         now = int(time.time())
         hours = (now - last) // 3600
         if hours > 0:
             new_level = max(0, level - hours * 3)
             if new_level != level:
-                async with self.bot.db.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        await cur.execute("UPDATE user_drunk SET level=%s, last_update=%s WHERE user_id=%s AND guild_id=%s", (new_level, now, str(uid), str(guild_id)))
+                await self.bot.db_manager.update(
+                    "user_drunk",
+                    {"user_id": str(uid), "guild_id": str(guild_id)},
+                    {"level": new_level, "last_update": now},
+                )
                 return new_level
         return level
 
@@ -341,12 +342,11 @@ class ShopCog(commands.Cog):
         current = await self.get_drunk_level(uid, guild_id)
         new_level = min(current + strength, MAX_INTOXICATION)
         now = int(time.time())
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO user_drunk (user_id, guild_id, level, last_update) VALUES (%s,%s,%s,%s) "
-                    "ON DUPLICATE KEY UPDATE level = %s, last_update = %s",
-                    (str(uid), str(guild_id), new_level, now, new_level, now))
+        await self.bot.db_manager.upsert(
+            "user_drunk",
+            {"user_id": str(uid), "guild_id": str(guild_id), "level": new_level, "last_update": now},
+            on_conflict="user_id,guild_id",
+        )
         return new_level
 
     def get_drunk_status(self, level):

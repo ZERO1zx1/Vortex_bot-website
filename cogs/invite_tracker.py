@@ -132,91 +132,22 @@ class InviteTracker(commands.Cog):
         self.bot = bot
         self.invite_cache = {}
 
-    async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS invite_log_config (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    log_channel_id BIGINT,
-                    enabled TINYINT(1) DEFAULT 1,
-                    fake_delay INT DEFAULT 3
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS invite_stats (
-                    guild_id VARCHAR(255),
-                    user_id BIGINT,
-                    regular INT DEFAULT 0,
-                    bonus INT DEFAULT 0,
-                    fake INT DEFAULT 0,
-                    `left` INT DEFAULT 0,
-                    PRIMARY KEY (guild_id, user_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS invite_joins (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    guild_id VARCHAR(255),
-                    user_id BIGINT,
-                    invited_by BIGINT,
-                    invite_code VARCHAR(100),
-                    joined_at BIGINT,
-                    left_at BIGINT,
-                    is_fake TINYINT(1) DEFAULT 0
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS daily_stats (
-                    guild_id VARCHAR(255),
-                    date VARCHAR(10),
-                    joins INT DEFAULT 0,
-                    leaves INT DEFAULT 0,
-                    PRIMARY KEY (guild_id, date)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS invite_labels (
-                    guild_id VARCHAR(255),
-                    invite_code VARCHAR(100),
-                    label VARCHAR(255),
-                    role_id BIGINT,
-                    PRIMARY KEY (guild_id, invite_code)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-
     async def get_config(self, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT log_channel_id, enabled, fake_delay FROM invite_log_config WHERE guild_id = %s",
-                    (str(guild_id),)
-                )
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one("invite_log_config", {"guild_id": str(guild_id)})
         if not row:
             return None
-        return {"channel_id": row[0], "enabled": bool(row[1]), "fake_delay": row[2] or 3}
+        return {"channel_id": row.get("log_channel_id"), "enabled": bool(row.get("enabled", 1)), "fake_delay": row.get("fake_delay") or 3}
 
     async def set_config(self, guild_id, channel_id=None, enabled=None, fake_delay=None):
         gid = str(guild_id)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT 1 FROM invite_log_config WHERE guild_id = %s", (gid,))
-                exists = await cur.fetchone()
-                if exists:
-                    updates = []
-                    params = []
-                    if channel_id is not None:
-                        updates.append("log_channel_id = %s")
-                        params.append(channel_id)
-                    if enabled is not None:
-                        updates.append("enabled = %s")
-                        params.append(1 if enabled else 0)
-                    if fake_delay is not None:
-                        updates.append("fake_delay = %s")
-                        params.append(fake_delay)
-                    if updates:
-                        params.append(gid)
-                        await cur.execute(
-                            f"UPDATE invite_log_config SET {', '.join(updates)} WHERE guild_id = %s",
-                            params
-                        )
-                else:
-                    await cur.execute(
-                        "INSERT INTO invite_log_config (guild_id, log_channel_id, enabled, fake_delay) "
-                        "VALUES (%s, %s, %s, %s)",
-                        (gid, channel_id, 1 if enabled else 0, fake_delay or 3)
-                    )
+        data = {"guild_id": gid}
+        if channel_id is not None:
+            data["log_channel_id"] = channel_id
+        if enabled is not None:
+            data["enabled"] = 1 if enabled else 0
+        if fake_delay is not None:
+            data["fake_delay"] = fake_delay
+        await self.bot.db_manager.upsert("invite_log_config", data, on_conflict="guild_id")
 
     async def log_to_channel(self, guild, embed):
         cfg = await self.get_config(guild.id)
@@ -228,32 +159,31 @@ class InviteTracker(commands.Cog):
             except Exception as e: logger.error(f"log_to_channel error: {e}")
 
     async def get_invite_count(self, guild_id, user_id, exclude_fake: bool = False):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT regular, bonus, fake, `left` FROM invite_stats WHERE guild_id = %s AND user_id = %s",
-                    (str(guild_id), user_id)
-                )
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one(
+            "invite_stats", {"guild_id": str(guild_id), "user_id": str(user_id)}
+        )
         if not row: return 0
-        regular, bonus, fake, left = row
+        regular = row.get("regular", 0) or 0
+        bonus = row.get("bonus", 0) or 0
+        fake = row.get("fake", 0) or 0
+        left = row.get("left", 0) or 0
         return regular + bonus - left + (0 if exclude_fake else fake)
 
     # ========== PUBLIC API: LEADERBOARD ХОЛБОЛТ ==========
     async def get_top_inviters(self, guild_id: int, limit=10, offset=0):
         """Хамгийн олон урилга илгээсэн хэрэглэгчдийг буцаана (Leaderboard ког ашиглах)."""
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """SELECT user_id, regular + bonus - `left` + fake AS total
-                       FROM invite_stats
-                       WHERE guild_id = %s
-                       ORDER BY total DESC
-                       LIMIT %s OFFSET %s""",
-                    (str(guild_id), limit, offset)
-                )
-                rows = await cur.fetchall()
-        return [(int(row[0]), row[1]) for row in rows]
+        rows = await self.bot.db_manager.fetch_all(
+            "invite_stats",
+            {"guild_id": str(guild_id)},
+            limit=limit,
+            offset=offset,
+        )
+        result = []
+        for r in rows:
+            total = (r.get("regular", 0) or 0) + (r.get("bonus", 0) or 0) - (r.get("left", 0) or 0) + (r.get("fake", 0) or 0)
+            result.append((int(r["user_id"]), total))
+        result.sort(key=lambda x: x[1], reverse=True)
+        return result[:limit]
 
     # ========== INVITES GROUP ==========
     invites_group = app_commands.Group(name="invites", description="Урилгын удирдлага")
@@ -262,7 +192,6 @@ class InviteTracker(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def invites_setup(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        await self.init_db()
         cfg = await self.get_config(interaction.guild_id)
         view = InviteSetupView(self, interaction.guild_id, interaction.user.id)
         embed = view.build_embed(cfg, interaction.guild)
@@ -271,7 +200,6 @@ class InviteTracker(commands.Cog):
     @invites_group.command(name="info", description="Хэрэглэгчийн урилгын мэдээлэл")
     async def invites_info(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         target = member or interaction.user
-        await self.init_db()
         count = await self.get_invite_count(interaction.guild.id, target.id)
         embed = discord.Embed(title=f"🔗 {target.display_name}", description=f"**{count}** урилга", color=SUCCESS_COLOR)
         embed.set_thumbnail(url=target.display_avatar.url)
@@ -280,18 +208,16 @@ class InviteTracker(commands.Cog):
     @invites_group.command(name="stats", description="Урилгын статистик")
     async def invite_stats(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         target = member or interaction.user
-        await self.init_db()
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT regular, bonus, fake, `left` FROM invite_stats WHERE guild_id = %s AND user_id = %s",
-                    (str(interaction.guild.id), target.id)
-                )
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one(
+            "invite_stats", {"guild_id": str(interaction.guild.id), "user_id": str(target.id)}
+        )
         if not row:
             regular = bonus = fake = left = 0
         else:
-            regular, bonus, fake, left = row
+            regular = row.get("regular", 0) or 0
+            bonus = row.get("bonus", 0) or 0
+            fake = row.get("fake", 0) or 0
+            left = row.get("left", 0) or 0
         total = regular + bonus - left + fake
         embed = discord.Embed(title=f"📊 {target.display_name} - УРИЛГЫН СТАТИСТИК", color=INFO_COLOR)
         embed.set_thumbnail(url=target.display_avatar.url)
@@ -323,18 +249,16 @@ class InviteTracker(commands.Cog):
 
     @invites_group.command(name="list", description="Урьсан хэрэглэгчид")
     async def invited_list(self, interaction: discord.Interaction, user: discord.Member):
-        await self.init_db()
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT user_id FROM invite_joins WHERE guild_id = %s AND invited_by = %s AND left_at IS NULL",
-                    (str(interaction.guild.id), user.id)
-                )
-                rows = await cur.fetchall()
+        join_rows = await self.bot.db_manager.fetch_all(
+            "invite_joins",
+            {"guild_id": str(interaction.guild.id), "invited_by": str(user.id)},
+        )
+        rows = [r for r in join_rows if r.get("left_at") is None]
         if not rows:
             return await interaction.response.send_message(f"🔍 {user.mention} хэн ч урьсангүй.")
         members = []
-        for (uid,) in rows[:20]:
+        for r in rows[:20]:
+            uid = r["user_id"]
             m = interaction.guild.get_member(int(uid))
             members.append(m.mention if m else f"ID: {uid}")
         embed = discord.Embed(title=f"👥 {user.display_name} - ИЙН УРЬСАН ХҮМҮҮС", color=SUCCESS_COLOR)
@@ -343,33 +267,34 @@ class InviteTracker(commands.Cog):
 
     @invites_group.command(name="inviter", description="Хэн урьсан")
     async def inviter(self, interaction: discord.Interaction, member: discord.Member):
-        await self.init_db()
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT invited_by FROM invite_joins WHERE guild_id = %s AND user_id = %s ORDER BY joined_at DESC LIMIT 1",
-                    (str(interaction.guild.id), member.id)
-                )
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one(
+            "invite_joins",
+            {"guild_id": str(interaction.guild.id), "user_id": str(member.id)},
+            order_by="joined_at",
+            desc=True,
+        )
         if not row:
             return await interaction.response.send_message(f"🔍 {member.mention} -г хэн урьсны мэдээлэл олдсонгүй.")
-        inviter_user = interaction.guild.get_member(int(row[0])) or await self.bot.fetch_user(int(row[0]))
+        inviter_id = row.get("invited_by")
+        inviter_user = interaction.guild.get_member(int(inviter_id)) or await self.bot.fetch_user(int(inviter_id))
         embed = discord.Embed(title="👤 ХЭН УРЬСАН БЭ?", color=SUCCESS_COLOR)
         embed.add_field(name="Хэрэглэгч", value=member.mention, inline=True)
-        embed.add_field(name="Урьсан", value=inviter_user.mention if inviter_user else f"ID: {row[0]}", inline=True)
+        embed.add_field(name="Урьсан", value=inviter_user.mention if inviter_user else f"ID: {inviter_id}", inline=True)
         await interaction.response.send_message(embed=embed)
 
     @invites_group.command(name="addlabel", description="Урилгын шошго нэмэх")
     @app_commands.default_permissions(administrator=True)
     async def add_invite_label(self, interaction: discord.Interaction, invite_code: str, label: str, role: Optional[discord.Role] = None):
-        await self.init_db()
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO invite_labels (guild_id, invite_code, label, role_id) VALUES (%s, %s, %s, %s) "
-                    "ON DUPLICATE KEY UPDATE label = %s, role_id = %s",
-                    (str(interaction.guild.id), invite_code, label, role.id if role else None, label, role.id if role else None)
-                )
+        await self.bot.db_manager.upsert(
+            "invite_labels",
+            {
+                "guild_id": str(interaction.guild.id),
+                "invite_code": invite_code,
+                "label": label,
+                "role_id": str(role.id) if role else None,
+            },
+            on_conflict="guild_id,invite_code",
+        )
         embed = discord.Embed(title="✅ Урилгын шошго нэмэгдлээ",
                               description=f"`{invite_code}`: `{label}`" + (f" + {role.mention}" if role else ""),
                               color=SUCCESS_COLOR)
@@ -378,33 +303,27 @@ class InviteTracker(commands.Cog):
     @invites_group.command(name="removelabel", description="Урилгын шошго устгах")
     @app_commands.default_permissions(administrator=True)
     async def remove_invite_label(self, interaction: discord.Interaction, invite_code: str):
-        await self.init_db()
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM invite_labels WHERE guild_id = %s AND invite_code = %s",
-                                  (str(interaction.guild.id), invite_code))
+        await self.bot.db_manager.delete(
+            "invite_labels",
+            {"guild_id": str(interaction.guild.id), "invite_code": invite_code},
+        )
         await interaction.response.send_message(f"✅ `{invite_code}` шошго устгагдлаа.")
 
     @invites_group.command(name="graph", description="Статистик график")
     async def stats_graph(self, interaction: discord.Interaction, days: int = 7):
         if not MATPLOTLIB_AVAILABLE:
             return await interaction.response.send_message("⚠️ matplotlib суулгаагүй.")
-        await self.init_db()
         end_date = datetime.datetime.now(datetime.timezone.utc).date()
         start_date = end_date - datetime.timedelta(days=days - 1)
         dates, joins, leaves = [], [], []
         for i in range(days):
             date = (start_date + datetime.timedelta(days=i)).strftime("%Y-%m-%d")
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(
-                        "SELECT joins, leaves FROM daily_stats WHERE guild_id = %s AND date = %s",
-                        (str(interaction.guild.id), date)
-                    )
-                    row = await cur.fetchone()
+            row = await self.bot.db_manager.fetch_one(
+                "daily_stats", {"guild_id": str(interaction.guild.id), "date": date}
+            )
             dates.append(date)
-            joins.append(row[0] if row else 0)
-            leaves.append(row[1] if row else 0)
+            joins.append(row.get("joins", 0) if row else 0)
+            leaves.append(row.get("leaves", 0) if row else 0)
         plt.figure(figsize=(10, 5))
         plt.plot(dates, joins, marker='o', label='Нэгдсэн', color='green', linewidth=2)
         plt.plot(dates, leaves, marker='o', label='Гарсан', color='red', linewidth=2)
@@ -437,25 +356,35 @@ class InviteTracker(commands.Cog):
     @commands.Cog.listener()
     async def on_member_leave(self, member: discord.Member):
         if member.bot: return
-        await self.init_db()
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "UPDATE invite_joins SET left_at = %s WHERE guild_id = %s AND user_id = %s AND left_at IS NULL",
-                    (int(time.time()), str(member.guild.id), member.id)
+        await self.bot.db_manager.update(
+            "invite_joins",
+            {"guild_id": str(member.guild.id), "user_id": str(member.id), "left_at": None},
+            {"left_at": int(time.time())},
+        )
+        row = await self.bot.db_manager.fetch_one(
+            "invite_joins",
+            {"guild_id": str(member.guild.id), "user_id": str(member.id)},
+            order_by="joined_at",
+            desc=True,
+        )
+        if row and row.get("invited_by"):
+            inviter_id = row["invited_by"]
+            stats_row = await self.bot.db_manager.fetch_one(
+                "invite_stats",
+                {"guild_id": str(member.guild.id), "user_id": str(inviter_id)},
+            )
+            if stats_row:
+                await self.bot.db_manager.update(
+                    "invite_stats",
+                    {"guild_id": str(member.guild.id), "user_id": str(inviter_id)},
+                    {"left": (stats_row.get("left", 0) or 0) + 1},
                 )
-                await cur.execute(
-                    "SELECT invited_by FROM invite_joins WHERE guild_id = %s AND user_id = %s ORDER BY joined_at DESC LIMIT 1",
-                    (str(member.guild.id), member.id)
-                )
-                row = await cur.fetchone()
-        if row:
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(
-                        "UPDATE invite_stats SET `left` = `left` + 1 WHERE guild_id = %s AND user_id = %s",
-                        (str(member.guild.id), row[0])
-                    )
+            else:
+                await self.bot.db_manager.insert("invite_stats", {
+                    "guild_id": str(member.guild.id),
+                    "user_id": str(inviter_id),
+                    "left": 1,
+                })
         cfg = await self.get_config(member.guild.id)
         if cfg and cfg["enabled"]:
             channel = member.guild.get_channel(cfg["channel_id"])
@@ -468,7 +397,6 @@ class InviteTracker(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         if member.bot: return
-        await self.init_db()
         cfg = await self.get_config(member.guild.id)
         if not member.guild.me.guild_permissions.manage_guild:
             if cfg and cfg["enabled"]:
@@ -495,36 +423,60 @@ class InviteTracker(commands.Cog):
                 if quests_cog:
                     await quests_cog.trigger_event(used.inviter.id, member.guild.id, "invite_create", 1)
 
-                async with self.bot.db.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        await cur.execute(
-                            "INSERT INTO invite_joins (guild_id, user_id, invited_by, invite_code, joined_at, is_fake) VALUES (%s, %s, %s, %s, %s, %s)",
-                            (str(member.guild.id), member.id, used.inviter.id, used.code, int(time.time()), 1 if is_fake else 0)
-                        )
-                        await cur.execute(
-                            "INSERT INTO invite_stats (guild_id, user_id, regular, fake) VALUES (%s, %s, 1, %s) "
-                            "ON DUPLICATE KEY UPDATE regular = regular + 1, fake = fake + %s",
-                            (str(member.guild.id), used.inviter.id, 1 if is_fake else 0, 1 if is_fake else 0)
-                        )
-                        await cur.execute(
-                            "SELECT label, role_id FROM invite_labels WHERE guild_id = %s AND invite_code = %s",
-                            (str(member.guild.id), used.code)
-                        )
-                        label_row = await cur.fetchone()
-                label_text = f"\n🏷️ Шошго: {label_row[0]}" if label_row else ""
-                if label_row and label_row[1]:
-                    role = member.guild.get_role(label_row[1])
+                await self.bot.db_manager.insert("invite_joins", {
+                    "guild_id": str(member.guild.id),
+                    "user_id": str(member.id),
+                    "invited_by": str(used.inviter.id),
+                    "invite_code": used.code,
+                    "joined_at": int(time.time()),
+                    "is_fake": 1 if is_fake else 0,
+                })
+                inviter_stats = await self.bot.db_manager.fetch_one(
+                    "invite_stats",
+                    {"guild_id": str(member.guild.id), "user_id": str(used.inviter.id)},
+                )
+                if inviter_stats:
+                    await self.bot.db_manager.update(
+                        "invite_stats",
+                        {"guild_id": str(member.guild.id), "user_id": str(used.inviter.id)},
+                        {
+                            "regular": (inviter_stats.get("regular", 0) or 0) + 1,
+                            "fake": (inviter_stats.get("fake", 0) or 0) + (1 if is_fake else 0),
+                        },
+                    )
+                else:
+                    await self.bot.db_manager.insert("invite_stats", {
+                        "guild_id": str(member.guild.id),
+                        "user_id": str(used.inviter.id),
+                        "regular": 1,
+                        "fake": 1 if is_fake else 0,
+                    })
+                label_row = await self.bot.db_manager.fetch_one(
+                    "invite_labels",
+                    {"guild_id": str(member.guild.id), "invite_code": used.code},
+                )
+                label_text = f"\n🏷️ Шошго: {label_row.get('label')}" if label_row else ""
+                if label_row and label_row.get("role_id"):
+                    role = member.guild.get_role(int(label_row["role_id"]))
                     if role and member.guild.me.guild_permissions.manage_roles:
                         try: await member.add_roles(role, reason=f"Урилгын шошго: {used.code}")
                         except Exception as e: logger.error(f"Failed to assign role: {e}")
                 today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
-                async with self.bot.db.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        await cur.execute(
-                            "INSERT INTO daily_stats (guild_id, date, joins) VALUES (%s, %s, 1) "
-                            "ON DUPLICATE KEY UPDATE joins = joins + 1",
-                            (str(member.guild.id), today)
-                        )
+                daily = await self.bot.db_manager.fetch_one(
+                    "daily_stats", {"guild_id": str(member.guild.id), "date": today}
+                )
+                if daily:
+                    await self.bot.db_manager.update(
+                        "daily_stats",
+                        {"guild_id": str(member.guild.id), "date": today},
+                        {"joins": (daily.get("joins", 0) or 0) + 1},
+                    )
+                else:
+                    await self.bot.db_manager.insert("daily_stats", {
+                        "guild_id": str(member.guild.id),
+                        "date": today,
+                        "joins": 1,
+                    })
                 if cfg and cfg["enabled"]:
                     channel = member.guild.get_channel(cfg["channel_id"])
                     if channel:
@@ -568,7 +520,8 @@ class InviteTracker(commands.Cog):
                 await channel.send(embed=embed)
 
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
 async def setup(bot):
     await bot.add_cog(InviteTracker(bot))

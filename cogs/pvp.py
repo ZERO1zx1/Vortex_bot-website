@@ -366,41 +366,27 @@ class PVP(commands.Cog):
         self.bot = bot
 
     async def cog_load(self):
-        await self.init_cooldown_table()
-
-    async def init_cooldown_table(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS pvp_cooldowns (
-                    guild_id VARCHAR(255),
-                    user_id VARCHAR(255),
-                    last_used BIGINT,
-                    PRIMARY KEY (guild_id, user_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
     async def check_cooldown(self, guild_id, user_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT last_used FROM pvp_cooldowns WHERE guild_id = %s AND user_id = %s",
-                    (str(guild_id), str(user_id))
-                )
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one(
+            "pvp_cooldowns", {"guild_id": str(guild_id), "user_id": str(user_id)}
+        )
         if not row:
             return 0
-        last = row[0]
+        last = row.get("last_used", 0) or 0
         now = int(time.time())
         if now - last < PVP_COOLDOWN:
             return int(PVP_COOLDOWN - (now - last))
         return 0
 
     async def set_cooldown(self, guild_id, user_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "REPLACE INTO pvp_cooldowns (guild_id, user_id, last_used) VALUES (%s, %s, %s)",
-                    (str(guild_id), str(user_id), int(time.time()))
-                )
+        await self.bot.db_manager.upsert(
+            "pvp_cooldowns",
+            {"guild_id": str(guild_id), "user_id": str(user_id), "last_used": int(time.time())},
+            on_conflict="guild_id,user_id",
+        )
 
     async def resolve_amount(self, ctx, amount_str, economy_cog):
         if amount_str.lower() == 'all':

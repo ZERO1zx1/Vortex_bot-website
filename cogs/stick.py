@@ -14,49 +14,32 @@ class Sticky(commands.Cog):
         self.bot = bot
         self.last_update = {}
 
-    async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''
-                    CREATE TABLE IF NOT EXISTS sticky_messages (
-                        guild_id BIGINT,
-                        channel_id BIGINT,
-                        message_id BIGINT,
-                        content TEXT,
-                        updated_at BIGINT,
-                        PRIMARY KEY (guild_id, channel_id)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                ''')
-
     async def get_sticky(self, guild_id: int, channel_id: int):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT message_id, content FROM sticky_messages WHERE guild_id = %s AND channel_id = %s",
-                    (guild_id, channel_id)
-                )
-                row = await cur.fetchone()
-                if row:
-                    return {"message_id": row[0], "content": row[1]}
+        row = await self.bot.db_manager.fetch_one(
+            "sticky_messages", {"guild_id": str(guild_id), "channel_id": str(channel_id)}
+        )
+        if row:
+            return {"message_id": row.get("message_id"), "content": row.get("content")}
         return None
 
     async def set_sticky(self, guild_id: int, channel_id: int, message_id: int, content: str):
         now = int(time.time())
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    'REPLACE INTO sticky_messages (guild_id, channel_id, message_id, content, updated_at) '
-                    'VALUES (%s, %s, %s, %s, %s)',
-                    (guild_id, channel_id, message_id, content, now)
-                )
+        await self.bot.db_manager.upsert(
+            "sticky_messages",
+            {
+                "guild_id": str(guild_id),
+                "channel_id": str(channel_id),
+                "message_id": str(message_id),
+                "content": content,
+                "updated_at": now,
+            },
+            on_conflict="guild_id,channel_id",
+        )
 
     async def delete_sticky(self, guild_id: int, channel_id: int):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "DELETE FROM sticky_messages WHERE guild_id = %s AND channel_id = %s",
-                    (guild_id, channel_id)
-                )
+        await self.bot.db_manager.delete(
+            "sticky_messages", {"guild_id": str(guild_id), "channel_id": str(channel_id)}
+        )
 
     # ----------------- HYBRID STICK -----------------
     @commands.command(name='stick', with_app_command=True, description="Sticky мессеж тохируулах")
@@ -176,7 +159,8 @@ class Sticky(commands.Cog):
             pass
 
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
 async def setup(bot):
     await bot.add_cog(Sticky(bot))

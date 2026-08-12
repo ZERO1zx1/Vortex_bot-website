@@ -84,80 +84,46 @@ class Marketplace(commands.Cog):
         self.bot = bot
 
     async def cog_load(self):
-        await self.init_db()
-
-    # ================== MySQL туслахууд ==================
-    async def _execute(self, query, *params, commit=True):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, params)
-                if commit:
-                    await conn.commit()
-                return cur
-
-    async def _fetchone(self, query, *params):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, params)
-                return await cur.fetchone()
-
-    async def _fetchall(self, query, *params):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, params)
-                return await cur.fetchall()
-
-    async def init_db(self):
-        await self._execute('''CREATE TABLE IF NOT EXISTS marketplace_listings (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            guild_id VARCHAR(255),
-            seller_id VARCHAR(255),
-            item_id INT,
-            quantity INT,
-            price_per_item INT,
-            created_at BIGINT
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
     # ================== DB удирдлага ==================
     async def get_listing(self, listing_id: int):
-        return await self._fetchone(
-            "SELECT id, guild_id, seller_id, item_id, quantity, price_per_item, created_at "
-            "FROM marketplace_listings WHERE id = %s", listing_id
-        )
+        return await self.bot.db_manager.fetch_one("marketplace_listings", {"id": listing_id})
 
     async def delete_listing(self, listing_id: int):
-        await self._execute("DELETE FROM marketplace_listings WHERE id = %s", listing_id)
+        await self.bot.db_manager.delete("marketplace_listings", {"id": listing_id})
 
     async def get_all_listings(self, guild_id: int, page=0, per_page=5):
         offset = page * per_page
-        return await self._fetchall(
-            "SELECT id, seller_id, item_id, quantity, price_per_item, created_at "
-            "FROM marketplace_listings WHERE guild_id = %s "
-            "ORDER BY created_at DESC LIMIT %s OFFSET %s",
-            str(guild_id), per_page, offset
+        return await self.bot.db_manager.fetch_all(
+            "marketplace_listings",
+            {"guild_id": str(guild_id)},
+            order_by="created_at",
+            desc=True,
+            limit=per_page,
+            offset=offset,
         )
 
     async def get_user_listings(self, guild_id: int, user_id: int):
-        return await self._fetchall(
-            "SELECT id, item_id, quantity, price_per_item, created_at "
-            "FROM marketplace_listings WHERE guild_id = %s AND seller_id = %s "
-            "ORDER BY created_at DESC",
-            str(guild_id), str(user_id)
+        return await self.bot.db_manager.fetch_all(
+            "marketplace_listings",
+            {"guild_id": str(guild_id), "seller_id": str(user_id)},
+            order_by="created_at",
+            desc=True,
         )
 
     async def create_listing(self, guild_id: int, seller_id: int, item_id: int, quantity: int, price_per_item: int):
         now = int(time.time())
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO marketplace_listings (guild_id, seller_id, item_id, quantity, price_per_item, created_at) "
-                    "VALUES (%s, %s, %s, %s, %s, %s)",
-                    (str(guild_id), str(seller_id), item_id, quantity, price_per_item, now)
-                )
-                await conn.commit()
-                await cur.execute("SELECT LAST_INSERT_ID()")
-                row = await cur.fetchone()
-                return row[0]
+        result = await self.bot.db_manager.insert("marketplace_listings", {
+            "guild_id": str(guild_id),
+            "seller_id": str(seller_id),
+            "item_id": item_id,
+            "quantity": quantity,
+            "price_per_item": price_per_item,
+            "created_at": now,
+        })
+        return result[0].get("id") if result else None
 
     # ================== Туслах когууд ==================
     async def get_shop_cog(self):
@@ -203,14 +169,16 @@ class Marketplace(commands.Cog):
 
     async def show_search_results(self, interaction: discord.Interaction, item_id: int):
         """Хайлтын үр дүнг харуулах"""
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id, seller_id, quantity, price_per_item, created_at FROM marketplace_listings "
-                    "WHERE guild_id = %s AND item_id = %s ORDER BY price_per_item ASC LIMIT 10",
-                    (str(interaction.guild_id), item_id)
-                )
-                rows = await cur.fetchall()
+        rows = await self.bot.db_manager.fetch_all(
+            "marketplace_listings",
+            {"guild_id": str(interaction.guild_id), "item_id": item_id},
+            order_by="price_per_item",
+            limit=10,
+        )
+        rows = [
+            (r["id"], r["seller_id"], r["quantity"], r["price_per_item"], r["created_at"])
+            for r in rows
+        ]
 
         if not rows:
             return await interaction.followup.send(

@@ -139,14 +139,17 @@ class AdoptView(View):
             child.disabled = True
         await interaction.response.edit_message(view=self)
 
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM marriage_proposals WHERE guild_id = %s AND to_id = %s AND proposal_type = %s",
-                                  (str(self.guild_id), str(self.child_id), self.proposal_type))
-                await cur.execute(
-                    "INSERT INTO adoptions (guild_id, parent_id, child_id, type, adopted_since) VALUES (%s, %s, %s, %s, %s)",
-                    (str(self.guild_id), str(self.parent_id), str(self.child_id), self.proposal_type, int(time.time()))
-                )
+        await self.bot.db_manager.delete(
+            "marriage_proposals",
+            {"guild_id": str(self.guild_id), "to_id": str(self.child_id), "proposal_type": self.proposal_type},
+        )
+        await self.bot.db_manager.insert("adoptions", {
+            "guild_id": str(self.guild_id),
+            "parent_id": str(self.parent_id),
+            "child_id": str(self.child_id),
+            "type": self.proposal_type,
+            "adopted_since": int(time.time()),
+        })
         parent = interaction.guild.get_member(self.parent_id)
         embed = discord.Embed(
             title="👨‍👧‍👦 ӨРГӨМЖЛӨЛТ БАТЛАГДЛАА" if self.proposal_type=="adoption" else "👪 ЭЦЭГ ЭХ БОЛЛОО",
@@ -163,10 +166,10 @@ class AdoptView(View):
         for child in self.children:
             child.disabled = True
         await interaction.response.edit_message(view=self)
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM marriage_proposals WHERE guild_id = %s AND to_id = %s AND proposal_type = %s",
-                                  (str(self.guild_id), str(self.child_id), self.proposal_type))
+        await self.bot.db_manager.delete(
+            "marriage_proposals",
+            {"guild_id": str(self.guild_id), "to_id": str(self.child_id), "proposal_type": self.proposal_type},
+        )
         embed = discord.Embed(title="👶 ТАТГАЛЗСАН", description=f"{interaction.user.mention} саналаас татгалзлаа.", color=WARNING_COLOR)
         await interaction.followup.send(embed=embed)
         self.stop()
@@ -281,31 +284,20 @@ class Marriage(SupabaseCog):
         # Tables are pre-configured in Supabase
         pass
 
-    async def _execute(self, table, data):
-        return await self.update_data(table, data)
-
-    async def _fetchone(self, table, query_filter):
-        return await self.get_data(table, query_filter)
-
-    async def _fetchall(self, table, query_filter=None):
-        return await self.get_all_data(table, query_filter)
-
     # ═════════ ХЭРЭГЛЭГЧИЙН ФУНКЦУУД ═════════
     async def get_guild_config(self, guild_id):
-        row = await self._fetchone(
-            "SELECT enabled, polygamy, max_spouses, announce_channel, marriage_role FROM marriage_guild_config WHERE guild_id = %s",
-            str(guild_id)
-        )
+        row = await self.bot.db_manager.fetch_one("marriage_guild_config", {"guild_id": str(guild_id)})
         if not row:
             return {"enabled": True, "polygamy": False, "max_spouses": 1, "announce_channel": None, "marriage_role": None}
-        return {"enabled": bool(row[0]), "polygamy": bool(row[1]), "max_spouses": row[2],
-                "announce_channel": row[3], "marriage_role": row[4]}
+        return {"enabled": bool(row.get("enabled", 1)), "polygamy": bool(row.get("polygamy", 0)),
+                "max_spouses": row.get("max_spouses", 1), "announce_channel": row.get("announce_channel"),
+                "marriage_role": row.get("marriage_role")}
 
     async def set_guild_config(self, guild_id, **kwargs):
         gid = str(guild_id)
-        await self._execute("INSERT IGNORE INTO marriage_guild_config (guild_id) VALUES (%s)", gid)
-        for k, v in kwargs.items():
-            await self._execute(f"UPDATE marriage_guild_config SET {k} = %s WHERE guild_id = %s", (v, gid))
+        data = {"guild_id": gid}
+        data.update(kwargs)
+        await self.bot.db_manager.upsert("marriage_guild_config", data, on_conflict="guild_id")
 
     async def grant_marriage_role(self, guild, member):
         cfg = await self.get_guild_config(guild.id)
@@ -341,32 +333,49 @@ class Marriage(SupabaseCog):
 
     # ═════════ ГЭРЛЭЛТ ═════════
     async def get_marriages(self, guild_id, user_id):
-        rows = await self._fetchall(
-            "SELECT user_id, partner_id, love_points, ring_name, ring_emoji, marriage_date FROM marriages WHERE guild_id = %s AND (user_id = %s OR partner_id = %s)",
-            str(guild_id), str(user_id), str(user_id)
+        rows = await self.bot.db_manager.fetch_all(
+            "marriages", {"guild_id": str(guild_id)}
         )
         result = []
-        for uid, pid, love, ring, remoji, mar_date in rows:
-            partner = pid if uid == str(user_id) else uid
-            result.append({"partner": int(partner), "love_points": love or 0,
-                           "ring": f"{remoji} {ring}" if remoji else ring, "ring_name": ring,
-                           "ring_emoji": remoji or "", "marriage_date": mar_date})
+        for r in rows:
+            uid = r.get("user_id")
+            pid = r.get("partner_id")
+            if str(uid) != str(user_id) and str(pid) != str(user_id):
+                continue
+            partner = pid if str(uid) == str(user_id) else uid
+            result.append({"partner": int(partner), "love_points": r.get("love_points", 0) or 0,
+                           "ring": f"{r.get('ring_emoji', '')} {r.get('ring_name', '')}".strip() if r.get("ring_emoji") else r.get("ring_name", ""),
+                           "ring_name": r.get("ring_name"), "ring_emoji": r.get("ring_emoji", ""),
+                           "marriage_date": r.get("marriage_date")})
         return result
 
     async def add_marriage(self, guild_id, u1, u2, ring_name, ring_emoji=""):
         mar_date = int(time.time())
-        await self._execute("INSERT INTO marriages (user_id, partner_id, guild_id, marriage_date, ring_name, ring_emoji, love_points) VALUES (%s,%s,%s,%s,%s,%s,0)",
-                            str(u1), str(u2), str(guild_id), mar_date, ring_name, ring_emoji)
-        await self._execute("INSERT INTO marriages (user_id, partner_id, guild_id, marriage_date, ring_name, ring_emoji, love_points) VALUES (%s,%s,%s,%s,%s,%s,0)",
-                            str(u2), str(u1), str(guild_id), mar_date, ring_name, ring_emoji)
+        for a, b in [(u1, u2), (u2, u1)]:
+            await self.bot.db_manager.insert("marriages", {
+                "user_id": str(a), "partner_id": str(b), "guild_id": str(guild_id),
+                "marriage_date": mar_date, "ring_name": ring_name, "ring_emoji": ring_emoji, "love_points": 0,
+            })
 
     async def remove_marriage(self, guild_id, u1, u2):
-        await self._execute("DELETE FROM marriages WHERE guild_id = %s AND ((user_id = %s AND partner_id = %s) OR (user_id = %s AND partner_id = %s))",
-                            str(guild_id), str(u1), str(u2), str(u2), str(u1))
+        await self.bot.db_manager.delete(
+            "marriages",
+            {"guild_id": str(guild_id), "user_id": str(u1), "partner_id": str(u2)},
+        )
+        await self.bot.db_manager.delete(
+            "marriages",
+            {"guild_id": str(guild_id), "user_id": str(u2), "partner_id": str(u1)},
+        )
 
     async def marriage_exists(self, guild_id, u1, u2):
-        row = await self._fetchone("SELECT 1 FROM marriages WHERE guild_id = %s AND ((user_id = %s AND partner_id = %s) OR (user_id = %s AND partner_id = %s))",
-                                   str(guild_id), str(u1), str(u2), str(u2), str(u1))
+        row = await self.bot.db_manager.fetch_one(
+            "marriages", {"guild_id": str(guild_id), "user_id": str(u1), "partner_id": str(u2)}
+        )
+        if row:
+            return True
+        row = await self.bot.db_manager.fetch_one(
+            "marriages", {"guild_id": str(guild_id), "user_id": str(u2), "partner_id": str(u1)}
+        )
         return row is not None
 
     async def get_spouses(self, guild_id, user_id):
@@ -374,49 +383,82 @@ class Marriage(SupabaseCog):
 
     # ═════════ ЭЦЭГ ЭХ / ХҮҮХЭД ═════════
     async def get_children(self, guild_id, user_id):
-        rows = await self._fetchall("SELECT child_id FROM adoptions WHERE guild_id = %s AND parent_id = %s", str(guild_id), str(user_id))
-        return [int(r[0]) for r in rows]
+        rows = await self.bot.db_manager.fetch_all(
+            "adoptions", {"guild_id": str(guild_id), "parent_id": str(user_id)}
+        )
+        return [int(r["child_id"]) for r in rows]
 
     async def get_parents(self, guild_id, user_id):
-        rows = await self._fetchall("SELECT parent_id FROM adoptions WHERE guild_id = %s AND child_id = %s", str(guild_id), str(user_id))
-        return [int(r[0]) for r in rows]
+        rows = await self.bot.db_manager.fetch_all(
+            "adoptions", {"guild_id": str(guild_id), "child_id": str(user_id)}
+        )
+        return [int(r["parent_id"]) for r in rows]
 
     async def add_parent_child(self, guild_id, parent_id, child_id, rel_type="adoption"):
-        await self._execute("INSERT IGNORE INTO adoptions (guild_id, parent_id, child_id, type, adopted_since) VALUES (%s,%s,%s,%s,%s)",
-                            str(guild_id), str(parent_id), str(child_id), rel_type, int(time.time()))
+        await self.bot.db_manager.upsert(
+            "adoptions",
+            {"guild_id": str(guild_id), "parent_id": str(parent_id), "child_id": str(child_id),
+             "type": rel_type, "adopted_since": int(time.time())},
+            on_conflict="guild_id,parent_id,child_id",
+        )
 
     async def remove_parent_child(self, guild_id, parent_id, child_id):
-        await self._execute("DELETE FROM adoptions WHERE guild_id = %s AND parent_id = %s AND child_id = %s",
-                            str(guild_id), str(parent_id), str(child_id))
+        await self.bot.db_manager.delete(
+            "adoptions", {"guild_id": str(guild_id), "parent_id": str(parent_id), "child_id": str(child_id)}
+        )
 
     async def is_parent_child(self, guild_id, parent_id, child_id):
-        row = await self._fetchone("SELECT 1 FROM adoptions WHERE guild_id = %s AND parent_id = %s AND child_id = %s",
-                                   str(guild_id), str(parent_id), str(child_id))
+        row = await self.bot.db_manager.fetch_one(
+            "adoptions", {"guild_id": str(guild_id), "parent_id": str(parent_id), "child_id": str(child_id)}
+        )
         return row is not None
 
     # ═════════ БЛОК / АВТО ЗӨВШӨӨРӨЛ ═════════
     async def is_blocked(self, guild_id, user_id):
-        row = await self._fetchone("SELECT blocked FROM marriage_user_settings WHERE guild_id = %s AND user_id = %s", str(guild_id), str(user_id))
-        return bool(row[0]) if row else False
+        row = await self.bot.db_manager.fetch_one(
+            "marriage_user_settings", {"guild_id": str(guild_id), "user_id": str(user_id)}
+        )
+        return bool(row.get("blocked", 0)) if row else False
 
     async def set_blocked(self, guild_id, user_id, blocked):
-        await self._execute("INSERT INTO marriage_user_settings (guild_id, user_id, blocked) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE blocked = %s",
-                            str(guild_id), str(user_id), int(blocked), int(blocked))
+        await self.bot.db_manager.upsert(
+            "marriage_user_settings",
+            {"guild_id": str(guild_id), "user_id": str(user_id), "blocked": int(blocked)},
+            on_conflict="guild_id,user_id",
+        )
 
     async def get_auto_accept(self, guild_id, user_id):
-        row = await self._fetchone("SELECT auto_accept_marriage FROM marriage_user_settings WHERE guild_id = %s AND user_id = %s", str(guild_id), str(user_id))
-        return bool(row[0]) if row else False
+        row = await self.bot.db_manager.fetch_one(
+            "marriage_user_settings", {"guild_id": str(guild_id), "user_id": str(user_id)}
+        )
+        return bool(row.get("auto_accept_marriage", 0)) if row else False
 
     async def set_auto_accept(self, guild_id, user_id, auto):
-        await self._execute("INSERT INTO marriage_user_settings (guild_id, user_id, auto_accept_marriage) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE auto_accept_marriage = %s",
-                            str(guild_id), str(user_id), int(auto), int(auto))
+        await self.bot.db_manager.upsert(
+            "marriage_user_settings",
+            {"guild_id": str(guild_id), "user_id": str(user_id), "auto_accept_marriage": int(auto)},
+            on_conflict="guild_id,user_id",
+        )
 
     # ═════════ БЭЛЭГ / LOVE ═════════
     async def add_gift(self, guild_id, from_id, to_id, gift_type, love):
-        await self._execute("INSERT INTO marriage_gifts (guild_id, from_id, to_id, gift_type, love_points, given_at) VALUES (%s,%s,%s,%s,%s,%s)",
-                            str(guild_id), str(from_id), str(to_id), gift_type, love, int(time.time()))
-        await self._execute("UPDATE marriages SET love_points = love_points + %s WHERE guild_id = %s AND ((user_id = %s AND partner_id = %s) OR (user_id = %s AND partner_id = %s))",
-                            love, str(guild_id), str(from_id), str(to_id), str(to_id), str(from_id))
+        await self.bot.db_manager.insert("marriage_gifts", {
+            "guild_id": str(guild_id), "from_id": str(from_id), "to_id": str(to_id),
+            "gift_type": gift_type, "love_points": love, "given_at": int(time.time()),
+        })
+        marriage = await self.bot.db_manager.fetch_one(
+            "marriages", {"guild_id": str(guild_id), "user_id": str(from_id), "partner_id": str(to_id)}
+        )
+        if not marriage:
+            marriage = await self.bot.db_manager.fetch_one(
+                "marriages", {"guild_id": str(guild_id), "user_id": str(to_id), "partner_id": str(from_id)}
+            )
+        if marriage:
+            await self.bot.db_manager.update(
+                "marriages",
+                {"guild_id": str(guild_id), "user_id": str(from_id), "partner_id": str(to_id)},
+                {"love_points": (marriage.get("love_points", 0) or 0) + love},
+            )
 
     async def get_anniversary(self, marriage_date):
         if not marriage_date: return None
@@ -430,22 +472,32 @@ class Marriage(SupabaseCog):
         return {"days": days, "next_days": (next_ann - today).days, "date": mar_date.strftime("%Y-%m-%d")}
 
     async def get_last_gift_time(self, guild_id, user_id):
-        row = await self._fetchone("SELECT last_gift_daily FROM marriage_user_settings WHERE guild_id = %s AND user_id = %s", str(guild_id), str(user_id))
-        return row[0] if row else 0
+        row = await self.bot.db_manager.fetch_one(
+            "marriage_user_settings", {"guild_id": str(guild_id), "user_id": str(user_id)}
+        )
+        return row.get("last_gift_daily", 0) if row else 0
 
     async def update_last_gift_time(self, guild_id, user_id):
         now = int(time.time())
-        await self._execute("INSERT INTO marriage_user_settings (guild_id, user_id, last_gift_daily) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE last_gift_daily = %s",
-                            str(guild_id), str(user_id), now, now)
+        await self.bot.db_manager.upsert(
+            "marriage_user_settings",
+            {"guild_id": str(guild_id), "user_id": str(user_id), "last_gift_daily": now},
+            on_conflict="guild_id,user_id",
+        )
 
     async def get_last_love_time(self, guild_id, user_id):
-        row = await self._fetchone("SELECT last_love_daily FROM marriage_user_settings WHERE guild_id = %s AND user_id = %s", str(guild_id), str(user_id))
-        return row[0] if row else 0
+        row = await self.bot.db_manager.fetch_one(
+            "marriage_user_settings", {"guild_id": str(guild_id), "user_id": str(user_id)}
+        )
+        return row.get("last_love_daily", 0) if row else 0
 
     async def update_last_love_time(self, guild_id, user_id):
         now = int(time.time())
-        await self._execute("INSERT INTO marriage_user_settings (guild_id, user_id, last_love_daily) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE last_love_daily = %s",
-                            str(guild_id), str(user_id), now, now)
+        await self.bot.db_manager.upsert(
+            "marriage_user_settings",
+            {"guild_id": str(guild_id), "user_id": str(user_id), "last_love_daily": now},
+            on_conflict="guild_id,user_id",
+        )
 
     # ═════════ ЗУРАГ ТАТАХ ═════════
     async def _download_avatar(self, sess, url, size):
@@ -605,8 +657,12 @@ class Marriage(SupabaseCog):
         else:
             return await self._reply(ctx_or_inter, "❌ Дэлгүүрийн систем ачаалагдаагүй.", is_slash)
         expires = int(time.time()) + PROPOSAL_TIMEOUT
-        await self._execute("REPLACE INTO marriage_proposals (guild_id, from_id, to_id, proposal_type, ring_id, expires_at) VALUES (%s,%s,%s,%s,%s,%s)",
-                            str(guild.id), str(author.id), str(user.id), "marriage", 0, expires)
+        await self.bot.db_manager.upsert(
+            "marriage_proposals",
+            {"guild_id": str(guild.id), "from_id": str(author.id), "to_id": str(user.id),
+             "proposal_type": "marriage", "ring_id": 0, "expires_at": expires},
+            on_conflict="guild_id,from_id,to_id,proposal_type",
+        )
         embed = discord.Embed(title="💍 ГЭРЛЭХ САНАЛ",
                               description=f"{author.mention} {user.mention}-д гэрлэх санал тавьж байна!\n\n💍 Бөгж: {ring_emoji} **{ring_name}**\n\n{PROPOSAL_TIMEOUT} секундын дотор зөвшөөрөх эсвэл татгалзах боломжтой.",
                               color=GOLD_COLOR)
@@ -647,8 +703,12 @@ class Marriage(SupabaseCog):
         if await self.is_parent_child(guild.id, author.id, child.id):
             return await self._reply(ctx_or_inter, f"❌ {child.mention} аль хэдийн таны хүүхэд.", is_slash)
         expires = int(time.time()) + PROPOSAL_TIMEOUT
-        await self._execute("REPLACE INTO marriage_proposals (guild_id, from_id, to_id, proposal_type, ring_id, expires_at) VALUES (%s,%s,%s,%s,%s,%s)",
-                            str(guild.id), str(author.id), str(child.id), "adoption", 0, expires)
+        await self.bot.db_manager.upsert(
+            "marriage_proposals",
+            {"guild_id": str(guild.id), "from_id": str(author.id), "to_id": str(child.id),
+             "proposal_type": "adoption", "ring_id": 0, "expires_at": expires},
+            on_conflict="guild_id,from_id,to_id,proposal_type",
+        )
         embed = discord.Embed(title="👶 ХҮҮХЭД ӨРГӨМЖЛӨХ САНАЛ",
                               description=f"{author.mention} {child.mention}-г хүүхэд болгон өргөмжлөх санал тавьж байна!\n\n{PROPOSAL_TIMEOUT} секундын дотор зөвшөөрөх эсвэл татгалзах боломжтой.",
                               color=PURPLE_COLOR)
@@ -675,8 +735,12 @@ class Marriage(SupabaseCog):
         if await self.is_parent_child(guild.id, parent.id, author.id):
             return await self._reply(ctx_or_inter, f"❌ {parent.mention} аль хэдийн таны эцэг эх.", is_slash)
         expires = int(time.time()) + PROPOSAL_TIMEOUT
-        await self._execute("REPLACE INTO marriage_proposals (guild_id, from_id, to_id, proposal_type, ring_id, expires_at) VALUES (%s,%s,%s,%s,%s,%s)",
-                            str(guild.id), str(author.id), str(parent.id), "parenthood", 0, expires)
+        await self.bot.db_manager.upsert(
+            "marriage_proposals",
+            {"guild_id": str(guild.id), "from_id": str(author.id), "to_id": str(parent.id),
+             "proposal_type": "parenthood", "ring_id": 0, "expires_at": expires},
+            on_conflict="guild_id,from_id,to_id,proposal_type",
+        )
         embed = discord.Embed(title="👪 ЭЦЭГ ЭХ БОЛОХ САНАЛ",
                               description=f"{author.mention} {parent.mention}-г эцэг эхээр сонгохыг хүсч байна!\n\n{PROPOSAL_TIMEOUT} секундын дотор зөвшөөрөх эсвэл татгалзах боломжтой.",
                               color=PURPLE_COLOR)
@@ -737,8 +801,19 @@ class Marriage(SupabaseCog):
             remaining = int(86400 - (time.time() - last))
             hours, minutes = divmod(remaining // 60, 60)
             return await self._reply(ctx_or_inter, f"⏰ Өдөрт 1 удаа love бэлэглэх боломжтой. Үлдсэн: {hours}ц {minutes}м", is_slash)
-        await self._execute("UPDATE marriages SET love_points = love_points + 10 WHERE guild_id = %s AND ((user_id = %s AND partner_id = %s) OR (user_id = %s AND partner_id = %s))",
-                            str(guild.id), str(author.id), str(target.id), str(target.id), str(author.id))
+        marriage = await self.bot.db_manager.fetch_one(
+            "marriages", {"guild_id": str(guild.id), "user_id": str(author.id), "partner_id": str(target.id)}
+        )
+        if not marriage:
+            marriage = await self.bot.db_manager.fetch_one(
+                "marriages", {"guild_id": str(guild.id), "user_id": str(target.id), "partner_id": str(author.id)}
+            )
+        if marriage:
+            await self.bot.db_manager.update(
+                "marriages",
+                {"guild_id": str(guild.id), "user_id": str(author.id), "partner_id": str(target.id)},
+                {"love_points": (marriage.get("love_points", 0) or 0) + 10},
+            )
         await self.update_last_love_time(guild.id, author.id)
         await self._reply(ctx_or_inter, f"💖 {author.mention} {target.mention} -д 10 love оноо бэлэглэлээ!", is_slash)
 

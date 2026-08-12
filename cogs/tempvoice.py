@@ -230,38 +230,16 @@ class TempVoice(commands.Cog):
         self.connect_times = {}
 
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase via SQL migrations
         await self.reload_setup_views()
-
-    async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS guild_config (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    create_channel_id BIGINT,
-                    category_id BIGINT,
-                    max_channels_per_user INT DEFAULT 3,
-                    control_channel_id BIGINT
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS temp_channels (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    guild_id VARCHAR(255),
-                    channel_id BIGINT,
-                    owner_id BIGINT
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS tempvoice_setup_msg (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    channel_id BIGINT,
-                    message_id BIGINT
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
 
     async def reload_setup_views(self):
         await self.bot.wait_until_ready()
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT guild_id, channel_id, message_id FROM tempvoice_setup_msg")
-                rows = await cur.fetchall()
-        for guild_id, channel_id, message_id in rows:
+        rows = await self.bot.db_manager.fetch_all("tempvoice_setup_msg", {})
+        for row in rows:
+            guild_id = row.get("guild_id")
+            channel_id = row.get("channel_id")
+            message_id = row.get("message_id")
             guild = self.bot.get_guild(int(guild_id))
             if not guild:
                 continue
@@ -278,36 +256,20 @@ class TempVoice(commands.Cog):
             view.message = message
 
     async def get_config(self, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT create_channel_id, category_id, max_channels_per_user, control_channel_id FROM guild_config WHERE guild_id = %s",
-                    (str(guild_id),)
-                )
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one("guild_config", {"guild_id": str(guild_id)})
         if not row:
             return {"create_channel_id": None, "category_id": None, "max_channels_per_user": 3, "control_channel_id": None}
         return {
-            "create_channel_id": row[0],
-            "category_id": row[1],
-            "max_channels_per_user": row[2] or 3,
-            "control_channel_id": row[3]
+            "create_channel_id": row.get("create_channel_id"),
+            "category_id": row.get("category_id"),
+            "max_channels_per_user": row.get("max_channels_per_user") or 3,
+            "control_channel_id": row.get("control_channel_id")
         }
 
     async def set_config(self, guild_id, **kwargs):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO guild_config (guild_id, create_channel_id, category_id, max_channels_per_user, control_channel_id) "
-                    "VALUES (%s, NULL, NULL, 3, NULL) "
-                    "ON DUPLICATE KEY UPDATE create_channel_id = create_channel_id",
-                    (str(guild_id),)
-                )
-                for key, value in kwargs.items():
-                    await cur.execute(
-                        f"UPDATE guild_config SET {key} = %s WHERE guild_id = %s",
-                        (value, str(guild_id))
-                    )
+        data = {"guild_id": str(guild_id)}
+        data.update(kwargs)
+        await self.bot.db_manager.upsert("guild_config", data, on_conflict="guild_id")
 
     async def install_tempvoice(self, guild: discord.Guild):
         config = await self.get_config(guild.id)
@@ -384,13 +346,11 @@ class TempVoice(commands.Cog):
             cat_id = config["category_id"] or after.channel.category_id
             category = member.guild.get_channel(cat_id) if cat_id else after.channel.category
 
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(
-                        "SELECT COUNT(*) FROM temp_channels WHERE guild_id = %s AND owner_id = %s",
-                        (str(member.guild.id), member.id)
-                    )
-                    count = (await cur.fetchone())[0]
+            temp_rows = await self.bot.db_manager.fetch_all(
+                "temp_channels",
+                {"guild_id": str(member.guild.id), "owner_id": str(member.id)},
+            )
+            count = len(temp_rows)
             if count >= max_channels:
                 try: await member.send(f"❌ Хамгийн ихдээ {max_channels} түр суваг үүсгэх боломжтой.")
                 except: pass
@@ -411,28 +371,26 @@ class TempVoice(commands.Cog):
             except discord.Forbidden:
                 return
 
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(
-                        "INSERT INTO temp_channels (guild_id, channel_id, owner_id) VALUES (%s, %s, %s)",
-                        (str(member.guild.id), new_channel.id, member.id)
-                    )
+            await self.bot.db_manager.insert("temp_channels", {
+                "guild_id": str(member.guild.id),
+                "channel_id": str(new_channel.id),
+                "owner_id": str(member.id),
+            })
             await self.send_control_panel(member, new_channel)
 
         if before.channel:
             channel = before.channel
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("SELECT id FROM temp_channels WHERE channel_id = %s", (channel.id,))
-                    is_temp = await cur.fetchone()
-            if is_temp and len(channel.members) == 0:
+            temp_row = await self.bot.db_manager.fetch_one(
+                "temp_channels", {"channel_id": str(channel.id)}
+            )
+            if temp_row and len(channel.members) == 0:
                 await asyncio.sleep(3)
                 if len(channel.members) == 0:
                     try: await channel.delete(reason="Хоосон түр суваг")
                     except: pass
-                    async with self.bot.db.acquire() as conn:
-                        async with conn.cursor() as cur:
-                            await cur.execute("DELETE FROM temp_channels WHERE channel_id = %s", (channel.id,))
+                    await self.bot.db_manager.delete(
+                        "temp_channels", {"channel_id": str(channel.id)}
+                    )
 
     # ==================== АДМИН ТОХИРГОО ====================
     @app_commands.command(name="voicesetup", description="Түр дуут сувгийн тохиргооны самбар нээх")
@@ -463,12 +421,11 @@ class TempVoice(commands.Cog):
         view.message = message
 
         # Хуучин persistent самбарыг шинэчлэх
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "REPLACE INTO tempvoice_setup_msg (guild_id, channel_id, message_id) VALUES (%s, %s, %s)",
-                    (str(guild.id), random_channel.id, message.id)
-                )
+        await self.bot.db_manager.upsert(
+            "tempvoice_setup_msg",
+            {"guild_id": str(guild.id), "channel_id": str(random_channel.id), "message_id": str(message.id)},
+            on_conflict="guild_id",
+        )
 
         await interaction.followup.send(
             f"✅ Тохиргооны самбар **{random_channel.mention}** сувагт илгээгдлээ.",

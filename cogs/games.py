@@ -53,19 +53,8 @@ class Games(commands.Cog):
         self.cooldowns = {}  # локал күүки нөөц
 
     async def cog_load(self):
-        await self.init_db()
-
-    async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "CREATE TABLE IF NOT EXISTS game_stats ("
-                    "user_id VARCHAR(255), guild_id VARCHAR(255), "
-                    "wins INT DEFAULT 0, losses INT DEFAULT 0, "
-                    "total_won BIGINT DEFAULT 0, total_bet BIGINT DEFAULT 0, "
-                    "PRIMARY KEY (user_id, guild_id)"
-                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
-                )
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
     # ═══ ЭДИЙН ЗАСГИЙН КОГ-ООС ТОХИРГОО УНШИХ ═══
     async def get_economy_cooldown(self, guild_id: int, command_name: str) -> int:
@@ -149,24 +138,31 @@ class Games(commands.Cog):
 
     async def update_stats(self, user_id, guild_id, won, bet, win_amt):
         try:
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(
-                        "INSERT INTO game_stats (user_id, guild_id, wins, losses, total_won, total_bet) "
-                        "VALUES (%s, %s, 0, 0, 0, 0) "
-                        "ON DUPLICATE KEY UPDATE wins = wins",
-                        (str(user_id), str(guild_id))
-                    )
-                    if won:
-                        await cur.execute(
-                            "UPDATE game_stats SET wins = wins + 1, total_won = total_won + %s, total_bet = total_bet + %s WHERE user_id = %s AND guild_id = %s",
-                            (win_amt, bet, str(user_id), str(guild_id))
-                        )
-                    else:
-                        await cur.execute(
-                            "UPDATE game_stats SET losses = losses + 1, total_bet = total_bet + %s WHERE user_id = %s AND guild_id = %s",
-                            (bet, str(user_id), str(guild_id))
-                        )
+            existing = await self.bot.db_manager.fetch_one(
+                "game_stats", {"user_id": str(user_id), "guild_id": str(guild_id)}
+            )
+            if existing:
+                data = {"total_bet": (existing.get("total_bet", 0) or 0) + bet}
+                if won:
+                    data["wins"] = (existing.get("wins", 0) or 0) + 1
+                    data["total_won"] = (existing.get("total_won", 0) or 0) + win_amt
+                else:
+                    data["losses"] = (existing.get("losses", 0) or 0) + 1
+                await self.bot.db_manager.update(
+                    "game_stats",
+                    {"user_id": str(user_id), "guild_id": str(guild_id)},
+                    data,
+                )
+            else:
+                data = {
+                    "user_id": str(user_id),
+                    "guild_id": str(guild_id),
+                    "wins": 1 if won else 0,
+                    "losses": 0 if won else 1,
+                    "total_won": win_amt if won else 0,
+                    "total_bet": bet,
+                }
+                await self.bot.db_manager.insert("game_stats", data)
         except Exception:
             pass
 
@@ -374,16 +370,15 @@ class Games(commands.Cog):
 
     @commands.command(name='gamestats')
     async def gamestats(self, ctx):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT wins, losses, total_won, total_bet FROM game_stats WHERE user_id = %s AND guild_id = %s",
-                    (str(ctx.author.id), str(ctx.guild.id))
-                )
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one(
+            "game_stats", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}
+        )
         if not row:
             return await ctx.send(embed=discord.Embed(title="📊 Статистик байхгүй", description=f"{ctx.author.mention} тоглоом тоглоогүй.", color=WARNING_COLOR))
-        wins, losses, total_won, total_bet = row
+        wins = row.get("wins", 0) or 0
+        losses = row.get("losses", 0) or 0
+        total_won = row.get("total_won", 0) or 0
+        total_bet = row.get("total_bet", 0) or 0
         total = wins + losses
         win_rate = (wins / total * 100) if total > 0 else 0
         net = total_won - total_bet
@@ -399,14 +394,15 @@ class Games(commands.Cog):
 
     # ══════════════ PUBLIC API (LEADERBOARD-Д ЗОРИУЛСАН) ══════════════
     async def get_top_games(self, guild_id: int, limit=10, offset=0):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT user_id, total_won FROM game_stats WHERE guild_id = %s ORDER BY total_won DESC LIMIT %s OFFSET %s",
-                    (str(guild_id), limit, offset)
-                )
-                rows = await cur.fetchall()
-        return [(int(row[0]), row[1]) for row in rows]
+        rows = await self.bot.db_manager.fetch_all(
+            "game_stats",
+            {"guild_id": str(guild_id)},
+            order_by="total_won",
+            desc=True,
+            limit=limit,
+            offset=offset,
+        )
+        return [(int(r["user_id"]), r.get("total_won", 0)) for r in rows]
 
     # ═══ ТУСЛАХ (бооцоог унших) ═══
     async def _parse_amount(self, ctx, amount_str: str):

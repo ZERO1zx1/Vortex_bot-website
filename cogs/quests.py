@@ -60,69 +60,66 @@ class Quests(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS user_quests (
-                    user_id VARCHAR(255), guild_id VARCHAR(255),
-                    quest_id VARCHAR(50), template_id INT, target INT,
-                    progress INT DEFAULT 0, reward_type VARCHAR(20),
-                    reward_amount INT, claimed TINYINT(1) DEFAULT 0,
-                    created_at BIGINT, PRIMARY KEY (user_id, guild_id, quest_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-                await cur.execute('''CREATE TABLE IF NOT EXISTS quest_history (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id VARCHAR(255), guild_id VARCHAR(255),
-                    quest_id VARCHAR(50), template_id INT, completed_at BIGINT
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
     async def get_user_quests(self, user_id, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT quest_id, template_id, target, progress, reward_type, reward_amount, claimed FROM user_quests WHERE user_id=%s AND guild_id=%s ORDER BY created_at DESC",
-                    (str(user_id), str(guild_id))
-                )
-                rows = await cur.fetchall()
-        return [{"quest_id": r[0], "template_id": r[1], "target": r[2], "progress": r[3],
-                 "reward_type": r[4], "reward_amount": r[5], "claimed": bool(r[6])} for r in rows]
+        rows = await self.bot.db_manager.fetch_all(
+            "user_quests",
+            {"user_id": str(user_id), "guild_id": str(guild_id)},
+            order_by="created_at",
+            desc=True,
+        )
+        return [{"quest_id": r["quest_id"], "template_id": r["template_id"], "target": r["target"],
+                 "progress": r["progress"], "reward_type": r["reward_type"],
+                 "reward_amount": r["reward_amount"], "claimed": bool(r["claimed"])} for r in rows]
 
     async def add_quest(self, user_id, guild_id, template, quest_id, target, reward_type, reward_amount):
         now = int(time.time())
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO user_quests (user_id, guild_id, quest_id, template_id, target, reward_type, reward_amount, created_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                    (str(user_id), str(guild_id), quest_id, list(QUEST_TEMPLATES).index(template), target, reward_type, reward_amount, now)
-                )
+        await self.bot.db_manager.insert("user_quests", {
+            "user_id": str(user_id),
+            "guild_id": str(guild_id),
+            "quest_id": quest_id,
+            "template_id": list(QUEST_TEMPLATES).index(template),
+            "target": target,
+            "reward_type": reward_type,
+            "reward_amount": reward_amount,
+            "created_at": now,
+        })
 
     async def remove_quest(self, user_id, guild_id, quest_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM user_quests WHERE user_id=%s AND guild_id=%s AND quest_id=%s",
-                                  (str(user_id), str(guild_id), quest_id))
+        await self.bot.db_manager.delete(
+            "user_quests",
+            {"user_id": str(user_id), "guild_id": str(guild_id), "quest_id": quest_id},
+        )
 
     async def complete_quest(self, user_id, guild_id, quest_id):
         now = int(time.time())
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("UPDATE user_quests SET claimed=1 WHERE user_id=%s AND guild_id=%s AND quest_id=%s",
-                                  (str(user_id), str(guild_id), quest_id))
-                await cur.execute("SELECT template_id FROM user_quests WHERE user_id=%s AND guild_id=%s AND quest_id=%s",
-                                  (str(user_id), str(guild_id), quest_id))
-                row = await cur.fetchone()
-                if row:
-                    await cur.execute("INSERT INTO quest_history (user_id, guild_id, quest_id, template_id, completed_at) VALUES (%s,%s,%s,%s,%s)",
-                                      (str(user_id), str(guild_id), quest_id, row[0], now))
+        row = await self.bot.db_manager.fetch_one(
+            "user_quests",
+            {"user_id": str(user_id), "guild_id": str(guild_id), "quest_id": quest_id},
+        )
+        if row:
+            await self.bot.db_manager.update(
+                "user_quests",
+                {"user_id": str(user_id), "guild_id": str(guild_id), "quest_id": quest_id},
+                {"claimed": 1},
+            )
+            await self.bot.db_manager.insert("quest_history", {
+                "user_id": str(user_id),
+                "guild_id": str(guild_id),
+                "quest_id": quest_id,
+                "template_id": row.get("template_id", 0),
+                "completed_at": now,
+            })
 
     async def update_progress(self, user_id, guild_id, quest_id, progress):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("UPDATE user_quests SET progress=%s WHERE user_id=%s AND guild_id=%s AND quest_id=%s",
-                                  (progress, str(user_id), str(guild_id), quest_id))
+        await self.bot.db_manager.update(
+            "user_quests",
+            {"user_id": str(user_id), "guild_id": str(guild_id), "quest_id": quest_id},
+            {"progress": progress},
+        )
 
     def generate_quest(self):
         template = random.choice(QUEST_TEMPLATES)
@@ -312,13 +309,17 @@ class Quests(commands.Cog):
 
     @quest_group.command(name='history')
     async def quest_history(self, ctx):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT quest_id, template_id, completed_at FROM quest_history WHERE user_id=%s AND guild_id=%s ORDER BY completed_at DESC LIMIT 10",
-                    (str(ctx.author.id), str(ctx.guild.id))
-                )
-                rows = await cur.fetchall()
+        history_rows = await self.bot.db_manager.fetch_all(
+            "quest_history",
+            {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)},
+            order_by="completed_at",
+            desc=True,
+            limit=10,
+        )
+        rows = [
+            (h["quest_id"], h["template_id"], h["completed_at"])
+            for h in history_rows
+        ]
         if not rows:
             embed = discord.Embed(
                 description="📭 Одоогоор гүйцэтгэсэн даалгаврын түүх байхгүй.",

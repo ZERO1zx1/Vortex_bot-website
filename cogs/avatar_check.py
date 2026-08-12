@@ -84,45 +84,30 @@ class AvatarLogger(commands.Cog):
         self.bot = bot
 
     # ==================== ӨГӨГДЛИЙН САН ====================
-    async def init_db(self):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute('''CREATE TABLE IF NOT EXISTS avatar_log_config (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    log_channel_id BIGINT,
-                    enabled TINYINT(1) DEFAULT 1
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
-
     async def get_config(self, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT log_channel_id, enabled FROM avatar_log_config WHERE guild_id = %s",
-                    (str(guild_id),)
-                )
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one("avatar_log_config", {"guild_id": str(guild_id)})
         if not row:
             return None
-        return {"channel_id": row[0], "enabled": bool(row[1])}
+        return {"channel_id": row.get("log_channel_id"), "enabled": bool(row.get("enabled", 1))}
 
     async def set_config(self, guild_id, channel_id=None, enabled=None):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                current = await self.get_config(guild_id)
-                if current:
-                    new_channel = channel_id if channel_id is not None else current["channel_id"]
-                    new_enabled = enabled if enabled is not None else current["enabled"]
-                    await cur.execute(
-                        "UPDATE avatar_log_config SET log_channel_id = %s, enabled = %s WHERE guild_id = %s",
-                        (new_channel, 1 if new_enabled else 0, str(guild_id))
-                    )
-                else:
-                    if channel_id is None:
-                        return
-                    await cur.execute(
-                        "INSERT INTO avatar_log_config (guild_id, log_channel_id, enabled) VALUES (%s, %s, %s)",
-                        (str(guild_id), channel_id, 1 if enabled is None or enabled else 0)
-                    )
+        current = await self.get_config(guild_id)
+        if current:
+            new_channel = channel_id if channel_id is not None else current["channel_id"]
+            new_enabled = enabled if enabled is not None else current["enabled"]
+            await self.bot.db_manager.update(
+                "avatar_log_config",
+                {"guild_id": str(guild_id)},
+                {"log_channel_id": new_channel, "enabled": 1 if new_enabled else 0},
+            )
+        else:
+            if channel_id is None:
+                return
+            await self.bot.db_manager.insert("avatar_log_config", {
+                "guild_id": str(guild_id),
+                "log_channel_id": channel_id,
+                "enabled": 1 if enabled is None or enabled else 0,
+            })
 
     # ==================== КОМАНД ====================
     @commands.hybrid_command(name="avatar_config", description="Аватар логын тохиргооны самбар (embed + button)")
@@ -130,7 +115,6 @@ class AvatarLogger(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def avatar_config(self, ctx: commands.Context):
         await ctx.defer(ephemeral=False)
-        await self.init_db()
         cfg = await self.get_config(ctx.guild.id)
         view = ConfigView(self, ctx.guild.id, ctx.author.id)
         embed = view._build_embed(cfg, ctx.guild)
@@ -178,7 +162,8 @@ class AvatarLogger(commands.Cog):
                 pass
 
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
 async def setup(bot):
     await bot.add_cog(AvatarLogger(bot))

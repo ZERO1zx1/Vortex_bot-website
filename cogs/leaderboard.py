@@ -215,36 +215,33 @@ class Leaderboard(commands.Cog):
 
     # ── DB queries ──
     async def get_top_levels(self, guild_id, limit=10, offset=0):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT user_id, level, xp FROM levels WHERE guild_id=%s ORDER BY level DESC, xp DESC LIMIT %s OFFSET %s",
-                    (str(guild_id), limit, offset))
-                return await cur.fetchall()
+        rows = await self.bot.db_manager.fetch_all(
+            "levels", {"guild_id": str(guild_id)},
+            order_by="level", desc=True, limit=limit, offset=offset,
+        )
+        rows.sort(key=lambda r: (r.get("level", 0) or 0, r.get("xp", 0) or 0), reverse=True)
+        return [(r["user_id"], r.get("level", 1) or 1, r.get("xp", 0) or 0) for r in rows]
 
     async def get_top_messages(self, guild_id, limit=10, offset=0):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT user_id, message_count FROM levels WHERE guild_id=%s ORDER BY message_count DESC LIMIT %s OFFSET %s",
-                    (str(guild_id), limit, offset))
-                return await cur.fetchall()
+        rows = await self.bot.db_manager.fetch_all(
+            "levels", {"guild_id": str(guild_id)},
+            order_by="message_count", desc=True, limit=limit, offset=offset,
+        )
+        return [(r["user_id"], r.get("message_count", 0) or 0) for r in rows]
 
     async def get_top_voice(self, guild_id, limit=10, offset=0):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT user_id, voice_seconds FROM levels WHERE guild_id=%s ORDER BY voice_seconds DESC LIMIT %s OFFSET %s",
-                    (str(guild_id), limit, offset))
-                return await cur.fetchall()
+        rows = await self.bot.db_manager.fetch_all(
+            "levels", {"guild_id": str(guild_id)},
+            order_by="voice_seconds", desc=True, limit=limit, offset=offset,
+        )
+        return [(r["user_id"], r.get("voice_seconds", 0) or 0) for r in rows]
 
     async def get_top_reactions(self, guild_id, limit=10, offset=0):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT user_id, reaction_count FROM levels WHERE guild_id=%s ORDER BY reaction_count DESC LIMIT %s OFFSET %s",
-                    (str(guild_id), limit, offset))
-                return await cur.fetchall()
+        rows = await self.bot.db_manager.fetch_all(
+            "levels", {"guild_id": str(guild_id)},
+            order_by="reaction_count", desc=True, limit=limit, offset=offset,
+        )
+        return [(r["user_id"], r.get("reaction_count", 0) or 0) for r in rows]
 
     @commands.hybrid_command(name="leaderboard", aliases=["lb"])
     async def leaderboard_cmd(self, ctx):

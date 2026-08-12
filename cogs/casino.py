@@ -373,44 +373,44 @@ class Casino(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def init_db(self):
-        """SQLite хүснэгт үүсгэх"""
-        await self.bot.db.execute('''
-            CREATE TABLE IF NOT EXISTS game_stats (
-                user_id TEXT, guild_id TEXT,
-                wins INTEGER DEFAULT 0, losses INTEGER DEFAULT 0,
-                total_won INTEGER DEFAULT 0, total_bet INTEGER DEFAULT 0,
-                PRIMARY KEY (user_id, guild_id)
-            )
-        ''')
-        await self.bot.db.commit()
-
     async def cog_load(self):
-        await self.init_db()
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
     async def update_game_stats(self, user_id, guild_id, won, bet, win_amt):
-        """Тоглогчийн статистикийг шинэчлэх (SQLite, commit-тэй)"""
-        row = await self.bot.db.fetchone(
-            "SELECT 1 FROM game_stats WHERE user_id=? AND guild_id=?",
-            str(user_id), str(guild_id)
+        """Тоглогчийн статистикийг шинэчлэх"""
+        existing = await self.bot.db_manager.fetch_one(
+            "game_stats", {"user_id": str(user_id), "guild_id": str(guild_id)}
         )
-        if not row:
-            await self.bot.db.execute(
-                "INSERT INTO game_stats (user_id, guild_id, wins, losses, total_won, total_bet) VALUES (?,?,0,0,0,0)",
-                str(user_id), str(guild_id)
-            )
-            await self.bot.db.commit()
+        if not existing:
+            await self.bot.db_manager.insert("game_stats", {
+                "user_id": str(user_id),
+                "guild_id": str(guild_id),
+                "wins": 0,
+                "losses": 0,
+                "total_won": 0,
+                "total_bet": 0,
+            })
+            existing = {"wins": 0, "losses": 0, "total_won": 0, "total_bet": 0}
         if won:
-            await self.bot.db.execute(
-                "UPDATE game_stats SET wins = wins + 1, total_won = total_won + ?, total_bet = total_bet + ? WHERE user_id=? AND guild_id=?",
-                win_amt, bet, str(user_id), str(guild_id)
+            await self.bot.db_manager.update(
+                "game_stats",
+                {"user_id": str(user_id), "guild_id": str(guild_id)},
+                {
+                    "wins": (existing.get("wins", 0) or 0) + 1,
+                    "total_won": (existing.get("total_won", 0) or 0) + win_amt,
+                    "total_bet": (existing.get("total_bet", 0) or 0) + bet,
+                },
             )
         else:
-            await self.bot.db.execute(
-                "UPDATE game_stats SET losses = losses + 1, total_bet = total_bet + ? WHERE user_id=? AND guild_id=?",
-                bet, str(user_id), str(guild_id)
+            await self.bot.db_manager.update(
+                "game_stats",
+                {"user_id": str(user_id), "guild_id": str(guild_id)},
+                {
+                    "losses": (existing.get("losses", 0) or 0) + 1,
+                    "total_bet": (existing.get("total_bet", 0) or 0) + bet,
+                },
             )
-        await self.bot.db.commit()
 
     async def try_give_gem_ring(self, user_id, guild_id, channel, mention):
         """Ховор тохиолдолд gem ring өгөх"""

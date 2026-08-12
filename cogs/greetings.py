@@ -258,59 +258,28 @@ class Greetings(commands.Cog):
         self.config_cache: Dict[int, GuildConfig] = {}
 
     async def cog_load(self):
-        await self.init_db()
-
-    async def init_db(self):
-        await self.bot.db.execute('''
-            CREATE TABLE IF NOT EXISTS greeting_templates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                guild_id TEXT NOT NULL,
-                creator_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                data TEXT NOT NULL,
-                created_at INTEGER DEFAULT (strftime('%s','now'))
-            )
-        ''')
-        await self.bot.db.commit()
-        await self.bot.db.execute('''
-            CREATE TABLE IF NOT EXISTS greeting_config (
-                guild_id TEXT PRIMARY KEY,
-                welcome_channel INTEGER,
-                goodbye_channel INTEGER,
-                boost_channel INTEGER,
-                welcome_template_id INTEGER,
-                goodbye_template_id INTEGER,
-                boost_template_id INTEGER,
-                welcome_enabled INTEGER DEFAULT 1,
-                goodbye_enabled INTEGER DEFAULT 1,
-                boost_enabled INTEGER DEFAULT 1,
-                dm_on_welcome INTEGER DEFAULT 0,
-                log_channel INTEGER
-            )
-        ''')
-        await self.bot.db.commit()
+        # Tables are pre-configured in Supabase via SQL migrations
+        pass
 
     async def get_config(self, guild_id: int) -> Optional[GuildConfig]:
         if guild_id in self.config_cache:
             return self.config_cache[guild_id]
-        row = await self.bot.db.fetchone(
-            "SELECT * FROM greeting_config WHERE guild_id = ?", str(guild_id)
-        )
+        row = await self.bot.db_manager.fetch_one("greeting_config", {"guild_id": str(guild_id)})
         if not row:
             return None
         config = GuildConfig(
             guild_id=guild_id,
-            welcome_channel=row[1],
-            goodbye_channel=row[2],
-            boost_channel=row[3],
-            welcome_template_id=row[4],
-            goodbye_template_id=row[5],
-            boost_template_id=row[6],
-            welcome_enabled=bool(row[7]),
-            goodbye_enabled=bool(row[8]),
-            boost_enabled=bool(row[9]),
-            dm_on_welcome=bool(row[10]) if len(row) > 10 else False,
-            log_channel=row[11] if len(row) > 11 else None,
+            welcome_channel=row.get("welcome_channel"),
+            goodbye_channel=row.get("goodbye_channel"),
+            boost_channel=row.get("boost_channel"),
+            welcome_template_id=row.get("welcome_template_id"),
+            goodbye_template_id=row.get("goodbye_template_id"),
+            boost_template_id=row.get("boost_template_id"),
+            welcome_enabled=bool(row.get("welcome_enabled", 1)),
+            goodbye_enabled=bool(row.get("goodbye_enabled", 1)),
+            boost_enabled=bool(row.get("boost_enabled", 1)),
+            dm_on_welcome=bool(row.get("dm_on_welcome", 0)),
+            log_channel=row.get("log_channel"),
         )
         self.config_cache[guild_id] = config
         return config
@@ -389,26 +358,23 @@ class Greetings(commands.Cog):
         return view
 
     async def save_template(self, guild_id: int, creator_id: int, template: Dict):
-        await self.bot.db.execute(
-            "INSERT INTO greeting_templates (guild_id, creator_id, name, data) VALUES (?, ?, ?, ?)",
-            str(guild_id), str(creator_id), template["name"], json.dumps(template)
-        )
-        await self.bot.db.commit()
+        await self.bot.db_manager.insert("greeting_templates", {
+            "guild_id": str(guild_id),
+            "creator_id": str(creator_id),
+            "name": template["name"],
+            "data": json.dumps(template),
+        })
 
     async def get_template(self, template_id: int) -> Optional[Dict]:
-        row = await self.bot.db.fetchone(
-            "SELECT data FROM greeting_templates WHERE id = ?", template_id
-        )
-        return json.loads(row[0]) if row else None
+        row = await self.bot.db_manager.fetch_one("greeting_templates", {"id": template_id})
+        return json.loads(row["data"]) if row else None
 
     async def get_all_templates(self, guild_id: int, user_id: Optional[int] = None) -> List[Dict]:
-        query = "SELECT id, name, data, creator_id FROM greeting_templates WHERE guild_id = ?"
-        params = [str(guild_id)]
+        filters = {"guild_id": str(guild_id)}
         if user_id:
-            query += " AND creator_id = ?"
-            params.append(str(user_id))
-        rows = await self.bot.db.fetch(query, *params)
-        return [{"id": r[0], "name": r[1], "data": json.loads(r[2]), "creator_id": r[3]} for r in rows]
+            filters["creator_id"] = str(user_id)
+        rows = await self.bot.db_manager.fetch_all("greeting_templates", filters)
+        return [{"id": r["id"], "name": r["name"], "data": json.loads(r["data"]), "creator_id": r["creator_id"]} for r in rows]
 
     async def send_greeting(self, channel_id: int, template_id: Optional[int], member: discord.Member, 
                             default_template: Dict, send_dm: bool = False, log_channel_id: Optional[int] = None):
@@ -457,18 +423,14 @@ class Greetings(commands.Cog):
                            template_id: Optional[int] = None, dm: Optional[bool] = None):
         col_channel = f"{event}_channel"
         col_template = f"{event}_template_id"
-        await self.bot.db.execute(
-            f"INSERT INTO greeting_config (guild_id, {col_channel}, {col_template}) VALUES (?, ?, ?) "
-            f"ON CONFLICT(guild_id) DO UPDATE SET {col_channel} = excluded.{col_channel}, {col_template} = excluded.{col_template}",
-            str(interaction.guild.id), channel.id, template_id
-        )
-        await self.bot.db.commit()
+        data = {col_channel: channel.id, col_template: template_id}
         if dm is not None and event == "welcome":
-            await self.bot.db.execute(
-                "UPDATE greeting_config SET dm_on_welcome = ? WHERE guild_id = ?",
-                int(dm), str(interaction.guild.id)
-            )
-            await self.bot.db.commit()
+            data["dm_on_welcome"] = int(dm)
+        await self.bot.db_manager.upsert(
+            "greeting_config",
+            {"guild_id": str(interaction.guild.id), **data},
+            on_conflict="guild_id",
+        )
         self.invalidate_cache(interaction.guild.id)
         embed = discord.Embed(
             title="✅ Амжилттай тохируулагдлаа",
@@ -494,22 +456,22 @@ class Greetings(commands.Cog):
 
         if event == "dm":
             new_state = not config.dm_on_welcome
-            await self.bot.db.execute(
-                "UPDATE greeting_config SET dm_on_welcome = ? WHERE guild_id = ?",
-                int(new_state), str(interaction.guild.id)
+            await self.bot.db_manager.update(
+                "greeting_config",
+                {"guild_id": str(interaction.guild.id)},
+                {"dm_on_welcome": int(new_state)},
             )
-            await self.bot.db.commit()
             self.invalidate_cache(interaction.guild.id)
             desc = "DM welcome **{}**".format("✅ Идэвхжлээ" if new_state else "❌ Унтарлаа")
         else:
             col = f"{event}_enabled"
             current = getattr(config, col)
             new_state = not current
-            await self.bot.db.execute(
-                f"UPDATE greeting_config SET {col} = ? WHERE guild_id = ?",
-                int(new_state), str(interaction.guild.id)
+            await self.bot.db_manager.update(
+                "greeting_config",
+                {"guild_id": str(interaction.guild.id)},
+                {col: int(new_state)},
             )
-            await self.bot.db.commit()
             self.invalidate_cache(interaction.guild.id)
             desc = f"{event.capitalize()} мэдэгдэл **{'✅ Идэвхжлээ' if new_state else '❌ Унтарлаа'}**"
 
@@ -543,8 +505,7 @@ class Greetings(commands.Cog):
     @app_commands.describe(template_id="Загварын ID")
     @app_commands.default_permissions(manage_guild=True)
     async def template_delete(self, interaction: discord.Interaction, template_id: int):
-        await self.bot.db.execute("DELETE FROM greeting_templates WHERE id = ?", template_id)
-        await self.bot.db.commit()
+        await self.bot.db_manager.delete("greeting_templates", {"id": template_id})
         await interaction.response.send_message(f"✅ Загвар {template_id} устгагдлаа.", ephemeral=True)
 
     @app_commands.command(name="template_list", description="Бүх загваруудыг харах")
@@ -614,8 +575,7 @@ class Greetings(commands.Cog):
     @app_commands.command(name="greeting_reset", description="Бүх тохиргоог устгах (болгоомжтой!)")
     @app_commands.default_permissions(administrator=True)
     async def greeting_reset(self, interaction: discord.Interaction):
-        await self.bot.db.execute("DELETE FROM greeting_config WHERE guild_id = ?", str(interaction.guild.id))
-        await self.bot.db.commit()
+        await self.bot.db_manager.delete("greeting_config", {"guild_id": str(interaction.guild.id)})
         self.invalidate_cache(interaction.guild.id)
         await interaction.response.send_message("🧹 Бүх мэндчилгээний тохиргоо устгагдлаа.", ephemeral=True)
 
@@ -623,11 +583,11 @@ class Greetings(commands.Cog):
     @app_commands.describe(channel="Лог суваг")
     @app_commands.default_permissions(manage_guild=True)
     async def set_log_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        await self.bot.db.execute(
-            "INSERT INTO greeting_config (guild_id, log_channel) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET log_channel = excluded.log_channel",
-            str(interaction.guild.id), channel.id
+        await self.bot.db_manager.upsert(
+            "greeting_config",
+            {"guild_id": str(interaction.guild.id), "log_channel": channel.id},
+            on_conflict="guild_id",
         )
-        await self.bot.db.commit()
         self.invalidate_cache(interaction.guild.id)
         await interaction.response.send_message(f"✅ Лог суваг: {channel.mention}", ephemeral=True)
 

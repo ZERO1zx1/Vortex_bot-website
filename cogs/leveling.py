@@ -568,27 +568,29 @@ class Leveling(SupabaseCog):
                 multiplier = await self.get_active_buff(user_id, guild_id)
                 amount = int(amount * multiplier)
             except: pass
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT xp, level FROM levels WHERE user_id=%s AND guild_id=%s",(str(user_id),str(guild_id)))
-                row = await cur.fetchone()
-                xp, level = row if row else (0,1)
-                old_level = level
-                new_xp = xp + amount
-                cfg = await get_config(self.db, guild_id)
-                leveled_up = False
-                while new_xp < 0 and level > 1:
-                    level -= 1
-                    new_xp += xp_for_level(level, cfg)
-                if new_xp < 0:
-                    new_xp = 0
-                while True:
-                    needed = xp_for_level(level, cfg)
-                    if new_xp >= needed:
-                        new_xp -= needed; level += 1; leveled_up = True
-                    else: break
-                await cur.execute("INSERT INTO levels (user_id,guild_id,xp,level) VALUES (%s,%s,%s,%s) ON DUPLICATE KEY UPDATE xp=%s, level=%s",
-                                  (str(user_id),str(guild_id),new_xp,level,new_xp,level))
+        row = await self.bot.db_manager.fetch_one(
+            "levels", {"user_id": str(user_id), "guild_id": str(guild_id)}
+        )
+        xp, level = (row.get("xp", 0) or 0, row.get("level", 1) or 1) if row else (0, 1)
+        old_level = level
+        new_xp = xp + amount
+        cfg = await get_config(self.db, guild_id)
+        leveled_up = False
+        while new_xp < 0 and level > 1:
+            level -= 1
+            new_xp += xp_for_level(level, cfg)
+        if new_xp < 0:
+            new_xp = 0
+        while True:
+            needed = xp_for_level(level, cfg)
+            if new_xp >= needed:
+                new_xp -= needed; level += 1; leveled_up = True
+            else: break
+        await self.bot.db_manager.upsert(
+            "levels",
+            {"user_id": str(user_id), "guild_id": str(guild_id), "xp": new_xp, "level": level},
+            on_conflict="user_id,guild_id",
+        )
         if leveled_up and member:
             await self._announce_level_up(member, old_level, level, new_xp, channel)
             try:
@@ -601,15 +603,14 @@ class Leveling(SupabaseCog):
         cfg = await get_config(self.bot.db, guild.id)
         # Level reward
         try:
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("SELECT money FROM level_rewards WHERE guild_id=%s AND level=%s",(str(guild.id),new))
-                    reward_row = await cur.fetchone()
-            if reward_row and reward_row[0] > 0:
+            reward_row = await self.bot.db_manager.fetch_one(
+                "level_rewards", {"guild_id": str(guild.id), "level": new}
+            )
+            if reward_row and (reward_row.get("money", 0) or 0) > 0:
                 economy = self.bot.get_cog("Economy")
                 if economy:
-                    await economy.update_balance(member.id, guild.id, reward_row[0])
-                    embed = discord.Embed(title="🎁 Түвшний шагнал!", description=f"{member.mention} Lv.{new} хүрсэн тул **{reward_row[0]:,}₮** авлаа!", color=GOLD_COLOR)
+                    await economy.update_balance(member.id, guild.id, reward_row["money"])
+                    embed = discord.Embed(title="🎁 Түвшний шагнал!", description=f"{member.mention} Lv.{new} хүрсэн тул **{reward_row['money']:,}₮** авлаа!", color=GOLD_COLOR)
                     ch = guild.get_channel(cfg.get("announce_channel")) if cfg.get("announce_channel") else source_channel
                     if ch:
                         try: await ch.send(embed=embed)
@@ -617,12 +618,11 @@ class Leveling(SupabaseCog):
         except: pass
         # Level role
         try:
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("SELECT role_id FROM level_roles WHERE guild_id=%s AND level=%s",(str(guild.id),new))
-                    row = await cur.fetchone()
-            if row:
-                role = guild.get_role(row[0])
+            role_row = await self.bot.db_manager.fetch_one(
+                "level_roles", {"guild_id": str(guild.id), "level": new}
+            )
+            if role_row:
+                role = guild.get_role(role_row.get("role_id"))
                 if role and role not in member.roles: await member.add_roles(role, reason=f"Level {new}")
         except: pass
         channel = guild.get_channel(cfg.get("announce_channel")) if cfg.get("announce_channel") else source_channel
@@ -651,44 +651,46 @@ class Leveling(SupabaseCog):
         await self._add_xp(from_id, guild_id, -amount); await self._add_xp(to_id, guild_id, amount)
         return True
     async def get_total_xp(self, user_id, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT xp, level FROM levels WHERE user_id=%s AND guild_id=%s",(str(user_id),str(guild_id)))
-                row = await cur.fetchone()
+        row = await self.bot.db_manager.fetch_one(
+            "levels", {"user_id": str(user_id), "guild_id": str(guild_id)}
+        )
         if not row: return 0
-        xp, level = row
+        xp = row.get("xp", 0) or 0
+        level = row.get("level", 1) or 1
         cfg = await get_config(self.db, guild_id)
         return sum(xp_for_level(l,cfg) for l in range(level)) + xp
     async def get_level(self, user_id, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT level FROM levels WHERE user_id=%s AND guild_id=%s",(str(user_id),str(guild_id)))
-                row = await cur.fetchone()
-        return row[0] if row else 1
+        row = await self.bot.db_manager.fetch_one(
+            "levels", {"user_id": str(user_id), "guild_id": str(guild_id)}
+        )
+        return row.get("level", 1) if row else 1
     async def get_rank_position(self, user_id, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT user_id FROM levels WHERE guild_id=%s ORDER BY level DESC, xp DESC",(str(guild_id),))
-                rows = await cur.fetchall()
-        for i,(uid,) in enumerate(rows):
-            if int(uid) == int(user_id): return i+1
+        rows = await self.bot.db_manager.fetch_all(
+            "levels", {"guild_id": str(guild_id)},
+            order_by="level", desc=True,
+        )
+        rows.sort(key=lambda r: (r.get("level", 0) or 0, r.get("xp", 0) or 0), reverse=True)
+        for i, r in enumerate(rows):
+            if int(r.get("user_id")) == int(user_id): return i+1
         return len(rows)+1
     async def set_xp(self, user_id, guild_id, xp):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                cfg = await get_config(self.db, guild_id)
-                level = 1; remaining = xp
-                while True:
-                    needed = xp_for_level(level, cfg)
-                    if remaining >= needed: remaining -= needed; level += 1
-                    else: break
-                await cur.execute("INSERT INTO levels (user_id,guild_id,xp,level) VALUES (%s,%s,%s,%s) ON DUPLICATE KEY UPDATE xp=%s,level=%s",
-                                  (str(user_id),str(guild_id),remaining,level,remaining,level))
+        cfg = await get_config(self.db, guild_id)
+        level = 1; remaining = xp
+        while True:
+            needed = xp_for_level(level, cfg)
+            if remaining >= needed: remaining -= needed; level += 1
+            else: break
+        await self.bot.db_manager.upsert(
+            "levels",
+            {"user_id": str(user_id), "guild_id": str(guild_id), "xp": remaining, "level": level},
+            on_conflict="user_id,guild_id",
+        )
     async def set_level(self, user_id, guild_id, level):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("INSERT INTO levels (user_id,guild_id,xp,level) VALUES (%s,%s,0,%s) ON DUPLICATE KEY UPDATE xp=0,level=%s",
-                                  (str(user_id),str(guild_id),level,level))
+        await self.bot.db_manager.upsert(
+            "levels",
+            {"user_id": str(user_id), "guild_id": str(guild_id), "xp": 0, "level": level},
+            on_conflict="user_id,guild_id",
+        )
 
     async def get_config(self, guild_id):
         return await get_config(self.bot.db, guild_id)
@@ -710,47 +712,54 @@ class Leveling(SupabaseCog):
             await self._add_xp(inviter_id, guild_id, xp_reward, member=member)
 
     async def get_exceptions(self, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT type, target_id FROM leveling_exceptions WHERE guild_id=%s",(str(guild_id),))
-                rows = await cur.fetchall()
-        return {"channels":[r[1] for r in rows if r[0]=="channel"], "users":[r[1] for r in rows if r[0]=="user"]}
+        rows = await self.bot.db_manager.fetch_all(
+            "leveling_exceptions", {"guild_id": str(guild_id)}
+        )
+        return {"channels":[r["target_id"] for r in rows if r.get("type")=="channel"],
+                "users":[r["target_id"] for r in rows if r.get("type")=="user"]}
     async def add_exception(self, guild_id, exc_type, target_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("INSERT IGNORE INTO leveling_exceptions VALUES (%s,%s,%s)",(str(guild_id),exc_type,target_id))
+        await self.bot.db_manager.upsert(
+            "leveling_exceptions",
+            {"guild_id": str(guild_id), "type": exc_type, "target_id": target_id},
+            on_conflict="guild_id,type,target_id",
+        )
     async def remove_exception(self, guild_id, exc_type, target_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM leveling_exceptions WHERE guild_id=%s AND type=%s AND target_id=%s",(str(guild_id),exc_type,target_id))
+        await self.bot.db_manager.delete(
+            "leveling_exceptions",
+            {"guild_id": str(guild_id), "type": exc_type, "target_id": target_id},
+        )
 
     async def get_level_roles(self, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT level, role_id FROM level_roles WHERE guild_id=%s ORDER BY level",(str(guild_id),))
-                return [{"level":r[0],"role_id":r[1]} for r in await cur.fetchall()]
+        rows = await self.bot.db_manager.fetch_all(
+            "level_roles", {"guild_id": str(guild_id)}, order_by="level"
+        )
+        return [{"level": r["level"], "role_id": r["role_id"]} for r in rows]
     async def set_level_role(self, guild_id, level, role_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("REPLACE INTO level_roles (guild_id,level,role_id) VALUES (%s,%s,%s)",(str(guild_id),level,role_id))
+        await self.bot.db_manager.upsert(
+            "level_roles",
+            {"guild_id": str(guild_id), "level": level, "role_id": role_id},
+            on_conflict="guild_id,level",
+        )
     async def delete_level_role(self, guild_id, level):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM level_roles WHERE guild_id=%s AND level=%s",(str(guild_id),level))
+        await self.bot.db_manager.delete(
+            "level_roles", {"guild_id": str(guild_id), "level": level}
+        )
 
     async def get_level_rewards(self, guild_id):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT level, money FROM level_rewards WHERE guild_id=%s ORDER BY level",(str(guild_id),))
-                return [{"level":r[0],"money":r[1]} for r in await cur.fetchall()]
+        rows = await self.bot.db_manager.fetch_all(
+            "level_rewards", {"guild_id": str(guild_id)}, order_by="level"
+        )
+        return [{"level": r["level"], "money": r["money"]} for r in rows]
     async def set_level_reward(self, guild_id, level, money):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("REPLACE INTO level_rewards (guild_id,level,money) VALUES (%s,%s,%s)",(str(guild_id),level,money))
+        await self.bot.db_manager.upsert(
+            "level_rewards",
+            {"guild_id": str(guild_id), "level": level, "money": money},
+            on_conflict="guild_id,level",
+        )
     async def delete_level_reward(self, guild_id, level):
-        async with self.bot.db.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM level_rewards WHERE guild_id=%s AND level=%s",(str(guild_id),level))
+        await self.bot.db_manager.delete(
+            "level_rewards", {"guild_id": str(guild_id), "level": level}
+        )
 
     # ========== EVENT LISTENERS ==========
     @commands.Cog.listener()
@@ -765,10 +774,19 @@ class Leveling(SupabaseCog):
         if message.attachments: xp += cfg["xp_media"]
         await self._add_xp(message.author.id, message.guild.id, xp, member=message.author, channel=message.channel)
         try:
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("INSERT INTO levels (user_id,guild_id,message_count) VALUES (%s,%s,1) ON DUPLICATE KEY UPDATE message_count=message_count+1",
-                                      (str(message.author.id),str(message.guild.id)))
+            lvl_row = await self.bot.db_manager.fetch_one(
+                "levels", {"user_id": str(message.author.id), "guild_id": str(message.guild.id)}
+            )
+            if lvl_row:
+                await self.bot.db_manager.update(
+                    "levels",
+                    {"user_id": str(message.author.id), "guild_id": str(message.guild.id)},
+                    {"message_count": (lvl_row.get("message_count", 0) or 0) + 1},
+                )
+            else:
+                await self.bot.db_manager.insert("levels", {
+                    "user_id": str(message.author.id), "guild_id": str(message.guild.id), "message_count": 1,
+                })
         except: pass
 
     @commands.Cog.listener()
@@ -785,10 +803,19 @@ class Leveling(SupabaseCog):
         if self._on_cooldown(self._react_cooldown, payload.user_id, cfg["react_cooldown"], payload.guild_id): return
         await self._add_xp(payload.user_id, payload.guild_id, cfg["xp_reaction"], member=member, check_mute=False)
         try:
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("INSERT INTO levels (user_id,guild_id,reaction_count) VALUES (%s,%s,1) ON DUPLICATE KEY UPDATE reaction_count=reaction_count+1",
-                                      (str(payload.user_id),str(payload.guild_id)))
+            lvl_row = await self.bot.db_manager.fetch_one(
+                "levels", {"user_id": str(payload.user_id), "guild_id": str(payload.guild_id)}
+            )
+            if lvl_row:
+                await self.bot.db_manager.update(
+                    "levels",
+                    {"user_id": str(payload.user_id), "guild_id": str(payload.guild_id)},
+                    {"reaction_count": (lvl_row.get("reaction_count", 0) or 0) + 1},
+                )
+            else:
+                await self.bot.db_manager.insert("levels", {
+                    "user_id": str(payload.user_id), "guild_id": str(payload.guild_id), "reaction_count": 1,
+                })
         except: pass
 
     @commands.Cog.listener()
@@ -817,10 +844,19 @@ class Leveling(SupabaseCog):
                                 self._voice_last_xp[key] = now
                                 await self._add_xp(member.id, guild.id, xp, member=member, check_mute=False)
                                 try:
-                                    async with self.bot.db.acquire() as conn:
-                                        async with conn.cursor() as cur:
-                                            await cur.execute("INSERT INTO levels (user_id,guild_id,voice_seconds) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE voice_seconds=voice_seconds+%s",
-                                                              (str(member.id),str(guild.id),VOICE_INTERVAL_SECS,VOICE_INTERVAL_SECS))
+                                    lvl_row = await self.bot.db_manager.fetch_one(
+                                        "levels", {"user_id": str(member.id), "guild_id": str(guild.id)}
+                                    )
+                                    if lvl_row:
+                                        await self.bot.db_manager.update(
+                                            "levels",
+                                            {"user_id": str(member.id), "guild_id": str(guild.id)},
+                                            {"voice_seconds": (lvl_row.get("voice_seconds", 0) or 0) + VOICE_INTERVAL_SECS},
+                                        )
+                                    else:
+                                        await self.bot.db_manager.insert("levels", {
+                                            "user_id": str(member.id), "guild_id": str(guild.id), "voice_seconds": VOICE_INTERVAL_SECS,
+                                        })
                                 except: pass
             except Exception as e: log.error(f"Voice XP loop: {e}")
             await asyncio.sleep(30)
@@ -880,10 +916,10 @@ class Leveling(SupabaseCog):
         # Message count from database (all-time active chatters)
         active_chatters = 0
         try:
-            async with self.bot.db.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("SELECT COUNT(*) FROM levels WHERE guild_id=%s AND message_count > 0", (str(guild.id),))
-                    active_chatters = (await cur.fetchone())[0]
+            lvl_rows = await self.bot.db_manager.fetch_all(
+                "levels", {"guild_id": str(guild.id)}
+            )
+            active_chatters = sum(1 for r in lvl_rows if (r.get("message_count", 0) or 0) > 0)
         except: pass
 
         embed = discord.Embed(title=f"📈 {guild.name} - Server Activity", color=SUCCESS_COLOR)

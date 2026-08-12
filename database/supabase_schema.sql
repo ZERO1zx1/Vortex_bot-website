@@ -1,3 +1,8 @@
+-- =============================================================
+-- Looksmax.mn Discord Bot - Supabase Schema
+-- Run this in the Supabase SQL Editor or apply via migrations.
+-- =============================================================
+
 -- Economy
 CREATE TABLE IF NOT EXISTS economy (
     user_id TEXT,
@@ -60,12 +65,19 @@ CREATE TABLE IF NOT EXISTS level_roles (
     role_id BIGINT,
     PRIMARY KEY (guild_id, level)
 );
-
 CREATE TABLE IF NOT EXISTS level_rewards (
     guild_id TEXT,
     level INT,
     money INT DEFAULT 0,
     PRIMARY KEY (guild_id, level)
+);
+
+-- Leveling exceptions
+CREATE TABLE IF NOT EXISTS leveling_exceptions (
+    guild_id TEXT,
+    type TEXT,
+    target_id TEXT,
+    PRIMARY KEY (guild_id, type, target_id)
 );
 
 -- Warnings
@@ -91,6 +103,51 @@ CREATE TABLE IF NOT EXISTS marriages (
     UNIQUE (user_id, partner_id, guild_id)
 );
 
+-- Marriage proposals / family relations
+CREATE TABLE IF NOT EXISTS marriage_proposals (
+    guild_id TEXT,
+    from_id TEXT,
+    to_id TEXT,
+    proposal_type TEXT,
+    ring_id INT DEFAULT 0,
+    expires_at BIGINT,
+    PRIMARY KEY (guild_id, from_id, to_id, proposal_type)
+);
+CREATE TABLE IF NOT EXISTS adoptions (
+    guild_id TEXT,
+    parent_id TEXT,
+    child_id TEXT,
+    type TEXT DEFAULT 'adoption',
+    adopted_since BIGINT,
+    PRIMARY KEY (guild_id, parent_id, child_id)
+);
+CREATE TABLE IF NOT EXISTS marriage_user_settings (
+    guild_id TEXT,
+    user_id TEXT,
+    blocked BOOLEAN DEFAULT FALSE,
+    auto_accept_marriage BOOLEAN DEFAULT FALSE,
+    last_gift_daily BIGINT DEFAULT 0,
+    last_love_daily BIGINT DEFAULT 0,
+    PRIMARY KEY (guild_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS marriage_guild_config (
+    guild_id TEXT PRIMARY KEY,
+    enabled BOOLEAN DEFAULT TRUE,
+    polygamy BOOLEAN DEFAULT FALSE,
+    max_spouses INT DEFAULT 1,
+    announce_channel BIGINT,
+    marriage_role BIGINT
+);
+CREATE TABLE IF NOT EXISTS marriage_gifts (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT,
+    from_id TEXT,
+    to_id TEXT,
+    gift_type TEXT,
+    love_points INT DEFAULT 0,
+    given_at BIGINT
+);
+
 -- Temp Channels
 CREATE TABLE IF NOT EXISTS temp_channels (
     id SERIAL PRIMARY KEY,
@@ -99,8 +156,13 @@ CREATE TABLE IF NOT EXISTS temp_channels (
     owner_id BIGINT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS tempvoice_setup_msg (
+    guild_id TEXT PRIMARY KEY,
+    channel_id BIGINT,
+    message_id BIGINT
+);
 
--- Guild Config
+-- Guild Config (temp voice)
 CREATE TABLE IF NOT EXISTS guild_config (
     guild_id TEXT PRIMARY KEY,
     create_channel_id BIGINT,
@@ -114,7 +176,6 @@ CREATE TABLE IF NOT EXISTS lottery (
     id INT PRIMARY KEY,
     pool BIGINT DEFAULT 0
 );
-
 CREATE TABLE IF NOT EXISTS lottery_entries (
     user_id TEXT,
     guild_id TEXT,
@@ -122,7 +183,7 @@ CREATE TABLE IF NOT EXISTS lottery_entries (
     PRIMARY KEY (user_id, guild_id)
 );
 
--- Staff Tables (from moderation.py)
+-- Staff Tables
 CREATE TABLE IF NOT EXISTS staff_members (
     user_id TEXT,
     guild_id TEXT,
@@ -130,7 +191,6 @@ CREATE TABLE IF NOT EXISTS staff_members (
     added_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, guild_id)
 );
-
 CREATE TABLE IF NOT EXISTS staff_activity (
     user_id TEXT,
     guild_id TEXT,
@@ -141,7 +201,6 @@ CREATE TABLE IF NOT EXISTS staff_activity (
     last_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, guild_id)
 );
-
 CREATE TABLE IF NOT EXISTS staff_weekly_winners (
     id SERIAL PRIMARY KEY,
     user_id TEXT,
@@ -151,13 +210,279 @@ CREATE TABLE IF NOT EXISTS staff_weekly_winners (
     points INT,
     rank INT
 );
-
 CREATE TABLE IF NOT EXISTS staff_config (
     guild_id TEXT PRIMARY KEY,
     log_channel BIGINT,
     announcement_channel BIGINT,
-    stats_channel BIGINT
+    stats_channel BIGINT,
+    leaderboard_message_id BIGINT
 );
+
+-- Giveaways
+CREATE TABLE IF NOT EXISTS giveaways (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT,
+    channel_id BIGINT,
+    message_id BIGINT,
+    prize TEXT,
+    winner_count INT DEFAULT 1,
+    end_time BIGINT,
+    host_id TEXT,
+    required_role_id BIGINT,
+    ended BOOLEAN DEFAULT FALSE
+);
+CREATE TABLE IF NOT EXISTS giveaway_entries (
+    giveaway_id INT,
+    user_id TEXT,
+    PRIMARY KEY (giveaway_id, user_id)
+);
+
+-- Games / Casino stats
+CREATE TABLE IF NOT EXISTS game_stats (
+    user_id TEXT,
+    guild_id TEXT,
+    wins INT DEFAULT 0,
+    losses INT DEFAULT 0,
+    total_won BIGINT DEFAULT 0,
+    total_bet BIGINT DEFAULT 0,
+    PRIMARY KEY (user_id, guild_id)
+);
+
+-- Shop / inventory
+CREATE TABLE IF NOT EXISTS shop_stock (
+    guild_id TEXT,
+    item_id INT,
+    current_stock INT DEFAULT 0,
+    last_restock BIGINT,
+    PRIMARY KEY (guild_id, item_id)
+);
+CREATE TABLE IF NOT EXISTS user_inventory (
+    user_id TEXT,
+    guild_id TEXT,
+    item_id INT,
+    quantity INT DEFAULT 1,
+    PRIMARY KEY (user_id, guild_id, item_id)
+);
+CREATE TABLE IF NOT EXISTS user_drunk (
+    user_id TEXT,
+    guild_id TEXT,
+    level INT DEFAULT 0,
+    last_update BIGINT,
+    PRIMARY KEY (user_id, guild_id)
+);
+CREATE TABLE IF NOT EXISTS marketplace_listings (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT,
+    seller_id TEXT,
+    item_id INT,
+    quantity INT,
+    price_per_item INT,
+    created_at BIGINT
+);
+
+-- Counting
+CREATE TABLE IF NOT EXISTS counting_config (
+    guild_id TEXT PRIMARY KEY,
+    channel_id BIGINT,
+    enabled BOOLEAN DEFAULT TRUE,
+    delete_messages BOOLEAN DEFAULT FALSE,
+    math_mode BOOLEAN DEFAULT FALSE,
+    failed_role_id BIGINT,
+    reliable_role_id BIGINT,
+    save_role_id BIGINT,
+    high_score BIGINT DEFAULT 0,
+    best_streak BIGINT DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS counting_progress (
+    guild_id TEXT PRIMARY KEY,
+    current_count BIGINT DEFAULT 0,
+    last_user_id BIGINT,
+    streak BIGINT DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS counting_stats (
+    guild_id TEXT,
+    user_id TEXT,
+    correct INT DEFAULT 0,
+    wrong INT DEFAULT 0,
+    saves INT DEFAULT 0,
+    strikes INT DEFAULT 0,
+    best_streak INT DEFAULT 0,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+-- Confessions
+CREATE TABLE IF NOT EXISTS confession_config (
+    guild_id TEXT PRIMARY KEY,
+    confess_channel_id BIGINT,
+    output_channel_id BIGINT,
+    anonymity BOOLEAN DEFAULT TRUE,
+    cooldown INT DEFAULT 30,
+    next_id INT DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS confession_blacklist (
+    guild_id TEXT,
+    word TEXT,
+    PRIMARY KEY (guild_id, word)
+);
+CREATE TABLE IF NOT EXISTS confession_cooldown (
+    user_id TEXT,
+    guild_id TEXT,
+    last_time BIGINT,
+    PRIMARY KEY (user_id, guild_id)
+);
+CREATE TABLE IF NOT EXISTS confession_messages (
+    guild_id TEXT,
+    confession_id INT,
+    message_id BIGINT,
+    user_id TEXT,
+    content TEXT,
+    PRIMARY KEY (guild_id, confession_id)
+);
+
+-- Avatar log config
+CREATE TABLE IF NOT EXISTS avatar_log_config (
+    guild_id TEXT PRIMARY KEY,
+    log_channel_id BIGINT,
+    enabled BOOLEAN DEFAULT TRUE
+);
+
+-- Invite tracking
+CREATE TABLE IF NOT EXISTS invite_log_config (
+    guild_id TEXT PRIMARY KEY,
+    log_channel_id BIGINT,
+    enabled BOOLEAN DEFAULT TRUE,
+    fake_delay INT DEFAULT 3
+);
+CREATE TABLE IF NOT EXISTS invite_stats (
+    guild_id TEXT,
+    user_id TEXT,
+    regular INT DEFAULT 0,
+    bonus INT DEFAULT 0,
+    fake INT DEFAULT 0,
+    left INT DEFAULT 0,
+    PRIMARY KEY (guild_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS invite_joins (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT,
+    user_id TEXT,
+    invited_by TEXT,
+    invite_code TEXT,
+    joined_at BIGINT,
+    left_at BIGINT,
+    is_fake BOOLEAN DEFAULT FALSE
+);
+CREATE TABLE IF NOT EXISTS daily_stats (
+    guild_id TEXT,
+    date TEXT,
+    joins INT DEFAULT 0,
+    leaves INT DEFAULT 0,
+    PRIMARY KEY (guild_id, date)
+);
+CREATE TABLE IF NOT EXISTS invite_labels (
+    guild_id TEXT,
+    invite_code TEXT,
+    label TEXT,
+    role_id BIGINT,
+    PRIMARY KEY (guild_id, invite_code)
+);
+
+-- Sticky messages
+CREATE TABLE IF NOT EXISTS sticky_messages (
+    guild_id TEXT,
+    channel_id TEXT,
+    message_id TEXT,
+    content TEXT,
+    updated_at BIGINT,
+    PRIMARY KEY (guild_id, channel_id)
+);
+
+-- Temproles
+CREATE TABLE IF NOT EXISTS temproles (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT,
+    guild_id TEXT,
+    role_id BIGINT,
+    end_time BIGINT
+);
+CREATE TABLE IF NOT EXISTS temprole_config (
+    guild_id TEXT PRIMARY KEY,
+    max_duration_seconds INT DEFAULT 604800
+);
+
+-- PvP cooldowns
+CREATE TABLE IF NOT EXISTS pvp_cooldowns (
+    guild_id TEXT,
+    user_id TEXT,
+    last_used BIGINT,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+-- Quests
+CREATE TABLE IF NOT EXISTS user_quests (
+    user_id TEXT,
+    guild_id TEXT,
+    quest_id TEXT,
+    template_id INT,
+    target INT,
+    progress INT DEFAULT 0,
+    reward_type TEXT DEFAULT 'money',
+    reward_amount INT DEFAULT 0,
+    claimed BOOLEAN DEFAULT FALSE,
+    created_at BIGINT,
+    PRIMARY KEY (user_id, guild_id, quest_id)
+);
+CREATE TABLE IF NOT EXISTS quest_history (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT,
+    guild_id TEXT,
+    quest_id TEXT,
+    template_id INT,
+    completed_at BIGINT
+);
+
+-- Greetings / templates
+CREATE TABLE IF NOT EXISTS greeting_templates (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    creator_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()))
+);
+CREATE TABLE IF NOT EXISTS greeting_config (
+    guild_id TEXT PRIMARY KEY,
+    welcome_channel BIGINT,
+    goodbye_channel BIGINT,
+    boost_channel BIGINT,
+    welcome_template_id INT,
+    goodbye_template_id INT,
+    boost_template_id INT,
+    welcome_enabled BOOLEAN DEFAULT TRUE,
+    goodbye_enabled BOOLEAN DEFAULT TRUE,
+    boost_enabled BOOLEAN DEFAULT TRUE,
+    dm_on_welcome BOOLEAN DEFAULT FALSE,
+    log_channel BIGINT
+);
+
+-- -------------------------------------------------------------
+-- RPC: atomic increment helper
+-- Used by database/supabase_manager.py increment()
+-- -------------------------------------------------------------
+CREATE OR REPLACE FUNCTION increment(
+    table_name TEXT,
+    filter_col TEXT,
+    filter_val TEXT,
+    col TEXT,
+    delta BIGINT
+) RETURNS VOID LANGUAGE plpgsql AS $$
+BEGIN
+    EXECUTE format(
+        'UPDATE %I SET %I = COALESCE(%I, 0) + %s WHERE %I = %L',
+        table_name, col, col, delta, filter_col, filter_val
+    );
+END;
+$$;
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_economy_balance ON economy (balance);
