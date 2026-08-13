@@ -1,6 +1,6 @@
-# Looksmax.mn Discord Bot
+# 𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 Discord Bot
 
-A feature-rich Discord bot for the **Looksmax.mn** community, built with `discord.py` and **Supabase** (PostgreSQL) as the database backend.
+A feature-rich Discord bot for the **𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹** community, built with `discord.py` and **Supabase** (PostgreSQL) as the database backend.
 
 ## Features
 
@@ -39,7 +39,7 @@ A feature-rich Discord bot for the **Looksmax.mn** community, built with `discor
 │   ├── supabase_manager.py    # Async Supabase repository layer
 │   └── supabase_schema.sql    # Full schema + RPC functions
 ├── utils/
-│   ├── branding.py            # Centralized Looksmax.mn branding
+│   ├── branding.py            # Centralized 𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 branding
 │   ├── embeds.py              # UI embed helpers
 │   ├── constants.py           # Shared constants
 │   ├── font_utils.py          # Font loading
@@ -82,7 +82,7 @@ Edit `config.json`:
 {
   "prefix": "!",
   "owner_id": "your_discord_id",
-  "co_owners": []
+  "co_owner_ids": []
 }
 ```
 
@@ -116,7 +116,7 @@ await self.bot.db_manager.upsert("leveling_config", {...}, on_conflict="guild_id
 await self.bot.db_manager.delete("warnings", {"id": 42})
 
 # Atomic increment
-await self.bot.db_manager.increment("economy", "user_id", "123", "balance", 100)
+await self.bot.db_manager.increment("economy", {"user_id": "123"}, "balance", 100)
 ```
 
 ## Branding
@@ -124,7 +124,7 @@ await self.bot.db_manager.increment("economy", "user_id", "123", "balance", 100)
 All embeds and UI use the centralized branding layer in `utils/branding.py`:
 
 ```python
-from utils.branding import BOT_NAME, BOT_ICON_URL, BRAND_COLOR, footer_text
+from utils.branding import BOT_NAME, BOT_ICON_URL, PRIMARY_COLOR, footer_text
 from utils.embeds import success_embed, error_embed, info_embed
 ```
 

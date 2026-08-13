@@ -3,7 +3,9 @@
 Change the bot's public identity here instead of searching through cogs.
 """
 
-BOT_NAME = "𝓐𝓮𝓽𝓰𝓮𝓻  蒼穹"
+from typing import Optional
+
+BOT_NAME = "𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹"
 BOT_DESCRIPTION = (
     "Эдийн засаг, level, дэлгүүр, тоглоом, модерац болон бусад олон "
     "функцтэй Монгол Discord бот."
@@ -25,7 +27,7 @@ GOLD_COLOR = 0xFAB387
 INFO_COLOR = 0x89B4FA
 
 
-def footer_text(user: str = None) -> str:
+def footer_text(user: Optional[str] = None) -> str:
     """Build a consistent footer string, optionally attributing a user."""
     if user:
         return f"{user} • {BOT_FOOTER}"
