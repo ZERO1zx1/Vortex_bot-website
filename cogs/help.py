@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands, ui
+from utils.branding import BOT_NAME
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # БҮХ КОМАНДЫН ДЭЛГЭРЭНГҮЙ ТОДОРХОЙЛОЛТ (шинэчлэгдсэн, алдаагүй)
@@ -596,7 +597,7 @@ class HelpView(ui.View):
                 value=f"🇬🇧 {info['description_en']}\n🇲🇳 {info['description_mn']}",
                 inline=False
             )
-        embed.set_footer(text=f"{self.ctx.author.name} | Gurten | LGC",
+        embed.set_footer(text=f"{self.ctx.author.name} | {BOT_NAME} | LGC",
                          icon_url=self.ctx.author.display_avatar.url)
         return embed
 
@@ -712,7 +713,7 @@ class Help(commands.Cog):
             if info.get("examples"):
                 examples = "\n".join(f"• `{ex}`" for ex in info["examples"])
                 embed.add_field(name="📝 Жишээ", value=examples, inline=False)
-            embed.set_footer(text="Gurten | LGC Help System")
+            embed.set_footer(text=f"{BOT_NAME} | Help System")
             await ctx.send(embed=embed)
 
 

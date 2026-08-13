@@ -10,24 +10,8 @@ import asyncio
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont
 
-# ---------- Фонт ----------
-try:
-    from utils.font_utils import load_font as _load_font
-except ImportError:
-    def _load_font(size=40, bold=True):
-        paths = [
-            "C:/Windows/Fonts/arialbd.ttf",
-            "C:/Windows/Fonts/Arial Bold.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        ] if bold else [
-            "C:/Windows/Fonts/arial.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ]
-        for p in paths:
-            if os.path.exists(p):
-                try: return ImageFont.truetype(p, size)
-                except: pass
-        return ImageFont.load_default(size)
+# ---------- Centralized Unicode-aware font management ----------
+from utils.fonts import load_font as _load_font
 
 # ===== COLORS =====
 EMBED_COLOR = 0x2b2d31

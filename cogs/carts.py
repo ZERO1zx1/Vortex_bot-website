@@ -9,26 +9,13 @@ import time
 from PIL import Image, ImageDraw, ImageFont
 from PIL.Image import Resampling
 
-# ---------- Төвлөрсөн фонт ----------
-try:
-    from utils.font_utils import load_font as _load_font
-except ImportError:
-    def _load_font(size=40, bold=True):
-        paths = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "C:/Windows/Fonts/arialbd.ttf",
-            "C:/Windows/Fonts/arial.ttf",
-        ]
-        if not bold:
-            paths = [p for p in paths if "Bold" not in p and "bd" not in p]
-        for p in paths:
-            if os.path.exists(p):
-                try:
-                    return ImageFont.truetype(p, size)
-                except:
-                    pass
-        return ImageFont.load_default(size)
+# ---------- Centralized Unicode-aware font management ----------
+from utils.fonts import (
+    load_font as _load_font,
+    is_emoji,
+    draw_text_with_fallback,
+    get_font_manager,
+)
 
 # ---------- ProBot палитр ----------
 BG_COLOR = (30, 33, 40, 255)
@@ -40,16 +27,6 @@ TEXT_SECONDARY = (185, 187, 190, 255)
 GOLD = (255, 180, 50, 255)
 GREEN = (87, 242, 135, 255)
 RED = (237, 66, 69, 255)
-
-# ---------- ЭМОЖИ ТОДОРХОЙЛОГЧ ----------
-def is_emoji(char):
-    cp = ord(char)
-    return any(start <= cp <= end for start, end in [
-        (0x1F600, 0x1F64F), (0x1F300, 0x1F5FF), (0x1F680, 0x1F6FF),
-        (0x1F1E0, 0x1F1FF), (0x2600, 0x26FF), (0x2700, 0x27BF),
-        (0x1F900, 0x1F9FF), (0x1FA00, 0x1FA6F), (0x1FA70, 0x1FAFF),
-        (0x200D, 0x200D), (0xFE0F, 0xFE0F),
-    ])
 
 # ==================== ИНВЕНТАР VIEW ====================
 class InventoryView(View):
@@ -220,12 +197,30 @@ class Cards(commands.Cog):
             else:
                 tokens.append(('text', ch))
                 i += 1
-        cur_x = x
+
+        # Group adjacent text tokens into runs for per-glyph fallback
+        runs = []
+        current_text = ""
         for typ, val in tokens:
             if typ == 'text':
-                draw.text((cur_x, y), val, font=font, fill=fill)
-                bbox = draw.textbbox((cur_x, y), val, font=font)
-                cur_x += bbox[2] - bbox[0]
+                current_text += val
+            else:
+                if current_text:
+                    runs.append(('text', current_text))
+                    current_text = ""
+                runs.append(('emoji', val))
+        if current_text:
+            runs.append(('text', current_text))
+
+        cur_x = x
+        font_size = getattr(font, 'size', 20)
+        for typ, val in runs:
+            if typ == 'text':
+                # Use per-glyph Unicode fallback for text runs
+                cur_x = draw_text_with_fallback(
+                    draw, (cur_x, y), val, font, fill=fill,
+                    size=font_size, bold=False
+                )
             else:
                 emoji_img = await self._fetch_emoji_image(val, size=emoji_size)
                 if emoji_img:

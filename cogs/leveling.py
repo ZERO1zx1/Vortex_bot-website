@@ -1,4 +1,4 @@
-﻿from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
+from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
 from utils.branding import BOT_NAME
 import asyncio, io, json, logging, os, time, random
 from datetime import datetime, timezone
@@ -18,23 +18,8 @@ ASSETS_DIR = os.path.abspath(os.path.abspath("./assets"))
 DEFAULT_ASSET_FONT = os.path.join(ASSETS_DIR, "levelfont.otf")
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
-# ---------- Font helper (kept for legacy) ----------
-try:
-    from utils.font_utils import load_font as _load_font
-except ImportError:
-    def _load_font(size=40, bold=True):
-        paths = [
-            "C:/Windows/Fonts/arialbd.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-        ] if bold else [
-            "C:/Windows/Fonts/arial.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-        ]
-        for p in paths:
-            if os.path.exists(p):
-                try: return ImageFont.truetype(p, size)
-                except: pass
-        return ImageFont.load_default(size)
+# ---------- Centralized Unicode-aware font management ----------
+from utils.fonts import load_font as _load_font
 
 # ---------- Color constants ----------
 EMBED_COLOR   = 0x1e1e2f
@@ -430,7 +415,7 @@ class LevelingSetupView(ui.View):
         await interaction.response.send_message("⛔ Сервер эзэмшигч эсвэл ботын co-owner эрх шаардлагатай.", ephemeral=True)
         return False
     async def refresh(self):
-        cfg = await get_config(self.cog.bot.db, self.ctx.guild.id)
+        cfg = await get_config(self.cog.bot.db_manager, self.ctx.guild.id)
         embed = discord.Embed(title="🔧 Түвшний систем тохиргоо", color=INFO_COLOR)
         ch = self.ctx.guild.get_channel(cfg["announce_channel"]) if cfg["announce_channel"] else None
         embed.add_field(name="📢 Мэдэгдэл суваг", value=ch.mention if ch else "Тохируулаагүй", inline=False)
@@ -450,18 +435,18 @@ class LevelingSetupView(ui.View):
         class ChannelSelect(ui.Select):
             def __init__(self): super().__init__(placeholder="Мэдэгдэл сувгаа сонго...", options=opts)
             async def callback(self, inter):
-                cfg = await get_config(self.view.cog.bot.db, self.view.ctx.guild.id)
+                cfg = await get_config(self.view.cog.bot.db_manager, self.view.ctx.guild.id)
                 cfg["announce_channel"] = int(self.values[0])
-                await set_config(self.view.cog.bot.db, self.view.ctx.guild.id, cfg)
+                await set_config(self.view.cog.bot.db_manager, self.view.ctx.guild.id, cfg)
                 await inter.response.send_message("✅ Суваг тохируулагдлаа.", ephemeral=True)
                 await self.view.refresh()
         view = ui.View(timeout=60); view.add_item(ChannelSelect())
         await interaction.response.send_message("Сувгаа сонгоно уу:", view=view, ephemeral=True)
     @ui.button(label="🔄 Систем унтраах/асаах", style=discord.ButtonStyle.primary, row=0)
     async def toggle_btn(self, interaction, button):
-        cfg = await get_config(self.cog.bot.db, self.ctx.guild.id)
+        cfg = await get_config(self.cog.bot.db_manager, self.ctx.guild.id)
         cfg["enabled"] = not cfg["enabled"]
-        await set_config(self.cog.bot.db, self.ctx.guild.id, cfg)
+        await set_config(self.cog.bot.db_manager, self.ctx.guild.id, cfg)
         await interaction.response.send_message(f"Систем {'ассан' if cfg['enabled'] else 'унтарсан'}.", ephemeral=True)
         await self.refresh()
     @ui.button(label="⏱ Cooldown тохируулах", style=discord.ButtonStyle.secondary, row=1)
@@ -475,9 +460,9 @@ class LevelingSetupView(ui.View):
                 m = int(msg_inp.value); r = int(react_inp.value)
                 if m<=0 or r<=0: raise ValueError
             except: return await inter.response.send_message("❌ Эерэг бүхэл тоо оруулна уу.", ephemeral=True)
-            cfg = await get_config(self.cog.bot.db, self.ctx.guild.id)
+            cfg = await get_config(self.cog.bot.db_manager, self.ctx.guild.id)
             cfg["msg_cooldown"] = m; cfg["react_cooldown"] = r
-            await set_config(self.cog.bot.db, self.ctx.guild.id, cfg)
+            await set_config(self.cog.bot.db_manager, self.ctx.guild.id, cfg)
             await inter.response.send_message("✅ Cooldown шинэчлэгдлээ.", ephemeral=True)
             await self.refresh()
         modal.on_submit = on_submit
@@ -488,9 +473,9 @@ class LevelingSetupView(ui.View):
         url_inp = ui.TextInput(label="Зургийн URL", placeholder="https://...", required=True)
         modal.add_item(url_inp)
         async def on_submit(inter):
-            cfg = await get_config(self.cog.bot.db, self.ctx.guild.id)
+            cfg = await get_config(self.cog.bot.db_manager, self.ctx.guild.id)
             cfg["background_url"] = url_inp.value.strip()
-            await set_config(self.cog.bot.db, self.ctx.guild.id, cfg)
+            await set_config(self.cog.bot.db_manager, self.ctx.guild.id, cfg)
             await inter.response.send_message("✅ Арын зураг тохируулагдлаа.", ephemeral=True)
             await self.refresh()
         modal.on_submit = on_submit

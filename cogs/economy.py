@@ -13,26 +13,8 @@ import aiohttp
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
 
-# ---------- Фонт ----------
-try:
-    from utils.font_utils import load_font as _load_font
-except ImportError:
-    def _load_font(size=40, bold=True):
-        paths = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "C:/Windows/Fonts/arialbd.ttf",
-            "C:/Windows/Fonts/arial.ttf",
-        ]
-        if not bold:
-            paths = [p for p in paths if "Bold" not in p and "bd" not in p]
-        for p in paths:
-            if os.path.exists(p):
-                try:
-                    return ImageFont.truetype(p, size)
-                except:
-                    pass
-        return ImageFont.load_default(size)
+# ---------- Centralized Unicode-aware font management ----------
+from utils.fonts import load_font as _load_font
 
 # ---------- Өнгөний палитр ----------
 EMBED_COLOR   = 0x1e1e2f
@@ -696,7 +678,7 @@ class AddPhraseModal(Modal, title="Ажлын өгүүлбэр нэмэх"):
     async def on_submit(self, interaction: discord.Interaction):
         if len(self.phrase.value) > 160:
             return await interaction.response.send_message("❌ 160 тэмдэгтээс хэтрэхгүй байх ёстой.", ephemeral=True)
-        await self.cog._execute("INSERT INTO work_phrases (guild_id, phrase) VALUES (%s, %s)", str(self.guild_id), self.phrase.value)
+        await self.cog.bot.db_manager.insert("work_phrases", {"guild_id": str(self.guild_id), "phrase": self.phrase.value})
         await interaction.response.send_message(f"✅ Өгүүлбэр нэмэгдлээ: {self.phrase.value}", ephemeral=True)
 
 class RemovePhraseModal(Modal, title="Өгүүлбэр хасах"):
@@ -710,7 +692,7 @@ class RemovePhraseModal(Modal, title="Өгүүлбэр хасах"):
             pid = int(self.phrase_id.value)
         except ValueError:
             return await interaction.response.send_message("❌ ID нь тоо байх ёстой.", ephemeral=True)
-        await self.cog._execute("DELETE FROM work_phrases WHERE guild_id=%s AND id=%s", str(self.guild_id), pid)
+        await self.cog.bot.db_manager.delete("work_phrases", {"guild_id": str(self.guild_id), "id": pid})
         await interaction.response.send_message(f"✅ {pid} ID-тай өгүүлбэр устгагдлаа.", ephemeral=True)
 
 async def setup(bot):

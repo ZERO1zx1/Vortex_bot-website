@@ -12,27 +12,8 @@ def _format_number(num: int) -> str:
     if num >= 1_000: return f"{num/1_000:.1f}K"
     return str(num)
 
-# ---------- Фонт (локал эхэнд, олон fallback) ----------
-def get_font(size=20, bold=False):
-    try:
-        base_dir = os.path.abspath("./assets/fonts")
-        # Хамгийн түрүүнд DejaVu Sans
-        for name in ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf"]:
-            path = os.path.join(base_dir, name)
-            if os.path.exists(path):
-                if bold and "Bold" in name: return ImageFont.truetype(path, size)
-                if not bold and "Bold" not in name: return ImageFont.truetype(path, size)
-        # Системийн замууд
-        paths = []
-        if bold:
-            paths += ["C:/Windows/Fonts/arialbd.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
-        else:
-            paths += ["C:/Windows/Fonts/arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
-        for p in paths:
-            if os.path.exists(p): return ImageFont.truetype(p, size)
-    except:
-        pass
-    return ImageFont.load_default(size)
+# ---------- Centralized Unicode-aware font management ----------
+from utils.fonts import load_font as get_font
 
 # ---------- Дугуй аватар ----------
 async def fetch_avatar_image(session, url, size=64):

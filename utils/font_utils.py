@@ -1,59 +1,55 @@
+"""Backward-compatible font utilities.
+
+This module now delegates to the centralized Unicode-aware font manager in
+``utils/fonts.py``.  Existing imports of ``load_font``, ``list_fonts``, and
+``find_font`` continue to work, but new code should import directly from
+``utils.fonts``.
+"""
+
 import os
+from typing import List, Optional
+
 from PIL import ImageFont
 
-FONTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "fonts"))
+from utils.fonts import (
+    FontManager,
+    get_font_manager,
+    load_font,
+    get_branding_font,
+    get_emoji_font,
+    draw_text_with_fallback,
+    is_emoji,
+)
 
-def load_font(size: int, bold: bool = True):
-    """Load a bold or regular font from the fonts directory or system fallback."""
-    if bold:
-        candidates = ["DejaVu Sans Bold.ttf", "DejaVuSans-Bold.ttf"]
-    else:
-        candidates = ["DejaVuSans.ttf", "DejaVu Sans.ttf"]
+# Re-export for backward compatibility
+__all__ = [
+    "load_font",
+    "list_fonts",
+    "find_font",
+    "get_branding_font",
+    "get_emoji_font",
+    "draw_text_with_fallback",
+    "is_emoji",
+    "FontManager",
+    "get_font_manager",
+]
 
-    for name in candidates:
-        path = os.path.join(FONTS_DIR, name)
-        if os.path.isfile(path):
-            try:
-                return ImageFont.truetype(path, size)
-            except Exception:
-                pass
+# Keep the original FONTS_DIR for backward compatibility
+ASSETS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets"))
+FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
 
-    if os.path.isdir(FONTS_DIR):
-        for fname in os.listdir(FONTS_DIR):
-            if not fname.lower().endswith(".ttf"):
-                continue
-            is_bold_file = "bold" in fname.lower()
-            if is_bold_file == bold:
-                path = os.path.join(FONTS_DIR, fname)
-                try:
-                    return ImageFont.truetype(path, size)
-                except Exception:
-                    pass
 
-    # System fallback
-    system_fonts = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "C:/Windows/Fonts/arialbd.ttf" if bold else "C:/Windows/Fonts/arial.ttf",
-    ]
-    for path in system_fonts:
-        if os.path.exists(path):
-            try:
-                return ImageFont.truetype(path, size)
-            except Exception:
-                pass
-
-    return ImageFont.load_default()
-
-def list_fonts():
+def list_fonts() -> List[str]:
     """List all available .ttf and .otf fonts in the assets directory."""
     fonts = []
     if os.path.isdir(FONTS_DIR):
         for f in os.listdir(FONTS_DIR):
-            if f.lower().endswith((".ttf", ".otf")):
+            if f.lower().endswith((".ttf", ".otf", ".ttc")):
                 fonts.append(f)
     return fonts
 
-def find_font(name: str):
+
+def find_font(name: str) -> Optional[str]:
     """Find a font by name in the assets directory."""
     if os.path.isdir(FONTS_DIR):
         for f in os.listdir(FONTS_DIR):
