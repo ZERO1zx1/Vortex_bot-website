@@ -206,9 +206,9 @@ class Confessions(commands.Cog):
         cd_row = await self.bot.db_manager.fetch_one(
             "confession_cooldown", {"user_id": str(user.id), "guild_id": str(guild.id)}
         )
-        row = (cd_row.get("last_time", 0),) if cd_row else None
-        if row and now - row[0] < cfg["cooldown"]:
-            remaining = cfg["cooldown"] - (now - row[0])
+        last_time = cd_row.get("last_time", 0) if cd_row else 0
+        if last_time and now - last_time < cfg["cooldown"]:
+            remaining = cfg["cooldown"] - (now - last_time)
             msg = f"⏳ Та {remaining} секундын дараа дахин илгээх боломжтой."
             if interaction:
                 await interaction.followup.send(msg, ephemeral=True)

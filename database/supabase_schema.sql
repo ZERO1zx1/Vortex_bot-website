@@ -1,5 +1,5 @@
 -- =============================================================
--- Looksmax.mn Discord Bot - Supabase Schema
+-- 𝓐𝓮𝓽𝓰𝓮𝓻  蒼穹 Discord Bot - Supabase Schema
 -- Run this in the Supabase SQL Editor or apply via migrations.
 -- =============================================================
 
@@ -483,6 +483,59 @@ BEGIN
     );
 END;
 $$;
+
+-- Economy phrase/income/config tables
+CREATE TABLE IF NOT EXISTS work_phrases (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    phrase TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS role_income (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    role_id BIGINT NOT NULL,
+    amount BIGINT NOT NULL DEFAULT 1000,
+    interval_seconds BIGINT NOT NULL DEFAULT 3600
+);
+
+CREATE TABLE IF NOT EXISTS economy_cooldowns_config (
+    guild_id TEXT NOT NULL,
+    command TEXT NOT NULL,
+    cooldown_seconds INT DEFAULT 30,
+    PRIMARY KEY (guild_id, command)
+);
+
+CREATE TABLE IF NOT EXISTS economy_fines_config (
+    guild_id TEXT NOT NULL,
+    command TEXT NOT NULL,
+    fine_min BIGINT DEFAULT 100,
+    fine_max BIGINT DEFAULT 1000,
+    PRIMARY KEY (guild_id, command)
+);
+
+CREATE TABLE IF NOT EXISTS economy_payouts_config (
+    guild_id TEXT NOT NULL,
+    command TEXT NOT NULL,
+    payout_min BIGINT DEFAULT 1000,
+    payout_max BIGINT DEFAULT 5000,
+    PRIMARY KEY (guild_id, command)
+);
+
+CREATE TABLE IF NOT EXISTS economy_fail_rates (
+    guild_id TEXT NOT NULL,
+    command TEXT NOT NULL,
+    fail_rate FLOAT DEFAULT 0.3,
+    PRIMARY KEY (guild_id, command)
+);
+
+CREATE TABLE IF NOT EXISTS custom_replies (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    command TEXT NOT NULL,
+    type TEXT DEFAULT 'success',
+    text TEXT NOT NULL
+);
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_economy_balance ON economy (balance);

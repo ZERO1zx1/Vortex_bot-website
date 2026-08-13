@@ -274,6 +274,7 @@ class MarriageRoleModal(ui.Modal, title="Гэрлэлтийн роль ID"):
 # ══════════════ ҮНДСЭН COG ══════════════
 class Marriage(SupabaseCog):
     def __init__(self, bot):
+        super().__init__(bot)
         self.bot = bot
 
     async def init_db(self):

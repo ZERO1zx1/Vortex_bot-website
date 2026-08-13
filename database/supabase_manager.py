@@ -139,14 +139,43 @@ class SupabaseManager:
             return result.data or []
         return await self._run(_delete)
 
+    # Whitelist of tables/columns allowed for atomic increment via RPC.
+    _INCREMENT_WHITELIST = {
+        "economy": {"balance", "bank_balance"},
+        "levels": {"xp", "message_count", "voice_seconds", "reaction_count"},
+        "game_stats": {"wins", "losses", "total_won", "total_bet"},
+        "shop_stock": {"current_stock"},
+        "user_inventory": {"quantity"},
+        "counting_stats": {"correct", "wrong", "saves", "strikes", "best_streak"},
+        "counting_progress": {"current_count", "streak"},
+        "invite_stats": {"regular", "bonus", "fake", "left"},
+        "daily_stats": {"joins", "leaves"},
+        "staff_activity": {"messages", "voice_seconds", "tickets_closed", "actions"},
+        "user_drunk": {"level"},
+        "marriages": {"love_points"},
+        "lottery": {"pool"},
+        "lottery_entries": {"tickets"},
+    }
+
     async def increment(self, table: str, filters: Dict[str, Any], column: str, amount: int = 1) -> bool:
         """Atomically increment a numeric column via the ``increment`` RPC.
 
         Requires the migration in supabase_schema.sql that defines:
             increment(table_name text, filter_col text, filter_val text, col text, delta bigint)
+
+        Only whitelisted table/column combinations are allowed to prevent
+        arbitrary dynamic SQL abuse.  If the RPC fails the error is logged
+        and re-raised — no silent non-atomic fallback.
         """
         if not table or not filters or not column:
             return False
+
+        allowed = self._INCREMENT_WHITELIST.get(table)
+        if allowed is None:
+            raise ValueError(f"increment() is not allowed for table '{table}'")
+        if column not in allowed:
+            raise ValueError(f"increment() is not allowed for column '{column}' on table '{table}'")
+
         filter_col, filter_val = next(iter(filters.items()))
 
         def _call():
@@ -164,16 +193,13 @@ class SupabaseManager:
         try:
             await self._run(_call)
             return True
-        except Exception:
-            row = await self.fetch_one(table, filters)
-            if row:
-                current = row.get(column, 0) or 0
-                await self.update(table, filters, {column: current + amount})
-            else:
-                data = dict(filters)
-                data[column] = amount
-                await self.insert(table, data)
-            return True
+        except Exception as e:
+            import logging
+            logging.getLogger("aether.db").error(
+                "increment() RPC failed for %s.%s (filter=%s=%s, delta=%s): %s",
+                table, column, filter_col, filter_val, amount, e,
+            )
+            raise
 
     # ------------------------------------------------------------------
     # Backward-compatible aliases (shorten migration of older cogs)

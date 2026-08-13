@@ -62,12 +62,13 @@ class Games(commands.Cog):
         economy = self.bot.get_cog("Economy")
         if not economy:
             return DEFAULT_COOLDOWNS.get(command_name, 30)
-        row = await economy._fetchone(
-            "SELECT cooldown_seconds FROM economy_cooldowns_config WHERE guild_id = %s AND command = %s",
-            str(guild_id), command_name
+        row = await economy.bot.db_manager.fetch_one(
+            "economy_cooldowns_config",
+            {"guild_id": str(guild_id), "command": command_name},
+            selects="cooldown_seconds",
         )
         if row:
-            return row[0]
+            return row.get("cooldown_seconds", 0)
         return DEFAULT_COOLDOWNS.get(command_name, 30)
 
     async def is_on_cooldown(self, user_id: int, guild_id: int, command: str) -> int:

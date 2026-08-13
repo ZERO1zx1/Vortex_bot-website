@@ -1,4 +1,5 @@
 from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
+from utils.branding import footer_text
 import discord
 from discord.ext import commands
 from discord.ui import View, Button, Modal, TextInput
@@ -89,6 +90,7 @@ def _fmt_money(n: int) -> str:
 # ================== MAIN ECONOMY COG ==================
 class Economy(SupabaseCog):
     def __init__(self, bot):
+        super().__init__(bot)
         self.bot = bot
         self.max_balance = bot.config.get("max_balance", 100_000_000)
         self.transfer_tax_percent = bot.config.get("transfer_tax_percent", 10)
@@ -127,44 +129,10 @@ class Economy(SupabaseCog):
         await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "bank_balance": new})
         return new
 
-    # ------- USER MANAGEMENT (FIXED: no warning) -------
-    async def ensure_user(self, uid, gid):
-        row = await self._fetchone(
-            "SELECT 1 FROM economy WHERE user_id=%s AND guild_id=%s",
-            str(uid), str(gid)
-        )
-        if not row:
-            await self._execute(
-                "INSERT INTO economy (user_id, guild_id) VALUES (%s, %s)",
-                str(uid), str(gid)
-            )
-
+    # ------- USER MANAGEMENT -------
     async def check_registration(self, ctx):
         await self.ensure_user(ctx.author.id, ctx.guild.id)
         return True
-
-    # ------- BALANCE / BANK GETTERS & SETTERS -------
-    async def get_balance(self, uid, gid):
-        row = await self._fetchone("SELECT balance FROM economy WHERE user_id=%s AND guild_id=%s", str(uid), str(gid))
-        return row[0] if row else 0
-
-    async def update_balance(self, uid, gid, delta):
-        await self.ensure_user(uid, gid)
-        cur = await self.get_balance(uid, gid)
-        new = max(0, min(self.max_balance, cur + delta))
-        await self._execute("UPDATE economy SET balance=%s WHERE user_id=%s AND guild_id=%s", new, str(uid), str(gid))
-        return new
-
-    async def get_bank(self, uid, gid):
-        row = await self._fetchone("SELECT bank_balance FROM economy WHERE user_id=%s AND guild_id=%s", str(uid), str(gid))
-        return row[0] if row else 0
-
-    async def update_bank(self, uid, gid, delta):
-        await self.ensure_user(uid, gid)
-        cur = await self.get_bank(uid, gid)
-        new = max(0, min(self.max_balance, cur + delta))
-        await self._execute("UPDATE economy SET bank_balance=%s WHERE user_id=%s AND guild_id=%s", new, str(uid), str(gid))
-        return new
 
     # ------- HUNGER / MOOD -------
     async def get_hunger_mood(self, uid, gid):
@@ -172,17 +140,15 @@ class Economy(SupabaseCog):
         return (row.get("hunger", 0), row.get("mood", 0)) if row else (0, 0)
 
     async def set_hunger_mood(self, uid, gid, hunger=None, mood=None):
-        updates = []
-        params = []
+        updates = {}
         if hunger is not None:
-            updates.append("hunger=%s")
-            params.append(max(0, min(100, hunger)))
+            updates["hunger"] = max(0, min(100, hunger))
         if mood is not None:
-            updates.append("mood=%s")
-            params.append(max(0, min(100, mood)))
+            updates["mood"] = max(0, min(100, mood))
         if updates:
-            params.extend([str(uid), str(gid)])
-            await self._execute(f"UPDATE economy SET {', '.join(updates)} WHERE user_id=%s AND guild_id=%s", *params)
+            await self.bot.db_manager.update(
+                "economy", {"user_id": str(uid), "guild_id": str(gid)}, updates
+            )
 
     # ------- LEVEL / JOB -------
     async def get_discord_level(self, uid, gid):
@@ -206,16 +172,20 @@ class Economy(SupabaseCog):
 
     async def set_prison(self, uid, gid, hours=2):
         until = int(time.time()) + (hours * 3600)
-        await self._execute("UPDATE economy SET prison_until=%s WHERE user_id=%s AND guild_id=%s", until, str(uid), str(gid))
+        await self.bot.db_manager.update(
+            "economy", {"user_id": str(uid), "guild_id": str(gid)}, {"prison_until": until}
+        )
 
     async def set_bank_protection(self, uid, gid, hours=2):
         until = int(time.time()) + (hours * 3600)
-        await self._execute("UPDATE economy SET bank_protect_until=%s WHERE user_id=%s AND guild_id=%s", until, str(uid), str(gid))
+        await self.bot.db_manager.update(
+            "economy", {"user_id": str(uid), "guild_id": str(gid)}, {"bank_protect_until": until}
+        )
 
     async def get_bank_protection_remaining(self, uid, gid):
-        row = await self._fetchone("SELECT bank_protect_until FROM economy WHERE user_id=%s AND guild_id=%s", str(uid), str(gid))
-        if row and row[0] and row[0] > int(time.time()):
-            return row[0] - int(time.time())
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        if row and row.get("bank_protect_until") and row["bank_protect_until"] > int(time.time()):
+            return row["bank_protect_until"] - int(time.time())
         return 0
 
     async def is_bank_protected(self, uid, gid):
@@ -223,24 +193,38 @@ class Economy(SupabaseCog):
 
     # ------- ADMIN CONFIG SETTERS -------
     async def set_cooldown_cmd(self, interaction, command, seconds):
-        await self._execute("INSERT INTO economy_cooldowns_config (guild_id, command, cooldown_seconds) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE cooldown_seconds=%s",
-                            str(interaction.guild_id), command, seconds, seconds)
+        await self.bot.db_manager.upsert(
+            "economy_cooldowns_config",
+            {"guild_id": str(interaction.guild_id), "command": command, "cooldown_seconds": seconds},
+            on_conflict="guild_id,command",
+        )
 
     async def set_fine_amount(self, interaction, command, mn, mx):
-        await self._execute("INSERT INTO economy_fines_config (guild_id, command, fine_min, fine_max) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE fine_min=%s, fine_max=%s",
-                            str(interaction.guild_id), command, mn, mx, mn, mx)
+        await self.bot.db_manager.upsert(
+            "economy_fines_config",
+            {"guild_id": str(interaction.guild_id), "command": command, "fine_min": mn, "fine_max": mx},
+            on_conflict="guild_id,command",
+        )
 
     async def set_payout(self, interaction, command, mn, mx):
-        await self._execute("INSERT INTO economy_payouts_config (guild_id, command, payout_min, payout_max) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE payout_min=%s, payout_max=%s",
-                            str(interaction.guild_id), command, mn, mx, mn, mx)
+        await self.bot.db_manager.upsert(
+            "economy_payouts_config",
+            {"guild_id": str(interaction.guild_id), "command": command, "payout_min": mn, "payout_max": mx},
+            on_conflict="guild_id,command",
+        )
 
     async def set_fail_rate(self, interaction, command, rate):
-        await self._execute("INSERT INTO economy_fail_rates (guild_id, command, fail_rate) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE fail_rate=%s",
-                            str(interaction.guild_id), command, rate, rate)
+        await self.bot.db_manager.upsert(
+            "economy_fail_rates",
+            {"guild_id": str(interaction.guild_id), "command": command, "fail_rate": rate},
+            on_conflict="guild_id,command",
+        )
 
     async def add_reply(self, interaction, command, text, rtype):
-        await self._execute("INSERT INTO custom_replies (guild_id, command, type, text) VALUES (%s, %s, %s, %s)",
-                            str(interaction.guild_id), command, rtype, text)
+        await self.bot.db_manager.insert(
+            "custom_replies",
+            {"guild_id": str(interaction.guild_id), "command": command, "type": rtype, "text": text},
+        )
 
     # ================== COMMANDS ==================
     @commands.command(name='admin-panel')
@@ -280,7 +264,7 @@ class Economy(SupabaseCog):
         embed.add_field(name="💎 Нийт хөрөнгө", value=f"**{total:,}** ₮", inline=False)
         embed.add_field(name="💼 Ажил", value=f"{job['emoji']} **{job['name']}** (Түв.{job_level})", inline=True)
         embed.add_field(name="⭐ Discord Түвшин", value=f"**{disc_level}**", inline=True)
-        embed.set_footer(text=f"{ctx.author.name} | Gurten | LGC", icon_url=ctx.author.display_avatar.url)
+        embed.set_footer(text=footer_text(ctx.author.name), icon_url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
     @commands.command(name='work')
@@ -294,8 +278,8 @@ class Economy(SupabaseCog):
         if mood >= 80:
             return await ctx.send(embed=discord.Embed(title="😡 Ууртай байна!", description="`relax` командаар амраарай.", color=WARNING_COLOR))
         now = int(time.time())
-        row = await self._fetchone("SELECT last_work FROM economy WHERE user_id=%s AND guild_id=%s", str(ctx.author.id), str(ctx.guild.id))
-        last = row[0] if row else 0
+        row = await self.bot.db_manager.fetch_one("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, selects="last_work")
+        last = row.get("last_work", 0) if row else 0
         if last and now - last < 1800:
             rem = 1800 - (now-last)
             m, s = divmod(rem, 60)
@@ -310,9 +294,9 @@ class Economy(SupabaseCog):
         if custom_text:
             work_desc = custom_text
         else:
-            rows = await self._fetchall("SELECT phrase FROM work_phrases WHERE guild_id=%s", str(ctx.guild.id))
+            rows = await self.bot.db_manager.fetch_all("work_phrases", {"guild_id": str(ctx.guild.id)}, selects="phrase")
             if rows:
-                work_desc = random.choice(rows)[0]
+                work_desc = random.choice(rows)["phrase"]
             else:
                 work_desc = f"{job['emoji']} {job['name']} ажил"
 
@@ -322,7 +306,7 @@ class Economy(SupabaseCog):
         new_hunger = min(100, hunger+hunger_inc)
         new_mood = min(100, mood+mood_inc)
         await self.set_hunger_mood(ctx.author.id, ctx.guild.id, hunger=new_hunger, mood=new_mood)
-        await self._execute("UPDATE economy SET last_work=%s WHERE user_id=%s AND guild_id=%s", now, str(ctx.author.id), str(ctx.guild.id))
+        await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_work": now})
         leveling = self.bot.get_cog("Leveling")
         if leveling:
             try:
@@ -352,14 +336,14 @@ class Economy(SupabaseCog):
         if await self.is_in_prison(ctx.author.id, ctx.guild.id):
             return await ctx.send(embed=discord.Embed(title="🚔 Шорон", description="Та шоронгоос урамшуулал авах боломжгүй.", color=ERROR_COLOR))
         now = int(time.time())
-        row = await self._fetchone("SELECT last_daily FROM economy WHERE user_id=%s AND guild_id=%s", str(ctx.author.id), str(ctx.guild.id))
-        last = row[0] if row else 0
+        row = await self.bot.db_manager.fetch_one("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, selects="last_daily")
+        last = row.get("last_daily", 0) if row else 0
         if last and now - last < 86400:
             rem = 86400 - (now-last)
             h, m, s = rem//3600, (rem%3600)//60, rem%60
             return await ctx.send(embed=discord.Embed(title="⏰ ӨДРИЙН УРАМШУУЛАЛ АВСАН", description=f"Дараагийн урамшуулал {h}ц {m}м {s}с дараа", color=WARNING_COLOR))
         reward = random.randint(DAILY_MIN, DAILY_MAX)
-        await self._execute("UPDATE economy SET last_daily=%s WHERE user_id=%s AND guild_id=%s", now, str(ctx.author.id), str(ctx.guild.id))
+        await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_daily": now})
         await self.update_balance(ctx.author.id, ctx.guild.id, reward)
         leveling = self.bot.get_cog("Leveling")
         if leveling:
@@ -547,8 +531,7 @@ class Economy(SupabaseCog):
                 color=ERROR_COLOR
             ))
         await self.update_balance(ctx.author.id, ctx.guild.id, -fine)
-        await self._execute("UPDATE economy SET prison_until=0 WHERE user_id=%s AND guild_id=%s",
-                            str(ctx.author.id), str(ctx.guild.id))
+        await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"prison_until": 0})
         embed = discord.Embed(title="🕊️ ШОРОНГООС ГАРЛАА",
                               description=f"{ctx.author.mention} та **{fine:,}₮** төлж шоронгоос гарлаа.",
                               color=SUCCESS_COLOR,
@@ -560,8 +543,9 @@ class Economy(SupabaseCog):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             try:
-                rows = await self._fetchall("SELECT guild_id, role_id, amount, interval_seconds FROM role_income")
-                for guild_id, role_id, amount, interval in rows:
+                rows = await self.bot.db_manager.fetch_all("role_income")
+                for r in rows:
+                    guild_id, role_id, amount, interval = r["guild_id"], r["role_id"], r["amount"], r["interval_seconds"]
                     guild = self.bot.get_guild(int(guild_id))
                     if not guild: continue
                     role = guild.get_role(int(role_id))
@@ -689,18 +673,18 @@ class WorkPhraseView(View):
 
     @discord.ui.button(label="📋 Жагсаалт", style=discord.ButtonStyle.blurple)
     async def list_phrases(self, interaction: discord.Interaction, button: Button):
-        rows = await self.cog._fetchall("SELECT id, phrase FROM work_phrases WHERE guild_id=%s", str(interaction.guild_id))
+        rows = await self.cog.bot.db_manager.fetch_all("work_phrases", {"guild_id": str(interaction.guild_id)}, selects="id,phrase")
         if not rows:
             embed = discord.Embed(title="📋 Ажлын өгүүлбэрүүд", description="Хоосон", color=WARNING_COLOR)
         else:
             embed = discord.Embed(title="📋 Ажлын өгүүлбэрүүд", color=INFO_COLOR)
             for r in rows[:20]:
-                embed.add_field(name=f"ID {r[0]}", value=r[1], inline=False)
+                embed.add_field(name=f"ID {r['id']}", value=r['phrase'], inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="🧹 Бүгдийг устгах", style=discord.ButtonStyle.gray)
     async def clear_phrases(self, interaction: discord.Interaction, button: Button):
-        await self.cog._execute("DELETE FROM work_phrases WHERE guild_id=%s", str(interaction.guild_id))
+        await self.cog.bot.db_manager.delete("work_phrases", {"guild_id": str(interaction.guild_id)})
         await interaction.response.send_message("✅ Бүх өгүүлбэр устгагдлаа.", ephemeral=True)
 
 class AddPhraseModal(Modal, title="Ажлын өгүүлбэр нэмэх"):

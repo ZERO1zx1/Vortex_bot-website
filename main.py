@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 
 from config_manager import load_config
 from database.supabase_manager import SupabaseManager as DatabaseManager
-from utils.constants import PREFIXES
-from utils.branding import BOT_NAME
+from utils.branding import BOT_NAME, BOT_FOOTER
+from utils.constants import DEFAULT_PREFIX
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -22,7 +22,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("looksmax")
+logger = logging.getLogger("aether")
 
 
 class MyBot(commands.Bot):
@@ -32,16 +32,16 @@ class MyBot(commands.Bot):
         intents.members = True
         intents.voice_states = True
 
-        super().__init__(command_prefix=PREFIXES, intents=intents, help_command=None)
+        prefix = config.get("prefix", DEFAULT_PREFIX)
+        super().__init__(command_prefix=prefix, intents=intents, help_command=None)
 
         self.db_manager = DatabaseManager()
-        self.db = None
         self.owner_ids = set()
         owner = config.get("owner_id")
         if owner:
-            self.owner_ids.add(owner)
+            self.owner_ids.add(int(owner))
         for co in config.get("co_owner_ids", []):
-            self.owner_ids.add(co)
+            self.owner_ids.add(int(co))
 
         self.config = config
         self.loaded_cogs = []
@@ -50,7 +50,7 @@ class MyBot(commands.Bot):
     async def setup_hook(self):
         # Connect to Supabase
         try:
-            self.db = self.db_manager.connect()
+            self.db_manager.connect()
             logger.info("✅ Supabase connected")
         except Exception as e:
             logger.error("❌ Supabase connection error: %s", e)
@@ -95,7 +95,7 @@ class MyBot(commands.Bot):
         await self.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.playing,
-                name=f"{PREFIXES[0]}help | {BOT_NAME}"
+                name=f"{config.get('prefix', DEFAULT_PREFIX)}help | {BOT_NAME}"
             )
         )
 

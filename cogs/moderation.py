@@ -158,6 +158,7 @@ class StaffSetupView(ui.View):
 # ==================== ҮНДСЭН COG ====================
 class Moderation(SupabaseCog):
     def __init__(self, bot):
+        super().__init__(bot)
         self.bot = bot
         self.voice_times = {}
         self.weekly_task.start()
@@ -295,12 +296,11 @@ class Moderation(SupabaseCog):
             embed.description = "Одоогоор Staff-ийн идэвх бүртгэгдээгүй байна."
 
         cfg_row = await self.bot.db_manager.fetch_one("staff_config", {"guild_id": guild_id})
-        row = (cfg_row.get("leaderboard_message_id"),) if cfg_row and cfg_row.get("leaderboard_message_id") else None
+        msg_id = cfg_row.get("leaderboard_message_id") if cfg_row else None
 
-        if row and row[0]:
+        if msg_id:
             try:
-                msg_id = int(row[0])
-                msg = await channel.fetch_message(msg_id)
+                msg = await channel.fetch_message(int(msg_id))
                 await msg.edit(embed=embed)
                 return
             except: pass

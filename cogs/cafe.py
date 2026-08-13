@@ -1,4 +1,5 @@
 from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
+from utils.branding import BOT_NAME
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -131,7 +132,7 @@ class Cafe(commands.Cog):
             return await ctx.send(embed=embed)
 
         embed = discord.Embed(
-            title="☕ Gurten | LGC – Кафе",
+            title=f"☕ {BOT_NAME} – Кафе",
             description="Цэснээс хоолоо сонгон, хямд үнээр амттай хоол идэж, түр хугацааны buff аваарай!",
             color=GOLD_COLOR
         )

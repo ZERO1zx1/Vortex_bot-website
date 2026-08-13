@@ -1,4 +1,5 @@
-from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
+﻿from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
+from utils.branding import BOT_NAME
 import asyncio, io, json, logging, os, time, random
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
@@ -178,9 +179,7 @@ async def get_config(db_manager, guild_id: int) -> Dict[str, Any]:
             "marriage_bonus": 0.1,
         }
     cols = ["guild_id","enabled","announce_channel","voice_xp_enabled","prog_type","prog_base","prog_step","xp_tiers","xp_media","xp_reaction","xp_voice_silent","xp_voice_talking","msg_cooldown","react_cooldown","background_url","xp_drop_enabled","xp_drop_channel","xp_drop_min","xp_drop_max","xp_drop_interval","cafe_buff_enabled","invite_xp","marriage_bonus"]
-    data = {}
-    for i, key in enumerate(cols):
-        data[key] = row[i] if i < len(row) else None
+    data = {key: row.get(key) for key in cols}
     return {
         "enabled": _safe_bool(data.get("enabled"), True),
         "announce_channel": data.get("announce_channel"),
@@ -302,7 +301,7 @@ async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, backgr
             tx_w, tx_h = draw.textsize(xp_text, font=font_small)
         draw.text((bar_x + (bar_w - tx_w) // 2, bar_y + (bar_h - tx_h) // 2), xp_text, font=font_small, fill=(255, 255, 255, 255))
 
-        footer_text = f"{member.name} • Gurten LGC-ээр бүтээгдсэн"
+        footer_text = f"{member.name} • {BOT_NAME}-ээр бүтээгдсэн"
         draw.text((240, 310), footer_text, font=font_small, fill=(170, 170, 170, 255))
 
         buffer = io.BytesIO()
@@ -427,7 +426,7 @@ class LevelingSetupView(ui.View):
         super().__init__(timeout=600)
         self.cog = cog; self.ctx = ctx; self.message = None
     async def interaction_check(self, interaction):
-        if interaction.user.id == interaction.guild.owner_id or interaction.user.id in self.cog.bot.config.get("co_owners",[]): return True
+        if interaction.user.id == interaction.guild.owner_id or interaction.user.id in self.cog.bot.config.get("co_owner_ids",[]): return True
         await interaction.response.send_message("⛔ Сервер эзэмшигч эсвэл ботын co-owner эрх шаардлагатай.", ephemeral=True)
         return False
     async def refresh(self):
@@ -505,6 +504,7 @@ class LevelingSetupView(ui.View):
 # ================== MAIN COG ==================
 class Leveling(SupabaseCog):
     def __init__(self, bot):
+        super().__init__(bot)
         self.bot = bot
         self.session: Optional[aiohttp.ClientSession] = None
         self._msg_cooldown = {}
@@ -541,7 +541,7 @@ class Leveling(SupabaseCog):
         try:
             cafe = self.bot.get_cog("Cafe")
             if cafe:
-                cfg = await get_config(self.db, guild_id)
+                cfg = await get_config(self.bot.db_manager, guild_id)
                 if cfg.get("cafe_buff_enabled", True) and hasattr(cafe, 'get_buff'):
                     buff = cafe.get_buff(user_id, guild_id)
                     if asyncio.iscoroutine(buff): buff = await buff
@@ -574,7 +574,7 @@ class Leveling(SupabaseCog):
         xp, level = (row.get("xp", 0) or 0, row.get("level", 1) or 1) if row else (0, 1)
         old_level = level
         new_xp = xp + amount
-        cfg = await get_config(self.db, guild_id)
+        cfg = await get_config(self.bot.db_manager, guild_id)
         leveled_up = False
         while new_xp < 0 and level > 1:
             level -= 1
@@ -600,7 +600,7 @@ class Leveling(SupabaseCog):
 
     async def _announce_level_up(self, member, old, new, current_xp, source_channel):
         guild = member.guild
-        cfg = await get_config(self.bot.db, guild.id)
+        cfg = await get_config(self.bot.db_manager, guild.id)
         # Level reward
         try:
             reward_row = await self.bot.db_manager.fetch_one(
@@ -657,7 +657,7 @@ class Leveling(SupabaseCog):
         if not row: return 0
         xp = row.get("xp", 0) or 0
         level = row.get("level", 1) or 1
-        cfg = await get_config(self.db, guild_id)
+        cfg = await get_config(self.bot.db_manager, guild_id)
         return sum(xp_for_level(l,cfg) for l in range(level)) + xp
     async def get_level(self, user_id, guild_id):
         row = await self.bot.db_manager.fetch_one(
@@ -674,7 +674,7 @@ class Leveling(SupabaseCog):
             if int(r.get("user_id")) == int(user_id): return i+1
         return len(rows)+1
     async def set_xp(self, user_id, guild_id, xp):
-        cfg = await get_config(self.db, guild_id)
+        cfg = await get_config(self.bot.db_manager, guild_id)
         level = 1; remaining = xp
         while True:
             needed = xp_for_level(level, cfg)
@@ -693,7 +693,7 @@ class Leveling(SupabaseCog):
         )
 
     async def get_config(self, guild_id):
-        return await get_config(self.bot.db, guild_id)
+        return await get_config(self.bot.db_manager, guild_id)
     def xp_for_level(self, level, cfg):
         return xp_for_level(level, cfg)
     def get_rank_info(self, level):
@@ -704,7 +704,7 @@ class Leveling(SupabaseCog):
         return "Домог", "👑"
 
     async def award_invite_xp(self, inviter_id, guild_id):
-        cfg = await get_config(self.db, guild_id)
+        cfg = await get_config(self.bot.db_manager, guild_id)
         xp_reward = cfg.get("invite_xp", 0)
         if xp_reward > 0:
             guild = self.bot.get_guild(guild_id)
@@ -765,7 +765,7 @@ class Leveling(SupabaseCog):
     @commands.Cog.listener()
     async def on_message(self, message):
         if not message.guild or message.author.bot: return
-        cfg = await get_config(self.bot.db, message.guild.id)
+        cfg = await get_config(self.bot.db_manager, message.guild.id)
         if not cfg["enabled"]: return
         exc = await self.get_exceptions(message.guild.id)
         if message.channel.id in exc["channels"] or message.author.id in exc["users"]: return
@@ -792,7 +792,7 @@ class Leveling(SupabaseCog):
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         if not payload.guild_id or payload.user_id == self.bot.user.id: return
-        cfg = await get_config(self.bot.db, payload.guild_id)
+        cfg = await get_config(self.bot.db_manager, payload.guild_id)
         if not cfg["enabled"]: return
         exc = await self.get_exceptions(payload.guild_id)
         if payload.channel_id in exc["channels"] or payload.user_id in exc["users"]: return
@@ -830,7 +830,7 @@ class Leveling(SupabaseCog):
             try:
                 now = time.monotonic()
                 for guild in self.bot.guilds:
-                    cfg = await get_config(self.bot.db, guild.id)
+                    cfg = await get_config(self.bot.db_manager, guild.id)
                     if not cfg["enabled"] or not cfg.get("voice_xp_enabled",True): continue
                     exc = await self.get_exceptions(guild.id)
                     for vc in guild.voice_channels:
@@ -865,7 +865,7 @@ class Leveling(SupabaseCog):
     async def xp_drop_loop(self):
         for guild in self.bot.guilds:
             try:
-                cfg = await get_config(self.bot.db, guild.id)
+                cfg = await get_config(self.bot.db_manager, guild.id)
                 if not cfg["xp_drop_enabled"]: continue
                 channel = guild.get_channel(cfg["xp_drop_channel"])
                 if not channel: continue
@@ -886,7 +886,7 @@ class Leveling(SupabaseCog):
         await ctx.defer()
         total_xp = await self.get_total_xp(target.id, ctx.guild.id)
         level = await self.get_level(target.id, ctx.guild.id)
-        cfg = await get_config(self.bot.db, ctx.guild.id)
+        cfg = await get_config(self.bot.db_manager, ctx.guild.id)
         xp_in_level = total_xp - sum(xp_for_level(l,cfg) for l in range(level))
         needed = xp_for_level(level, cfg)
         rank = await self.get_rank_position(target.id, ctx.guild.id)
@@ -932,7 +932,7 @@ class Leveling(SupabaseCog):
     async def _is_allowed(self, user):
         try:
             cfg = self.bot.config
-            return user.id == cfg.get("owner_id") or user.id in cfg.get("co_owners",[])
+            return user.id == cfg.get("owner_id") or user.id in cfg.get("co_owner_ids",[])
         except: return False
 
     @commands.command(name="addxp")
@@ -953,7 +953,7 @@ class Leveling(SupabaseCog):
     async def leveling_setup(self, ctx):
         if not (ctx.author.guild_permissions.administrator or await self._is_allowed(ctx.author)):
             return await ctx.send("⛔ Админ эрх шаардлагатай.", ephemeral=True)
-        cfg = await get_config(self.bot.db, ctx.guild.id)
+        cfg = await get_config(self.bot.db_manager, ctx.guild.id)
         embed = discord.Embed(title="🔧 Түвшний систем тохиргоо", color=INFO_COLOR)
         ch = ctx.guild.get_channel(cfg["announce_channel"]) if cfg["announce_channel"] else None
         embed.add_field(name="📢 Мэдэгдэл суваг", value=ch.mention if ch else "Тохируулаагүй", inline=False)

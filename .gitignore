@@ -1,8 +1,37 @@
-.env 
-venv/
+# Environment
 .env
-__pycache__/
+.env.*
+!.env.example
 
-# Python cache
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated
+__pycache__/
