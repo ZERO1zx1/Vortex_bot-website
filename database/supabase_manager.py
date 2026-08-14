@@ -231,6 +231,46 @@ class SupabaseManager:
             raise
 
     # ------------------------------------------------------------------
+    # Missing-table-safe reads
+    # ------------------------------------------------------------------
+    def _is_missing_table(self, error: BaseException) -> bool:
+        """True when the error means the table is not in the Supabase
+        schema cache (PGRST205) or the REST endpoint returned 404."""
+        msg = str(error)
+        code = getattr(error, "code", None) or ""
+        status = getattr(error, "status_code", None) or getattr(error, "status", None) or 0
+        return "PGRST205" in code or "PGRST205" in msg or int(status) == 404
+
+    async def fetch_safe(
+        self,
+        table: str,
+        filters: Optional[Dict[str, Any]] = None,
+        single: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        """Read from ``table`` without raising when the table is missing.
+
+        If the table does not exist in the live Supabase project the call
+        logs once at ERROR level and returns ``[]`` (or ``None`` for
+        single-row reads) so background tasks keep running instead of
+        crashing.  All other errors (auth, network, bad data) still
+        propagate to the caller.
+        """
+        try:
+            if single:
+                return await self.fetch_one(table, filters or {}, **kwargs)
+            return await self.fetch_all(table, filters or {}, **kwargs)
+        except Exception as e:
+            if not self._is_missing_table(e):
+                raise
+            logging.getLogger("aether.db").error(
+                "Table '%s' is missing in Supabase (PGRST205). "
+                "Apply database/migrations/000_complete_schema.sql and restart.",
+                table,
+            )
+            return None if single else []
+
+    # ------------------------------------------------------------------
     # Backward-compatible aliases (shorten migration of older cogs)
     # ------------------------------------------------------------------
     async def execute_sync(self, table: str, data: Dict[str, Any]):

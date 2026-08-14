@@ -525,7 +525,7 @@ class Economy(SupabaseCog):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             try:
-                rows = await self.bot.db_manager.fetch_all("role_income")
+                rows = await self.bot.db_manager.fetch_safe("role_income")
                 for r in rows:
                     guild_id, role_id, amount, interval = r["guild_id"], r["role_id"], r["amount"], r["interval_seconds"]
                     guild = self.bot.get_guild(int(guild_id))

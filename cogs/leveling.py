@@ -151,7 +151,12 @@ def _load_asset_font(size: int, bold: bool = True):
 
 # ---------- Config load/save ----------
 async def get_config(db_manager, guild_id: int) -> Dict[str, Any]:
-    row = await db_manager.fetchone("leveling_config", {"guild_id": str(guild_id)})
+    try:
+        row = await db_manager.fetchone("leveling_config", {"guild_id": str(guild_id)})
+    except Exception as e:
+        if "PGRST205" not in str(e) and getattr(e, "status_code", None) != 404:
+            raise
+        row = None
     if not row:
         return {
             "enabled": True, "announce_channel": None, "voice_xp_enabled": True,
@@ -829,8 +834,8 @@ class Leveling(SupabaseCog):
                                 self._voice_last_xp[key] = now
                                 await self._add_xp(member.id, guild.id, xp, member=member, check_mute=False)
                                 try:
-                                    lvl_row = await self.bot.db_manager.fetch_one(
-                                        "levels", {"user_id": str(member.id), "guild_id": str(guild.id)}
+                                    lvl_row = await self.bot.db_manager.fetch_safe(
+                                        "levels", {"user_id": str(member.id), "guild_id": str(guild.id)}, single=True
                                     )
                                     if lvl_row:
                                         await self.bot.db_manager.update(

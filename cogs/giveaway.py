@@ -518,7 +518,7 @@ class Giveaway(commands.Cog):
     async def giveaway_check(self):
         await self.bot.wait_until_ready()
         now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-        giveaway_rows = await self.bot.db_manager.fetch_all("giveaways", {"ended": False})
+        giveaway_rows = await self.bot.db_manager.fetch_safe("giveaways", {"ended": False})
         expired = [
             r for r in giveaway_rows
             if (r.get("end_time") or 0) <= now

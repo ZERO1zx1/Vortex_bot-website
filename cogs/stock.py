@@ -195,19 +195,22 @@ class Stock(commands.Cog):
         await self.bot.wait_until_ready()
         now_ts = int(datetime.datetime.now().timestamp())
         for guild in self.bot.guilds:
-            await self.ensure_stocks_for_guild(guild.id)
-            stock_rows = await self.bot.db_manager.fetch_all(
-                "shop_stock", {"guild_id": str(guild.id)}
-            )
-            for row in stock_rows:
-                item_id = row.get("item_id")
-                lo, hi = self._get_range(item_id)
-                random_val = random.randint(lo, hi)
-                await self.bot.db_manager.update(
-                    "shop_stock",
-                    {"guild_id": str(guild.id), "item_id": item_id},
-                    {"current_stock": random_val, "last_restock": now_ts},
+            try:
+                await self.ensure_stocks_for_guild(guild.id)
+                stock_rows = await self.bot.db_manager.fetch_safe(
+                    "shop_stock", {"guild_id": str(guild.id)}
                 )
+                for row in stock_rows:
+                    item_id = row.get("item_id")
+                    lo, hi = self._get_range(item_id)
+                    random_val = random.randint(lo, hi)
+                    await self.bot.db_manager.update(
+                        "shop_stock",
+                        {"guild_id": str(guild.id), "item_id": item_id},
+                        {"current_stock": random_val, "last_restock": now_ts},
+                    )
+            except Exception as e:
+                logger.error("Өдөр бүрийн нөөц шинэчлэлт сервер %s дээр амжилтгүй: %s", guild.id, e)
         logger.info("Өдөр бүрийн нөөц шинэчлэлт бүх серверт хийгдлээ.")
 
     @daily_restock.before_loop

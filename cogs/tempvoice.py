@@ -240,7 +240,7 @@ class TempVoice(commands.Cog):
         await self.reload_setup_views()
 
     async def reload_setup_views(self):
-        rows = await self.bot.db_manager.fetch_all("tempvoice_setup_msg", {})
+        rows = await self.bot.db_manager.fetch_safe("tempvoice_setup_msg", {})
         for row in rows:
             guild_id = row.get("guild_id")
             channel_id = row.get("channel_id")

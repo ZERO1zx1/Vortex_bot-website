@@ -183,7 +183,10 @@ class Moderation(SupabaseCog):
         now = datetime.datetime.utcnow()
         if now.weekday() == 6 and now.hour == 23 and now.minute == 59:
             for guild in self.bot.guilds:
-                await self.process_weekly_winner(guild)
+                try:
+                    await self.process_weekly_winner(guild)
+                except Exception as e:
+                    logger.error("7 хоногийн staff шилдэг боловсруулалт сервер %s дээр амжилтгүй: %s", guild.id, e)
             await asyncio.sleep(60)
 
     @weekly_task.before_loop
@@ -192,8 +195,10 @@ class Moderation(SupabaseCog):
 
     async def process_weekly_winner(self, guild: discord.Guild):
         guild_id = str(guild.id)
-        members = await self.bot.db_manager.fetch_all("staff_members", {"guild_id": guild_id})
-        activity_rows = await self.bot.db_manager.fetch_all("staff_activity", {"guild_id": guild_id})
+        members = await self.bot.db_manager.fetch_safe("staff_members", {"guild_id": guild_id})
+        activity_rows = await self.bot.db_manager.fetch_safe("staff_activity", {"guild_id": guild_id})
+        if not members or not activity_rows:
+            return
         activity_map = {a["user_id"]: a for a in activity_rows}
         rows = [
             (m["user_id"], a.get("messages", 0), a.get("voice_seconds", 0),
@@ -257,11 +262,17 @@ class Moderation(SupabaseCog):
 
     async def update_leaderboard(self, guild: discord.Guild):
         guild_id = str(guild.id)
+        try:
+            await self._update_leaderboard_inner(guild, guild_id)
+        except Exception as e:
+            logger.error("Staff лидерборд шинэчлэлт сервер %s дээр амжилтгүй: %s", guild.id, e)
+
+    async def _update_leaderboard_inner(self, guild: discord.Guild, guild_id: str):
         channel = await self._get_configured_channel(guild, "stats")
         if not channel: return
 
-        members = await self.bot.db_manager.fetch_all("staff_members", {"guild_id": guild_id})
-        activity_rows = await self.bot.db_manager.fetch_all("staff_activity", {"guild_id": guild_id})
+        members = await self.bot.db_manager.fetch_safe("staff_members", {"guild_id": guild_id})
+        activity_rows = await self.bot.db_manager.fetch_safe("staff_activity", {"guild_id": guild_id})
         activity_map = {a["user_id"]: a for a in activity_rows}
         rows = [
             (m["user_id"], m.get("staff_group", ""), a.get("messages", 0),
@@ -295,7 +306,7 @@ class Moderation(SupabaseCog):
         else:
             embed.description = "Одоогоор Staff-ийн идэвх бүртгэгдээгүй байна."
 
-        cfg_row = await self.bot.db_manager.fetch_one("staff_config", {"guild_id": guild_id})
+        cfg_row = await self.bot.db_manager.fetch_safe("staff_config", {"guild_id": guild_id}, single=True)
         msg_id = cfg_row.get("leaderboard_message_id") if cfg_row else None
 
         if msg_id:

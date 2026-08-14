@@ -343,7 +343,7 @@ class RoleManagement(commands.Cog):
     async def temprole_loop(self):
         await self.bot.wait_until_ready()
         now = int(datetime.now(timezone.utc).timestamp())
-        rows = await self.bot.db_manager.fetch_all("temproles", {})
+        rows = await self.bot.db_manager.fetch_safe("temproles", {})
         expired = [r for r in rows if (r.get("end_time") or 0) <= now]
 
         for r in expired:
