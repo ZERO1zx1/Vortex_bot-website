@@ -1,0 +1,10 @@
+Project ref: rqalizeohjpwtvepltqe
+  pooler (rqalizeohjpwtvepltqe.pooler.supabase.com:6543 as postgres.rqalizeohjpwtvepltqe): OperationalError: could not translate host name "rqalizeohjpwtvepltqe.pooler.supabase.com" to address: Name or service not known
+
+  direct (db.rqalizeohjpwtvepltqe.supabase.co:5432 as postgres): OperationalError: could not translate host name "db.rqalizeohjpwtvepltqe.supabase.co" to address: Name or service not known
+
+  alt-direct (rqalizeohjpwtvepltqe.supabase.co:5432 as postgres): OperationalError: connection to server at "rqalizeohjpwtvepltqe.supabase.co" (104.18.38.10), port 5432 failed: timeout expired
+connection to server at "rqalizeohjpwtvepltqe.supabase.co" (172.64.149.246), port 5432 fail
+
+Could not connect via any method. The anon key cannot create tables.
+Will need to use supabase client RPC or a service_role key.

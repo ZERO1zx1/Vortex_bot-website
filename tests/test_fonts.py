@@ -361,7 +361,7 @@ class TestImageGeneration(unittest.TestCase):
             "مرحبا",
             "Αθήνα",
             "Aether 蒼穹 Мөрөөдөл 안녕",
-            "𝓐𝓮𝓽𝓰𝓮𝓻  蒼穹",
+            "𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹",
         ]
 
         y = 10

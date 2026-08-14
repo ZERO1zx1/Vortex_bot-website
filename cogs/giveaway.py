@@ -115,7 +115,7 @@ class GiveawayEnterView(discord.ui.View):
 
         gid, prize, end_time, req_role_id, ended = (
             gw.get("id"), gw.get("prize"), gw.get("end_time"),
-            gw.get("required_role_id"), gw.get("ended", 0)
+            gw.get("required_role_id"), gw.get("ended", False)
         )
 
         if ended:
@@ -348,7 +348,7 @@ class Giveaway(commands.Cog):
                 await quests_cog.trigger_event(int(uid), message.guild.id, "giveaway_win", 1)
 
         await self.bot.db_manager.update(
-            "giveaways", {"id": giveaway_id}, {"ended": 1}
+            "giveaways", {"id": giveaway_id}, {"ended": True}
         )
 
     async def _get_giveaway_by_message(self, message_id: int):
@@ -360,7 +360,7 @@ class Giveaway(commands.Cog):
         return (
             gw.get("id"), gw.get("channel_id"), gw.get("message_id"), gw.get("prize"),
             gw.get("winner_count"), gw.get("host_id"), gw.get("required_role_id"),
-            gw.get("ended", 0), gw.get("end_time"), gw.get("guild_id")
+            gw.get("ended", False), gw.get("end_time"), gw.get("guild_id")
         )
 
     # ==================== АДМИН КОМАНДУУД ====================
@@ -470,7 +470,7 @@ class Giveaway(commands.Cog):
             except:
                 pass
 
-        await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": 1})
+        await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": True})
         await interaction.followup.send(f"✅ Giveaway (ID: {message_id}) цуцлагдлаа.")
 
     @giveaway_group.command(name="entries", description="Оролцогчдын тоог харах")
@@ -493,7 +493,7 @@ class Giveaway(commands.Cog):
         await interaction.response.defer()
         rows = await self.bot.db_manager.fetch_all(
             "giveaways",
-            {"guild_id": str(interaction.guild.id), "ended": 0},
+            {"guild_id": str(interaction.guild.id), "ended": False},
         )
         rows = [
             (r["message_id"], r["prize"], r["end_time"], r["channel_id"])
@@ -518,7 +518,7 @@ class Giveaway(commands.Cog):
     async def giveaway_check(self):
         await self.bot.wait_until_ready()
         now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-        giveaway_rows = await self.bot.db_manager.fetch_all("giveaways", {"ended": 0})
+        giveaway_rows = await self.bot.db_manager.fetch_all("giveaways", {"ended": False})
         expired = [
             r for r in giveaway_rows
             if (r.get("end_time") or 0) <= now
@@ -535,12 +535,12 @@ class Giveaway(commands.Cog):
 
             channel = self.bot.get_channel(channel_id)
             if not channel:
-                await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": 1})
+                await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": True})
                 continue
             try:
                 message = await channel.fetch_message(msg_id)
             except:
-                await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": 1})
+                await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": True})
                 continue
 
             guild = channel.guild
@@ -557,7 +557,7 @@ class Giveaway(commands.Cog):
                 )
                 await message.edit(embed=embed, view=None)
                 await message.channel.send(embed=embed)
-                await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": 1})
+                await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": True})
 
     @giveaway_check.before_loop
     async def before_giveaway_check(self):

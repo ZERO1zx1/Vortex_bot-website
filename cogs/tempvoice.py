@@ -231,10 +231,15 @@ class TempVoice(commands.Cog):
 
     async def cog_load(self):
         # Tables are pre-configured in Supabase via SQL migrations
+        # Schedule view reloading as a background task to avoid blocking setup_hook
+        self.bot.loop.create_task(self._reload_setup_views_after_ready())
+
+    async def _reload_setup_views_after_ready(self):
+        """Reload persistent views after the bot is ready (non-blocking)."""
+        await self.bot.wait_until_ready()
         await self.reload_setup_views()
 
     async def reload_setup_views(self):
-        await self.bot.wait_until_ready()
         rows = await self.bot.db_manager.fetch_all("tempvoice_setup_msg", {})
         for row in rows:
             guild_id = row.get("guild_id")

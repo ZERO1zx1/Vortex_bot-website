@@ -6,6 +6,7 @@ Legacy ``.acquire()`` / ``.cursor()`` / raw-SQL usage is not allowed.
 """
 
 import asyncio
+import logging
 import os
 from typing import Any, Dict, List, Optional
 
@@ -35,9 +36,71 @@ class SupabaseManager:
     async def close(self):
         self.client = None
 
+    REQUIRED_TABLES = [
+        "economy", "levels", "giveaways", "temproles", "role_income",
+        "tempvoice_setup_msg", "user_inventory",
+    ]
+
     async def init_tables(self):
-        """DDL is handled via Supabase Dashboard / SQL migrations."""
-        print("ℹ️ Supabase tables should be pre-configured via Dashboard or Migrations.")
+        """Validate that required tables exist in Supabase.
+
+        Reports missing tables with actionable guidance. Does NOT auto-create
+        tables — schema changes should be applied via migrations.
+        """
+        logger = logging.getLogger("aether.db")
+        for table in self.REQUIRED_TABLES:
+            exists = await self.table_exists(table)
+            if not exists:
+                logger.warning(
+                    "Required Supabase table '%s' is missing. "
+                    "Apply database migration: database/migrations/20260813_runtime_missing_tables.sql",
+                    table,
+                )
+        logger.info("Supabase schema validation complete.")
+
+    async def table_exists(self, table_name: str) -> bool:
+        """Check if a table exists by attempting a count query."""
+        try:
+            def _check():
+                self.client.table(table_name).select("*", count="exact").limit(0).execute()
+            await self._run(_check)
+            return True
+        except Exception:
+            return False
+
+    async def execute_sql(self, sql: str) -> List[Dict[str, Any]]:
+        """Execute raw SQL via direct database connection.
+
+        Requires SUPABASE_DB_URL environment variable (connection string).
+        Requires psycopg2-binary to be installed.
+        """
+        db_url = os.getenv("SUPABASE_DB_URL")
+        if not db_url:
+            raise ValueError(
+                "SUPABASE_DB_URL env var not set. "
+                "Cannot execute raw SQL. Use the Supabase Dashboard SQL Editor instead."
+            )
+        import psycopg2
+        def _exec():
+            conn = psycopg2.connect(db_url)
+            cur = conn.cursor()
+            cur.execute(sql)
+            conn.commit()
+            result: List[Dict[str, Any]] = []
+            if cur.description:
+                cols = [d[0] for d in cur.description]
+                for row in cur.fetchall():
+                    result.append(dict(zip(cols, row)))
+            cur.close()
+            conn.close()
+            return result
+        return await self._run(_exec)
+
+    async def apply_migration_file(self, filepath: str) -> List[Dict[str, Any]]:
+        """Read and execute a SQL migration file."""
+        with open(filepath, "r", encoding="utf-8") as f:
+            sql = f.read()
+        return await self.execute_sql(sql)
 
     # ------------------------------------------------------------------
     # Low-level helper

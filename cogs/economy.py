@@ -535,8 +535,8 @@ class Economy(SupabaseCog):
                     for member in role.members:
                         if not member.bot:
                             await self.update_balance(member.id, guild.id, amount)
-            except Exception:
-                pass
+            except Exception as e:
+                __import__("logging").getLogger("aether.economy").error("Role income loop error (table may be missing): %s", e)
             await asyncio.sleep(60)
 
 # ---------- VIEWS & MODALS ----------

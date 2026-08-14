@@ -1,0 +1,29 @@
+"""Find all instances of the branding typo in test_fonts.py (reverted version)."""
+import re
+
+# The wrong character is U+1D4F0 (𝓰, Mathematical Bold Script Small G)
+# The correct character is U+1D4F1 (𝓱, Mathematical Bold Script Small H)
+WRONG = chr(0x1D4F0)  # 𝓰
+CORRECT = chr(0x1D4F1)  # 𝓱
+
+filepath = "tests/test_fonts.py"
+with open(filepath, "r", encoding="utf-8") as f:
+    lines = f.readlines()
+
+print(f"Searching for wrong char U+{ord(WRONG):04X} ({WRONG}) in {filepath}")
+print(f"Correct char: U+{ord(CORRECT):04X} ({CORRECT})")
+print()
+
+for i, line in enumerate(lines, 1):
+    if WRONG in line:
+        print(f"  Line {i}: {line.rstrip()}")
+        print(f"    Codepoints: {[hex(ord(c)) for c in line if ord(c) > 0x1D400]}")
+
+# Also check fonts.py and supabase_schema.sql
+for filepath in ["utils/fonts.py", "database/supabase_schema.sql"]:
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+    if WRONG in content:
+        print(f"\n  STILL HAS WRONG CHAR in {filepath}!")
+    else:
+        print(f"\n  ✓ {filepath}: clean (no wrong char)")

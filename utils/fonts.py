@@ -251,7 +251,7 @@ class FontManager:
         return font  # type: ignore[return-value]
 
     def get_branding_font(self, size: int) -> ImageFont.FreeTypeFont:
-        """Get a font suitable for the canonical bot name 𝓐𝓮𝓽𝓰𝓮𝓻  蒼穹.
+        """Get a font suitable for the canonical bot name 𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹.
 
         The bot name uses Mathematical Alphanumeric Symbols (U+1D4D0–U+1D7FF)
         and CJK Unified Ideographs (U+87F3, U+7A7A).  We try the project's

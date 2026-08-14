@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 import os
 import sys
+import time
+import asyncio
 import logging
 from dotenv import load_dotenv
 
@@ -70,10 +72,19 @@ class MyBot(commands.Bot):
         ]
 
         for cog in cogs_to_load:
+            start = time.perf_counter()
             try:
-                await self.load_extension(f"cogs.{cog}")
+                logger.info("⏳ Loading %s.py...", cog)
+                await asyncio.wait_for(
+                    self.load_extension(f"cogs.{cog}"),
+                    timeout=15,
+                )
+                elapsed = time.perf_counter() - start
                 self.loaded_cogs.append(cog)
-                logger.info("  ✅ %s.py loaded", cog)
+                logger.info("  ✅ %s.py loaded in %.2fs", cog, elapsed)
+            except asyncio.TimeoutError:
+                self.failed_cogs.append(cog)
+                logger.error("  ❌ %s.py load timed out after 15s", cog)
             except Exception as e:
                 self.failed_cogs.append(cog)
                 logger.exception("  ❌ Error loading %s.py", cog)
@@ -107,7 +118,7 @@ class MyBot(commands.Bot):
 if __name__ == "__main__":
     bot = MyBot()
     try:
-        bot.run(TOKEN, reconnect=True)
+        bot.run(TOKEN, reconnect=True, log_handler=None)
     except Exception as e:
         logger.exception("❌ Fatal error: %s", e)
         sys.exit(1)

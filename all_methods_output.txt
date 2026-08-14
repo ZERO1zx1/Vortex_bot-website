@@ -1,0 +1,25 @@
+Session type: <class 'httpx.Client'>
+Session headers: {'accept': '*/*', 'accept-encoding': 'gzip, deflate', 'connection': 'keep-alive', 'user-agent': 'python-httpx/0.28.1', 'x-client-info': 'supabase-py/2.31.0; platform=Windows; platform-version=11; runtime=python; runtime-version=3.13.14', 'apikey': 'sb_publishable_hS1Lso3XqW7_Gq8GnoaXxA_MhwmtzyJ', 'authorization': 'Bearer sb_publishable_hS1Lso3XqW7_Gq8GnoaXxA_MhwmtzyJ', 'accept-profile': 'public', 'content-profile': 'public'}
+Session base_url: https://rqalizeohjpwtvepltqe.supabase.co/rest/v1/
+
+--- POST to Management API via httpx session ---
+Status: 401
+Body: {"message":"JWT could not be decoded"}
+
+--- Edge Functions ---
+List functions: 404 {"code":"NOT_FOUND","message":"Requested function was not found"}
+Function 'sql': 404 {"code":"NOT_FOUND","message":"Requested function was not found"}
+Function 'exec': 404 {"code":"NOT_FOUND","message":"Requested function was not found"}
+Function 'postgres': 404 {"code":"NOT_FOUND","message":"Requested function was not found"}
+Function 'db': 404 {"code":"NOT_FOUND","message":"Requested function was not found"}
+Function 'query': 404 {"code":"NOT_FOUND","message":"Requested function was not found"}
+
+--- PostgREST raw request ---
+PostgREST POST: 401 {"message":"Secret API key required","hint":"Only secret API keys can be used for this endpoint."}
+
+--- RPC attempts ---
+RPC 'create_table': {'message': 'Could not find the function public.create_table(query) in the schema cache', 'code': 'PGRST202', 'hint': None, 'details': 'Searched for the function public.create_table with parameter que
+RPC 'make_table': {'message': 'Could not find the function public.make_table(query) in the schema cache', 'code': 'PGRST202', 'hint': None, 'details': 'Searched for the function public.make_table with parameter query o
+RPC 'sql_exec': {'message': 'Could not find the function public.sql_exec(query) in the schema cache', 'code': 'PGRST202', 'hint': None, 'details': 'Searched for the function public.sql_exec with parameter query or wi
+RPC 'exec_sql': {'message': 'Could not find the function public.exec_sql(query) in the schema cache', 'code': 'PGRST202', 'hint': None, 'details': 'Searched for the function public.exec_sql with parameter query or wi
+RPC 'setup_table': {'message': 'Could not find the function public.setup_table(query) in the schema cache', 'code': 'PGRST202', 'hint': None, 'details': 'Searched for the function public.setup_table with parameter query

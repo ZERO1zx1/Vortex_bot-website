@@ -1,0 +1,22 @@
+SUPABASE_URL set: True
+SUPABASE_URL: https://rqalizeohjpwtvepltqe.supabase.co
+Key length: 46
+Key starts with: sb_publishable_hS1Ls...
+Is JWT (eyJ): False
+Is sbp token: False
+
+PostgREST root failed: HTTPError: HTTP Error 401: Unauthorized
+
+--- Supabase client table check ---
+  [MISSING] economy
+  [MISSING] levels
+  [MISSING] giveaways
+  [MISSING] temproles
+  [MISSING] role_income
+  [MISSING] tempvoice_setup_msg
+  [MISSING] game_stats
+  [MISSING] shop_stock
+  [OK] user_inventory
+  [MISSING] staff_members
+  [MISSING] staff_activity
+  [MISSING] leveling_config

@@ -232,23 +232,6 @@ class Games(commands.Cog):
         embed.set_footer(text="15 секундын дотор сонго")
         view.message = await ctx.send(embed=embed, view=view)
 
-    @commands.command(name='highlow', aliases=['hl'])
-    async def highlow(self, ctx, amount_str: str):
-        amount = await self._parse_amount(ctx, amount_str)
-        if amount is False: return
-        view = HighLowView(self, ctx, amount)
-        embed = discord.Embed(title="🎲 HIGH-LOW", description=f"Эхний тоо: **{view.first_number}**\nДараагийн тоо өндөр эсвэл доогуур?", color=GOLD_COLOR)
-        embed.set_footer(text=f"Бооцоо: {_format_money(amount)} | 30 секундын дотор сонго")
-        view.message = await ctx.send(embed=embed, view=view)
-
-    @commands.command(name='blackjack', aliases=['bj'])
-    async def blackjack(self, ctx, amount_str: str):
-        amount = await self._parse_amount(ctx, amount_str)
-        if amount is False: return
-        view = BlackjackView(ctx, self, amount)
-        view.update_embed()
-        view.message = await ctx.send(embed=view.embed, view=view)
-
     @commands.command(name='highcard', aliases=['war'])
     async def highcard(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
@@ -296,78 +279,6 @@ class Games(commands.Cog):
             await ctx.send(f"❌ Буруу. Зөв хариулт: **{question['answers'][question['correct']]}**")
         quests_cog = self.bot.get_cog("Quests")
         if quests_cog: await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "game_play", 1)
-
-    @commands.command(name='rob')
-    async def rob(self, ctx, target: discord.Member):
-        if not await self.check_common_restrictions(ctx): return
-        if target.id == ctx.author.id or target.bot:
-            return await ctx.send(embed=discord.Embed(title="❌ Буруу", description="Өөртөө эсвэл ботод халдаж болохгүй.", color=ERROR_COLOR))
-        cd = await self.is_on_cooldown(ctx.author.id, ctx.guild.id, "rob")
-        if cd:
-            m, s = divmod(cd, 60)
-            return await ctx.send(embed=discord.Embed(title="⏳ Хүлээ", description=f"**{m}м {s}с** дараа дахин оролдоно уу.", color=WARNING_COLOR))
-        self.set_cooldown(ctx.author.id, ctx.guild.id, "rob")
-        economy = self.bot.get_cog("Economy")
-        if random.random() < 0.3:
-            steal = random.randint(100, 5000)
-            await economy.update_balance(target.id, ctx.guild.id, -steal)
-            await economy.update_balance(ctx.author.id, ctx.guild.id, steal)
-            await self.update_stats(ctx.author.id, ctx.guild.id, True, 0, steal)
-            embed = discord.Embed(title="🦹 Дээрэм амжилттай", description=f"**{steal:,}₮** дээрэмдлээ!", color=SUCCESS_COLOR)
-        else:
-            fine = random.randint(500, 2000)
-            await economy.update_balance(ctx.author.id, ctx.guild.id, -fine)
-            await economy.set_prison(ctx.author.id, ctx.guild.id, hours=2)
-            embed = discord.Embed(title="🚔 Баригдлаа", description=f"**{fine:,}₮** торгууль, 2 цаг шоронд.", color=ERROR_COLOR)
-        await ctx.send(embed=embed)
-
-    @commands.command(name='hack')
-    async def hack(self, ctx, target: discord.Member):
-        if not await self.check_common_restrictions(ctx): return
-        if target.id == ctx.author.id or target.bot:
-            return await ctx.send(embed=discord.Embed(title="❌ Буруу", description="Өөртөө эсвэл ботод халдаж болохгүй.", color=ERROR_COLOR))
-        cd = await self.is_on_cooldown(ctx.author.id, ctx.guild.id, "hack")
-        if cd:
-            h, m = divmod(cd // 3600, 60)
-            return await ctx.send(embed=discord.Embed(title="⏳ Хүлээ", description=f"**{h}ц {m}м** дараа дахин оролдоно уу.", color=WARNING_COLOR))
-        self.set_cooldown(ctx.author.id, ctx.guild.id, "hack")
-        economy = self.bot.get_cog("Economy")
-        target_bank = await economy.get_bank(target.id, ctx.guild.id)
-        target_bal = await economy.get_balance(target.id, ctx.guild.id)
-        if target_bank + target_bal <= 0:
-            return await ctx.send(embed=discord.Embed(title="💸 Хоосон", description=f"{target.mention} данс хоосон.", color=WARNING_COLOR))
-        if random.random() < 0.3:
-            if target_bank > 0:
-                hack_amt = random.randint(1000, min(target_bank, 10000))
-                await economy.update_bank(target.id, ctx.guild.id, -hack_amt)
-            else:
-                hack_amt = random.randint(100, min(target_bal, 5000))
-                await economy.update_balance(target.id, ctx.guild.id, -hack_amt)
-            await economy.update_balance(ctx.author.id, ctx.guild.id, hack_amt)
-            await self.update_stats(ctx.author.id, ctx.guild.id, True, 0, hack_amt)
-            embed = discord.Embed(title="💻 Хакер амжилттай", description=f"**{hack_amt:,}₮** хулгайлсан!", color=SUCCESS_COLOR)
-        else:
-            fine = random.randint(2000, 8000)
-            await economy.update_balance(ctx.author.id, ctx.guild.id, -fine)
-            await economy.set_prison(ctx.author.id, ctx.guild.id, hours=2)
-            embed = discord.Embed(title="🚔 Баригдлаа", description=f"**{fine:,}₮** торгууль, 2 цаг шоронд.", color=ERROR_COLOR)
-        await ctx.send(embed=embed)
-
-    @commands.command(name='cgive', aliases=['cgift'])
-    async def cgive(self, ctx, target: discord.Member, amount: int):
-        if not await self.check_common_restrictions(ctx): return
-        cd = await self.is_on_cooldown(ctx.author.id, ctx.guild.id, "cgive")
-        if cd:
-            h, m = divmod(cd // 3600, 60)
-            return await ctx.send(embed=discord.Embed(title="⏳ Хүлээ", description=f"**{h}ц {m}м** дараа бэлэг өгөх боломжтой.", color=WARNING_COLOR))
-        economy = self.bot.get_cog("Economy")
-        if amount <= 0 or amount > await economy.get_balance(ctx.author.id, ctx.guild.id):
-            return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн буруу эсвэл мөнгө хүрэлцэхгүй.", color=ERROR_COLOR))
-        self.set_cooldown(ctx.author.id, ctx.guild.id, "cgive")
-        await economy.update_balance(ctx.author.id, ctx.guild.id, -amount)
-        await economy.update_balance(target.id, ctx.guild.id, amount)
-        embed = discord.Embed(title="🎁 Бэлэг илгээгдлээ", description=f"{ctx.author.mention} → {target.mention} **{amount:,}₮**", color=SUCCESS_COLOR)
-        await ctx.send(embed=embed)
 
     @commands.command(name='gamestats')
     async def gamestats(self, ctx):

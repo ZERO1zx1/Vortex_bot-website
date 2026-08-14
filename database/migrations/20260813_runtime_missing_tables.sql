@@ -1,9 +1,18 @@
 -- =============================================================
--- 𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 Discord Bot - Supabase Schema
--- Run this in the Supabase SQL Editor or apply via migrations.
+-- Migration: 20260813_runtime_missing_tables.sql
+-- Bot: 𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹
+-- Purpose: Restore tables that are missing from the live Supabase
+--          project so that background tasks and cogs can query
+--          them without PGRST205 / HTTP 404.
+--
+-- This migration is NON-DESTRUCTIVE: every statement uses
+--   CREATE TABLE IF NOT EXISTS,
+--   CREATE INDEX IF NOT EXISTS,
+--   CREATE OR REPLACE FUNCTION.
+-- No DROP / TRUNCATE / DELETE is executed.
 -- =============================================================
 
--- Economy
+-- ── Economy ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS economy (
     user_id TEXT,
     guild_id TEXT,
@@ -18,7 +27,7 @@ CREATE TABLE IF NOT EXISTS economy (
     PRIMARY KEY (user_id, guild_id)
 );
 
--- Levels
+-- ── Levels ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS levels (
     user_id TEXT,
     guild_id TEXT,
@@ -30,7 +39,6 @@ CREATE TABLE IF NOT EXISTS levels (
     PRIMARY KEY (user_id, guild_id)
 );
 
--- Leveling Config
 CREATE TABLE IF NOT EXISTS leveling_config (
     guild_id TEXT PRIMARY KEY,
     enabled BOOLEAN DEFAULT TRUE,
@@ -58,13 +66,13 @@ CREATE TABLE IF NOT EXISTS leveling_config (
     marriage_bonus FLOAT DEFAULT 0.1
 );
 
--- Level Roles & Rewards
 CREATE TABLE IF NOT EXISTS level_roles (
     guild_id TEXT,
     level INT,
     role_id BIGINT,
     PRIMARY KEY (guild_id, level)
 );
+
 CREATE TABLE IF NOT EXISTS level_rewards (
     guild_id TEXT,
     level INT,
@@ -72,7 +80,6 @@ CREATE TABLE IF NOT EXISTS level_rewards (
     PRIMARY KEY (guild_id, level)
 );
 
--- Leveling exceptions
 CREATE TABLE IF NOT EXISTS leveling_exceptions (
     guild_id TEXT,
     type TEXT,
@@ -80,7 +87,7 @@ CREATE TABLE IF NOT EXISTS leveling_exceptions (
     PRIMARY KEY (guild_id, type, target_id)
 );
 
--- Warnings
+-- ── Warnings ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS warnings (
     id SERIAL PRIMARY KEY,
     user_id TEXT,
@@ -90,7 +97,7 @@ CREATE TABLE IF NOT EXISTS warnings (
     timestamp BIGINT
 );
 
--- Marriages
+-- ── Marriages ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS marriages (
     id SERIAL PRIMARY KEY,
     user_id TEXT,
@@ -103,7 +110,6 @@ CREATE TABLE IF NOT EXISTS marriages (
     UNIQUE (user_id, partner_id, guild_id)
 );
 
--- Marriage proposals / family relations
 CREATE TABLE IF NOT EXISTS marriage_proposals (
     guild_id TEXT,
     from_id TEXT,
@@ -113,6 +119,7 @@ CREATE TABLE IF NOT EXISTS marriage_proposals (
     expires_at BIGINT,
     PRIMARY KEY (guild_id, from_id, to_id, proposal_type)
 );
+
 CREATE TABLE IF NOT EXISTS adoptions (
     guild_id TEXT,
     parent_id TEXT,
@@ -121,6 +128,7 @@ CREATE TABLE IF NOT EXISTS adoptions (
     adopted_since BIGINT,
     PRIMARY KEY (guild_id, parent_id, child_id)
 );
+
 CREATE TABLE IF NOT EXISTS marriage_user_settings (
     guild_id TEXT,
     user_id TEXT,
@@ -130,6 +138,7 @@ CREATE TABLE IF NOT EXISTS marriage_user_settings (
     last_love_daily BIGINT DEFAULT 0,
     PRIMARY KEY (guild_id, user_id)
 );
+
 CREATE TABLE IF NOT EXISTS marriage_guild_config (
     guild_id TEXT PRIMARY KEY,
     enabled BOOLEAN DEFAULT TRUE,
@@ -138,6 +147,7 @@ CREATE TABLE IF NOT EXISTS marriage_guild_config (
     announce_channel BIGINT,
     marriage_role BIGINT
 );
+
 CREATE TABLE IF NOT EXISTS marriage_gifts (
     id SERIAL PRIMARY KEY,
     guild_id TEXT,
@@ -148,7 +158,7 @@ CREATE TABLE IF NOT EXISTS marriage_gifts (
     given_at BIGINT
 );
 
--- Temp Channels
+-- ── Temp Channels / TempVoice ────────────────────────────
 CREATE TABLE IF NOT EXISTS temp_channels (
     id SERIAL PRIMARY KEY,
     guild_id TEXT NOT NULL,
@@ -156,13 +166,13 @@ CREATE TABLE IF NOT EXISTS temp_channels (
     owner_id BIGINT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
 CREATE TABLE IF NOT EXISTS tempvoice_setup_msg (
     guild_id TEXT PRIMARY KEY,
     channel_id BIGINT,
     message_id BIGINT
 );
 
--- Guild Config (temp voice)
 CREATE TABLE IF NOT EXISTS guild_config (
     guild_id TEXT PRIMARY KEY,
     create_channel_id BIGINT,
@@ -171,11 +181,12 @@ CREATE TABLE IF NOT EXISTS guild_config (
     control_channel_id BIGINT
 );
 
--- Lottery
+-- ── Lottery ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS lottery (
     id INT PRIMARY KEY,
     pool BIGINT DEFAULT 0
 );
+
 CREATE TABLE IF NOT EXISTS lottery_entries (
     user_id TEXT,
     guild_id TEXT,
@@ -183,7 +194,7 @@ CREATE TABLE IF NOT EXISTS lottery_entries (
     PRIMARY KEY (user_id, guild_id)
 );
 
--- Staff Tables
+-- ── Staff Tables ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS staff_members (
     user_id TEXT,
     guild_id TEXT,
@@ -191,6 +202,7 @@ CREATE TABLE IF NOT EXISTS staff_members (
     added_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, guild_id)
 );
+
 CREATE TABLE IF NOT EXISTS staff_activity (
     user_id TEXT,
     guild_id TEXT,
@@ -201,6 +213,7 @@ CREATE TABLE IF NOT EXISTS staff_activity (
     last_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, guild_id)
 );
+
 CREATE TABLE IF NOT EXISTS staff_weekly_winners (
     id SERIAL PRIMARY KEY,
     user_id TEXT,
@@ -210,6 +223,7 @@ CREATE TABLE IF NOT EXISTS staff_weekly_winners (
     points INT,
     rank INT
 );
+
 CREATE TABLE IF NOT EXISTS staff_config (
     guild_id TEXT PRIMARY KEY,
     log_channel BIGINT,
@@ -218,7 +232,7 @@ CREATE TABLE IF NOT EXISTS staff_config (
     leaderboard_message_id BIGINT
 );
 
--- Giveaways
+-- ── Giveaways ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS giveaways (
     id SERIAL PRIMARY KEY,
     guild_id TEXT,
@@ -231,13 +245,14 @@ CREATE TABLE IF NOT EXISTS giveaways (
     required_role_id BIGINT,
     ended BOOLEAN DEFAULT FALSE
 );
+
 CREATE TABLE IF NOT EXISTS giveaway_entries (
     giveaway_id INT,
     user_id TEXT,
     PRIMARY KEY (giveaway_id, user_id)
 );
 
--- Games / Casino stats
+-- ── Games / Casino stats ─────────────────────────────────
 CREATE TABLE IF NOT EXISTS game_stats (
     user_id TEXT,
     guild_id TEXT,
@@ -248,7 +263,16 @@ CREATE TABLE IF NOT EXISTS game_stats (
     PRIMARY KEY (user_id, guild_id)
 );
 
--- Shop / inventory
+-- ── Role Income ──────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS role_income (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    role_id BIGINT NOT NULL,
+    amount BIGINT NOT NULL DEFAULT 1000,
+    interval_seconds BIGINT NOT NULL DEFAULT 3600
+);
+
+-- ── Shop / Inventory ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS shop_stock (
     guild_id TEXT,
     item_id INT,
@@ -256,6 +280,7 @@ CREATE TABLE IF NOT EXISTS shop_stock (
     last_restock BIGINT,
     PRIMARY KEY (guild_id, item_id)
 );
+
 CREATE TABLE IF NOT EXISTS user_inventory (
     user_id TEXT,
     guild_id TEXT,
@@ -263,6 +288,7 @@ CREATE TABLE IF NOT EXISTS user_inventory (
     quantity INT DEFAULT 1,
     PRIMARY KEY (user_id, guild_id, item_id)
 );
+
 CREATE TABLE IF NOT EXISTS user_drunk (
     user_id TEXT,
     guild_id TEXT,
@@ -270,6 +296,7 @@ CREATE TABLE IF NOT EXISTS user_drunk (
     last_update BIGINT,
     PRIMARY KEY (user_id, guild_id)
 );
+
 CREATE TABLE IF NOT EXISTS marketplace_listings (
     id SERIAL PRIMARY KEY,
     guild_id TEXT,
@@ -280,7 +307,7 @@ CREATE TABLE IF NOT EXISTS marketplace_listings (
     created_at BIGINT
 );
 
--- Counting
+-- ── Counting ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS counting_config (
     guild_id TEXT PRIMARY KEY,
     channel_id BIGINT,
@@ -293,12 +320,14 @@ CREATE TABLE IF NOT EXISTS counting_config (
     high_score BIGINT DEFAULT 0,
     best_streak BIGINT DEFAULT 0
 );
+
 CREATE TABLE IF NOT EXISTS counting_progress (
     guild_id TEXT PRIMARY KEY,
     current_count BIGINT DEFAULT 0,
     last_user_id BIGINT,
     streak BIGINT DEFAULT 0
 );
+
 CREATE TABLE IF NOT EXISTS counting_stats (
     guild_id TEXT,
     user_id TEXT,
@@ -310,7 +339,7 @@ CREATE TABLE IF NOT EXISTS counting_stats (
     PRIMARY KEY (guild_id, user_id)
 );
 
--- Confessions
+-- ── Confessions ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS confession_config (
     guild_id TEXT PRIMARY KEY,
     confess_channel_id BIGINT,
@@ -319,17 +348,20 @@ CREATE TABLE IF NOT EXISTS confession_config (
     cooldown INT DEFAULT 30,
     next_id INT DEFAULT 1
 );
+
 CREATE TABLE IF NOT EXISTS confession_blacklist (
     guild_id TEXT,
     word TEXT,
     PRIMARY KEY (guild_id, word)
 );
+
 CREATE TABLE IF NOT EXISTS confession_cooldown (
     user_id TEXT,
     guild_id TEXT,
     last_time BIGINT,
     PRIMARY KEY (user_id, guild_id)
 );
+
 CREATE TABLE IF NOT EXISTS confession_messages (
     guild_id TEXT,
     confession_id INT,
@@ -339,20 +371,21 @@ CREATE TABLE IF NOT EXISTS confession_messages (
     PRIMARY KEY (guild_id, confession_id)
 );
 
--- Avatar log config
+-- ── Avatar log ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS avatar_log_config (
     guild_id TEXT PRIMARY KEY,
     log_channel_id BIGINT,
     enabled BOOLEAN DEFAULT TRUE
 );
 
--- Invite tracking
+-- ── Invite tracking ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS invite_log_config (
     guild_id TEXT PRIMARY KEY,
     log_channel_id BIGINT,
     enabled BOOLEAN DEFAULT TRUE,
     fake_delay INT DEFAULT 3
 );
+
 CREATE TABLE IF NOT EXISTS invite_stats (
     guild_id TEXT,
     user_id TEXT,
@@ -362,6 +395,7 @@ CREATE TABLE IF NOT EXISTS invite_stats (
     left INT DEFAULT 0,
     PRIMARY KEY (guild_id, user_id)
 );
+
 CREATE TABLE IF NOT EXISTS invite_joins (
     id SERIAL PRIMARY KEY,
     guild_id TEXT,
@@ -372,6 +406,7 @@ CREATE TABLE IF NOT EXISTS invite_joins (
     left_at BIGINT,
     is_fake BOOLEAN DEFAULT FALSE
 );
+
 CREATE TABLE IF NOT EXISTS daily_stats (
     guild_id TEXT,
     date TEXT,
@@ -379,6 +414,7 @@ CREATE TABLE IF NOT EXISTS daily_stats (
     leaves INT DEFAULT 0,
     PRIMARY KEY (guild_id, date)
 );
+
 CREATE TABLE IF NOT EXISTS invite_labels (
     guild_id TEXT,
     invite_code TEXT,
@@ -387,7 +423,7 @@ CREATE TABLE IF NOT EXISTS invite_labels (
     PRIMARY KEY (guild_id, invite_code)
 );
 
--- Sticky messages
+-- ── Sticky messages ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sticky_messages (
     guild_id TEXT,
     channel_id TEXT,
@@ -397,7 +433,7 @@ CREATE TABLE IF NOT EXISTS sticky_messages (
     PRIMARY KEY (guild_id, channel_id)
 );
 
--- Temproles
+-- ── Temp Roles ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS temproles (
     id SERIAL PRIMARY KEY,
     user_id TEXT,
@@ -405,12 +441,13 @@ CREATE TABLE IF NOT EXISTS temproles (
     role_id BIGINT,
     end_time BIGINT
 );
+
 CREATE TABLE IF NOT EXISTS temprole_config (
     guild_id TEXT PRIMARY KEY,
     max_duration_seconds INT DEFAULT 604800
 );
 
--- PvP cooldowns
+-- ── PvP cooldowns ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pvp_cooldowns (
     guild_id TEXT,
     user_id TEXT,
@@ -418,7 +455,7 @@ CREATE TABLE IF NOT EXISTS pvp_cooldowns (
     PRIMARY KEY (guild_id, user_id)
 );
 
--- Quests
+-- ── Quests ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_quests (
     user_id TEXT,
     guild_id TEXT,
@@ -432,6 +469,7 @@ CREATE TABLE IF NOT EXISTS user_quests (
     created_at BIGINT,
     PRIMARY KEY (user_id, guild_id, quest_id)
 );
+
 CREATE TABLE IF NOT EXISTS quest_history (
     id SERIAL PRIMARY KEY,
     user_id TEXT,
@@ -441,7 +479,7 @@ CREATE TABLE IF NOT EXISTS quest_history (
     completed_at BIGINT
 );
 
--- Greetings / templates
+-- ── Greetings / Templates ────────────────────────────────
 CREATE TABLE IF NOT EXISTS greeting_templates (
     id SERIAL PRIMARY KEY,
     guild_id TEXT NOT NULL,
@@ -450,6 +488,7 @@ CREATE TABLE IF NOT EXISTS greeting_templates (
     data TEXT NOT NULL,
     created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()))
 );
+
 CREATE TABLE IF NOT EXISTS greeting_config (
     guild_id TEXT PRIMARY KEY,
     welcome_channel BIGINT,
@@ -465,38 +504,11 @@ CREATE TABLE IF NOT EXISTS greeting_config (
     log_channel BIGINT
 );
 
--- -------------------------------------------------------------
--- RPC: atomic increment helper
--- Used by database/supabase_manager.py increment()
--- -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION increment(
-    table_name TEXT,
-    filter_col TEXT,
-    filter_val TEXT,
-    col TEXT,
-    delta BIGINT
-) RETURNS VOID LANGUAGE plpgsql AS $$
-BEGIN
-    EXECUTE format(
-        'UPDATE %I SET %I = COALESCE(%I, 0) + %s WHERE %I = %L',
-        table_name, col, col, delta, filter_col, filter_val
-    );
-END;
-$$;
-
--- Economy phrase/income/config tables
+-- ── Economy phrase / income / config tables ──────────────
 CREATE TABLE IF NOT EXISTS work_phrases (
     id SERIAL PRIMARY KEY,
     guild_id TEXT NOT NULL,
     phrase TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS role_income (
-    id SERIAL PRIMARY KEY,
-    guild_id TEXT NOT NULL,
-    role_id BIGINT NOT NULL,
-    amount BIGINT NOT NULL DEFAULT 1000,
-    interval_seconds BIGINT NOT NULL DEFAULT 3600
 );
 
 CREATE TABLE IF NOT EXISTS economy_cooldowns_config (
@@ -537,7 +549,30 @@ CREATE TABLE IF NOT EXISTS custom_replies (
     text TEXT NOT NULL
 );
 
--- Indexes
+-- ── RPC: atomic increment helper ─────────────────────────
+CREATE OR REPLACE FUNCTION increment(
+    table_name TEXT,
+    filter_col TEXT,
+    filter_val TEXT,
+    col TEXT,
+    delta BIGINT
+) RETURNS VOID LANGUAGE plpgsql AS $$
+BEGIN
+    EXECUTE format(
+        'UPDATE %I SET %I = COALESCE(%I, 0) + %s WHERE %I = %L',
+        table_name, col, col, delta, filter_col, filter_val
+    );
+END;
+$$;
+
+-- ── Indexes ──────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_economy_balance ON economy (balance);
 CREATE INDEX IF NOT EXISTS idx_economy_guild ON economy (guild_id, balance);
 CREATE INDEX IF NOT EXISTS idx_levels_guild ON levels (guild_id, level DESC, xp DESC);
+CREATE INDEX IF NOT EXISTS idx_temproles_guild ON temproles (guild_id);
+CREATE INDEX IF NOT EXISTS idx_temproles_end ON temproles (end_time);
+CREATE INDEX IF NOT EXISTS idx_giveaways_guild ON giveaways (guild_id);
+CREATE INDEX IF NOT EXISTS idx_giveaways_end ON giveaways (end_time);
+CREATE INDEX IF NOT EXISTS idx_role_income_guild ON role_income (guild_id);
+CREATE INDEX IF NOT EXISTS idx_game_stats_guild ON game_stats (guild_id, total_won DESC);
+CREATE INDEX IF NOT EXISTS idx_shop_stock_guild ON shop_stock (guild_id);

@@ -36,3 +36,5 @@ Thumbs.db
 # Generated
 __pycache__/
 bot_output.txt
+
+.agents/
