@@ -37,7 +37,9 @@ A feature-rich Discord bot for the **𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹** communit
 ├── .env.example               # Environment template (copy to .env)
 ├── database/
 │   ├── supabase_manager.py    # Async Supabase repository layer
-│   └── supabase_schema.sql    # Full schema + RPC functions
+│   ├── supabase_schema.sql    # Original full schema + RPC functions
+│   └── migrations/
+│       └── 000_complete_schema.sql  # Consolidated non-destructive schema
 ├── utils/
 │   ├── branding.py            # Centralized 𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 branding
 │   ├── embeds.py              # UI embed helpers
@@ -52,7 +54,10 @@ A feature-rich Discord bot for the **𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹** communit
 ### 1. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+# Windows: use the same Python interpreter that will run the bot
+py -3.12 -m pip install -r requirements.txt
+# Or, if `python` is your selected interpreter:
+python -m pip install -r requirements.txt
 ```
 
 ### 2. Configure environment
@@ -71,8 +76,8 @@ Edit `.env` and fill in:
 
 1. Create a Supabase project at [supabase.com](https://supabase.com)
 2. Open the **SQL Editor**
-3. Paste the contents of `database/supabase_schema.sql` and run it
-4. This creates all tables, indexes, and the `increment()` RPC function
+3. Paste the contents of `database/migrations/000_complete_schema.sql` and run it
+4. This creates all tables, indexes, and the `increment()` RPC function without dropping existing data
 
 ### 4. Configure the bot
 
@@ -89,7 +94,16 @@ Edit `config.json`:
 ### 5. Run the bot
 
 ```bash
+# Use the same interpreter where requirements.txt was installed
+py -3.12 main.py
+# Or:
 python main.py
+```
+
+If you see `ModuleNotFoundError: No module named 'discord'`, install dependencies with the exact interpreter used to run the bot:
+
+```bash
+py -3.12 -m pip install -r requirements.txt
 ```
 
 ## Database Layer

@@ -53,7 +53,7 @@ class SupabaseManager:
             if not exists:
                 logger.warning(
                     "Required Supabase table '%s' is missing. "
-                    "Apply database migration: database/migrations/20260813_runtime_missing_tables.sql",
+                    "Apply database migration: database/migrations/000_complete_schema.sql",
                     table,
                 )
         logger.info("Supabase schema validation complete.")
