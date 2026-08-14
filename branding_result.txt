@@ -1,5 +1,0 @@
-database/supabase_schema.sql: bad_E=False, good_e=False
-tests/test_fonts.py: bad_E=False, good_e=False
-utils/fonts.py: bad_E=False, good_e=False
-utils/branding.py: bad_E=False, good_e=False
---- done ---

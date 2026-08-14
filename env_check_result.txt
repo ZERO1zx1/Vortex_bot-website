@@ -1,3 +1,0 @@
-No Supabase/service/secret env vars found (other than those in .env)
-
-All dotenv-related keys visible to Python: ['DISCORD_TOKEN', 'SUPABASE_KEY', 'SUPABASE_URL']
