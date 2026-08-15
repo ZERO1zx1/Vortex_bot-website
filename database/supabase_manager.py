@@ -152,9 +152,9 @@ class SupabaseManager:
 
     async def upsert(self, table: str, data: Dict[str, Any], on_conflict: Optional[str] = None) -> List[Dict[str, Any]]:
         def _upsert():
-            q = self.table(table).upsert(data)
-            if on_conflict:
-                q = q.on_conflict(on_conflict)
+            # postgrest >= 2.x: on_conflict is a kwarg of upsert() itself;
+            # the returned SyncQueryRequestBuilder has NO .on_conflict() method.
+            q = self.table(table).upsert(data, on_conflict=on_conflict or "")
             result = q.execute()
             return result.data or []
         return await self._run(_upsert)
