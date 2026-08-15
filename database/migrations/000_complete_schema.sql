@@ -645,3 +645,26 @@ ALTER TABLE user_inventory DISABLE ROW LEVEL SECURITY;
 ALTER TABLE user_quests DISABLE ROW LEVEL SECURITY;
 ALTER TABLE warnings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE work_phrases DISABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- SECTION 4: Grant full access to anon and authenticated roles
+-- -----------------------------------------------------------------------------
+-- REQUIRED: Supabase applies per-role grants at object creation. Dashboard SQL
+-- Editor runs as 'postgres', whose default privileges do NOT include SELECT for
+-- 'anon'. Without these grants the bot (anon key) receives HTTP 401 / SQLSTATE
+-- 42501 (permission denied) on every table even when RLS is disabled.
+-- We also fix default privileges so any future table created by the dashboard
+-- SQL Editor automatically grants anon/authenticated the same access.
+-- ============================================================================
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  GRANT ALL ON TABLES TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  GRANT ALL ON SEQUENCES TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  GRANT EXECUTE ON FUNCTIONS TO anon, authenticated;
+
+-- Tell PostgREST to refresh its schema cache after applying grants
+NOTIFY pgrst, 'reload schema';

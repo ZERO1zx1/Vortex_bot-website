@@ -235,11 +235,20 @@ class SupabaseManager:
     # ------------------------------------------------------------------
     def _is_missing_table(self, error: BaseException) -> bool:
         """True when the error means the table is not in the Supabase
-        schema cache (PGRST205) or the REST endpoint returned 404."""
+        schema cache (PGRST205), the REST endpoint returned 404, or the
+        role lacks privileges on the table (42501 permission denied).
+
+        42501 is treated here because a privilege problem on a *known*
+        table always indicates a database setup issue that should be
+        fixed by re-applying the migration (GRANT block), not by
+        crashing every background loop that reads the table.
+        """
         msg = str(error)
         code = getattr(error, "code", None) or ""
         status = getattr(error, "status_code", None) or getattr(error, "status", None) or 0
-        return "PGRST205" in code or "PGRST205" in msg or int(status) == 404
+        return ("PGRST205" in code or "PGRST205" in msg
+                or int(status) == 404
+                or "42501" in code or "42501" in msg)
 
     async def fetch_safe(
         self,
@@ -253,8 +262,10 @@ class SupabaseManager:
         If the table does not exist in the live Supabase project the call
         logs once at ERROR level and returns ``[]`` (or ``None`` for
         single-row reads) so background tasks keep running instead of
-        crashing.  All other errors (auth, network, bad data) still
-        propagate to the caller.
+        crashing.  Errors treated as "table unavailable" are:
+        PGRST205 (missing table), HTTP 404, and 42501 (permission denied).
+        All other errors (auth, network, bad data) still propagate to
+        the caller.
         """
         try:
             if single:

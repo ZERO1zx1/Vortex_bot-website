@@ -64,10 +64,11 @@ def check_table(base_url: str, key: str, table: str) -> tuple[bool, str]:
         if e.code == 404:
             return False, f"ХҮСНЭГТ БАЙХГҮЙ (PGRST205 — migration ажиллуулаагүй эсвэл алдаатай ажилласан)"
         if e.code == 401 or e.code == 403:
-            return False, (f"Холбогдох эрхгүй (HTTP {e.code}) — ихэнхдээ хүснэгт дээр Row Level Security (RLS) "
-                           f"асалсан ч access policy байхгүйгээс үүсдэг. "
-                           f"database/migrations/000_complete_schema.sql-ийн сүүлийн хэсэгт байгаа "
-                           f"'DISABLE ROW LEVEL SECURITY' тогтоолтуудыг SQL Editor дээр ажиллуул.")
+            return False, (f"Холбогдох эрхгүй (HTTP {e.code}) — хүснэгт дээр \"anon\" рольд SELECT "
+                           f"GRANT байхгүй, эсвэл Row Level Security (RLS) асалсан ч access policy "
+                           f"байхгүй. database/migrations/000_complete_schema.sql-ийн сүүлийн хэсэгт "
+                           f"байгаа 'DISABLE ROW LEVEL SECURITY' болон 'GRANT ALL ... TO anon' "
+                           f"тогтоолтуудыг SQL Editor дээр ажиллуул.")
         return False, f"HTTP {e.code}: {body[:160]}"
     except urllib.error.URLError as e:
         return False, f"Холбогдох боломжгүй: {e.reason}"
@@ -132,6 +133,8 @@ def main() -> int:
         print("Шаардлагатай 12 хүснэгтийн {0} нь дутуу байна.".format(len(missing)))
         print("-> Supabase Dashboard > SQL Editor > New query дээр")
         print("   database/migrations/000_complete_schema.sql бүх агуулгыг paste хийж Run хийнэ үү.")
+        print("   (Энэ файл нь хүснэгтүүдийг үүсгээд RLS-ийг унтрааж, \"anon\" рольд")
+        print("    бүрэн эрх GRANT хийдэг — бүгдийг нэг удаа ажиллуулна.)")
         return 1
     print(f"\nҮР ДҮН: {len(missing_all)} хүснэгт байхгүй байна (гол 12 хүснэгт бүгд байна).")
     return 1
