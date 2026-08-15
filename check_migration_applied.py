@@ -64,7 +64,10 @@ def check_table(base_url: str, key: str, table: str) -> tuple[bool, str]:
         if e.code == 404:
             return False, f"ХҮСНЭГТ БАЙХГҮЙ (PGRST205 — migration ажиллуулаагүй эсвэл алдаатай ажилласан)"
         if e.code == 401 or e.code == 403:
-            return False, f"Холбогдох эрхгүй (HTTP {e.code}) — түлхүүр буруу эсвэл API access унтраатай байна"
+            return False, (f"Холбогдох эрхгүй (HTTP {e.code}) — ихэнхдээ хүснэгт дээр Row Level Security (RLS) "
+                           f"асалсан ч access policy байхгүйгээс үүсдэг. "
+                           f"database/migrations/000_complete_schema.sql-ийн сүүлийн хэсэгт байгаа "
+                           f"'DISABLE ROW LEVEL SECURITY' тогтоолтуудыг SQL Editor дээр ажиллуул.")
         return False, f"HTTP {e.code}: {body[:160]}"
     except urllib.error.URLError as e:
         return False, f"Холбогдох боломжгүй: {e.reason}"
