@@ -129,7 +129,12 @@ class Stock(commands.Cog):
 
     # ================== СЕРВЕРИЙГ ЭХЛҮҮЛЭХ (ЗАСВАР: INSERT IGNORE) ==================
     async def _ensure_item_stock(self, guild_id: int, item_id: int):
-        """Нэг барааны мөр байхгүй бол санамсаргүй нөөцтэй үүсгэх."""
+        """Нэг барааны мөр байхгүй бол санамсаргүй нөөцтэй үүсгэх.
+
+        UPSERT ашигладаг (on_conflict = guild_id,item_id) — select-then-insert
+        race condition-аас үүсдэг 23505 duplicate key алдааг бүрмөсөн арилгана.
+        Existing мөр дээр upsert нь update хийхгүй (current_stock нь ижил утгаар).
+        """
         existing = await self.bot.db_manager.fetch_one(
             "shop_stock", {"guild_id": str(guild_id), "item_id": str(item_id)}
         )
@@ -137,12 +142,12 @@ class Stock(commands.Cog):
             return
         lo, hi = self._get_range(item_id)
         random_stock = random.randint(lo, hi)
-        await self.bot.db_manager.insert("shop_stock", {
+        await self.bot.db_manager.upsert("shop_stock", {
             "guild_id": str(guild_id),
             "item_id": item_id,
             "current_stock": random_stock,
             "last_restock": int(datetime.datetime.now().timestamp()),
-        })
+        }, on_conflict="guild_id,item_id")
 
     async def ensure_stocks_for_guild(self, guild_id: int):
         """Дутуу бараануудыг санамсаргүй нөөцтэй оруулах."""
