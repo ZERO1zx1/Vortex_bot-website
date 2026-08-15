@@ -1,4 +1,7 @@
 from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
+import logging
+
+logger = logging.getLogger(__name__)
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands, ui
@@ -335,7 +338,7 @@ class Moderation(SupabaseCog):
 
     async def _get_configured_channel(self, guild: discord.Guild, channel_type: str):
         column = {"log": "log_channel", "announcement": "announcement_channel", "stats": "stats_channel"}[channel_type]
-        cfg_row = await self.bot.db_manager.fetch_one("staff_config", {"guild_id": str(guild.id)})
+        cfg_row = await self.bot.db_manager.fetch_safe("staff_config", {"guild_id": str(guild.id)}, single=True)
         if cfg_row and cfg_row.get(column):
             return guild.get_channel(int(cfg_row[column]))
         return None
@@ -344,8 +347,8 @@ class Moderation(SupabaseCog):
     @app_commands.command(name="staff_counts", description="Долоо хоногийн Staff онооны эрэмбэ")
     async def staff_counts(self, interaction: discord.Interaction):
         guild_id = str(interaction.guild.id)
-        members = await self.bot.db_manager.fetch_all("staff_members", {"guild_id": guild_id})
-        activity_rows = await self.bot.db_manager.fetch_all("staff_activity", {"guild_id": guild_id})
+        members = await self.bot.db_manager.fetch_safe("staff_members", {"guild_id": guild_id})
+        activity_rows = await self.bot.db_manager.fetch_safe("staff_activity", {"guild_id": guild_id})
         activity_map = {a["user_id"]: a for a in activity_rows}
         rows = [
             (m["user_id"], m.get("staff_group", ""), a.get("messages", 0),
@@ -379,12 +382,12 @@ class Moderation(SupabaseCog):
     @app_commands.describe(member="Харах Staff гишүүн")
     async def staff_status(self, interaction: discord.Interaction, member: discord.Member):
         guild_id = str(interaction.guild.id)
-        staff_row = await self.bot.db_manager.fetch_one("staff_members", {"user_id": str(member.id), "guild_id": guild_id})
+        staff_row = await self.bot.db_manager.fetch_safe("staff_members", {"user_id": str(member.id), "guild_id": guild_id}, single=True)
         if not staff_row:
             return await interaction.response.send_message(f"❌ {member.mention} нь Staff-д бүртгэлтэй биш байна.", ephemeral=True)
         group = staff_row.get("staff_group", "")
 
-        activity_row = await self.bot.db_manager.fetch_one("staff_activity", {"user_id": str(member.id), "guild_id": guild_id})
+        activity_row = await self.bot.db_manager.fetch_safe("staff_activity", {"user_id": str(member.id), "guild_id": guild_id}, single=True)
         if not activity_row:
             return await interaction.response.send_message(f"ℹ️ {member.mention} идэвхийн мэдээлэл олдсонгүй.", ephemeral=True)
         messages = activity_row.get("messages", 0)
