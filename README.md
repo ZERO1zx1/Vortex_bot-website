@@ -133,6 +133,13 @@ await self.bot.db_manager.delete("warnings", {"id": 42})
 await self.bot.db_manager.increment("economy", {"user_id": "123"}, "balance", 100)
 ```
 
+## Website
+
+`website/` хавтас — ботын албан ёсны вэбсайт (3D animated UI, цэвэр статик HTML/CSS/JS, backend шаардлагагүй).
+
+- Hero (3D orb + particles), Онцлогууд, 94 командын хайлттай жагсаалт, Статистик, Статус, About Us, Premium (3 төлөвлөгөө), Invite CTA
+- Hosting: Vercel / Netlify / GitHub Pages дээр `website/` хавтсыг publish directory болгох (нарийвчилсан заавар: `website/README.md`)
+- Тохиргоо: `website/js/config.js`-с invite холбоосоо тохируулна (`INVITE_URL`)
 ## Branding
 
 All embeds and UI use the centralized branding layer in `utils/branding.py`:

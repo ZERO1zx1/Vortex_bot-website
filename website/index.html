@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 — Монгол Discord Бот</title>
+  <meta name="description" content="Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, мафия, модерац болон бусад олон функцтэй Монгол Discord бот." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css?v=2" />
+</head>
+<body>
+  <!-- 3D particle canvas -->
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <div class="brand-orb"></div>
+      <span>𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹</span>
+    </div>
+    <div class="nav-links">
+      <a href="#features">Онцлогууд</a>
+      <a href="#commands">Командууд</a>
+      <a href="#stats">Статистик</a>
+      <a href="#about">About Us</a>
+      <a href="#premium">Premium</a>
+    </div>
+    <a href="#invite" class="btn btn-glow nav-invite">Ботыг нэмэх</a>
+    <button class="nav-burger" id="nav-burger" aria-label="Цэс">
+      <span></span><span></span><span></span>
+    </button>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero" id="home">
+    <div class="hero-content" data-parallax="0.4">
+      <div class="hero-badge">🇲🇳 Монгол Discord бот</div>
+      <h1 class="hero-title"><span class="title-orbitron">𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹</span></h1>
+      <p class="hero-subtitle">
+        Эдийн засаг, түвшин, гэрлэл, дэлгүүр, тоглоом, модерац —
+        бүгдийг нэг ботонд. Таны серверийг амьд болго.
+      </p>
+      <div class="hero-actions">
+        <a href="#invite" class="btn btn-primary">
+          <span class="btn-icon">⚡</span>Ботыг нэмэх
+        </a>
+        <a href="#commands" class="btn btn-ghost">
+          <span class="btn-icon">📜</span>Командууд үзэх
+        </a>
+      </div>
+      <div class="hero-tags">
+        <span>29 cog</span><span>77+ slash команд</span><span>24/7 online</span>
+      </div>
+    </div>
+
+    <div class="hero-visual" data-parallax="0.8">
+      <div class="orb-scene">
+        <div class="orb" id="hero-orb">
+          <div class="orb-glow"></div>
+          <div class="orb-ring ring-1"></div>
+          <div class="orb-ring ring-2"></div>
+          <div class="orb-ring ring-3"></div>
+          <div class="orb-face">蒼</div>
+        </div>
+        <div class="orb-shadow"></div>
+      </div>
+      <div class="float-card c1" data-tilt>
+        <svg class="fc-icon-svg" viewBox="0 0 64 64"><use href="img/icons.svg#economy"/></svg> Economy
+      </div>
+      <div class="float-card c2" data-tilt>
+        <svg class="fc-icon-svg" viewBox="0 0 64 64"><use href="img/icons.svg#marriage"/></svg> Marriage
+      </div>
+      <div class="float-card c3" data-tilt>
+        <svg class="fc-icon-svg" viewBox="0 0 64 64"><use href="img/icons.svg#casino"/></svg> Casino
+      </div>
+      <div class="float-card c4" data-tilt>
+        <svg class="fc-icon-svg" viewBox="0 0 64 64"><use href="img/icons.svg#moderation"/></svg> Moderation
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="section-head">
+      <div class="section-tag">ОНЦЛОГ ФУНКЦҮҮД</div>
+      <h2 class="section-title">Бүгд нэг дор. <span class="accent">29 cog.</span></h2>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-card" data-tilt data-reveal>
+        <div class="fc-orb fc-econ"></div>
+        <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#economy"/></svg>
+        <h3>Эдийн засаг</h3>
+        <p>daily, work, gamble, мөнгөний систем. Хөдөлмөрлөөд баяжина.</p>
+      </div>
+      <div class="feature-card" data-tilt data-reveal>
+        <div class="fc-orb fc-lvl"></div>
+        <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#leveling"/></svg>
+        <h3>Түвшин / Leveling</h3>
+        <p>XP систем, leaderboard, voice XP. Идэвхтэй байх тусам түвшин авна.</p>
+      </div>
+      <div class="feature-card" data-tilt data-reveal>
+        <div class="fc-orb fc-love"></div>
+        <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#marriage"/></svg>
+        <h3>Гэрлэл / Гэр бүл</h3>
+        <p>Учрахаас эхлээд гэр бүлийн мод хүртэл. Хайртай хүнтэйгээ гэрлэ.</p>
+      </div>
+      <div class="feature-card" data-tilt data-reveal>
+        <div class="fc-orb fc-shop"></div>
+        <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#shop"/></svg>
+        <h3>Дэлгүүр &amp; Хувьцаа</h3>
+        <p>Market, marketplace, амьд stock систем. Худалдаж, худалд.</p>
+      </div>
+      <div class="feature-card" data-tilt data-reveal>
+        <div class="fc-orb fc-cas"></div>
+        <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#casino"/></svg>
+        <h3>Казино &amp; Тоглоом</h3>
+        <p>Coinflip, slots, roulette, mines, pvp, counting, cards.</p>
+      </div>
+      <div class="feature-card" data-tilt data-reveal>
+        <div class="fc-orb fc-maf"></div>
+        <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#mafia"/></svg>
+        <h3>Mafia</h3>
+        <p>Дорнодын мафия тоглоом — нойрсох, шалгах, ялалт байгуул.</p>
+      </div>
+      <div class="feature-card" data-tilt data-reveal>
+        <div class="fc-orb fc-mod"></div>
+        <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#moderation"/></svg>
+        <h3>Модерац</h3>
+        <p>Ban, kick, warn, timeout, purge, mod-log. Цэвэрхэн сервер.</p>
+      </div>
+      <div class="feature-card" data-tilt data-reveal>
+        <div class="fc-orb fc-fun"></div>
+        <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#fun"/></svg>
+        <h3>Fun &amp; Бусад</h3>
+        <p>Cafe, quests, confessions, giveaway, temp voice, avatar logger...</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMMANDS -->
+  <section class="commands" id="commands">
+    <div class="section-head">
+      <div class="section-tag">КОМАНДУУД</div>
+      <h2 class="section-title">77+ slash <span class="accent">команд</span></h2>
+    </div>
+    <div class="cmd-toolbar">
+      <input type="text" id="cmd-search" placeholder="🔎 Команд хайх... (жишээ нь: daily, ban, marry)" />
+      <div class="cmd-filters" id="cmd-filters">
+        <button class="filter active" data-cat="all">Бүгд</button>
+        <button class="filter" data-cat="Economy">💰 Economy</button>
+        <button class="filter" data-cat="Leveling">📊 Leveling</button>
+        <button class="filter" data-cat="Social">💍 Гэр бүл</button>
+        <button class="filter" data-cat="Games">🎲 Тоглоом</button>
+        <button class="filter" data-cat="Moderation">🛡️ Модерац</button>
+        <button class="filter" data-cat="Admin">⚙️ Админ</button>
+        <button class="filter" data-cat="Utility">🔧 Бусад</button>
+      </div>
+    </div>
+    <div class="cmd-grid" id="cmd-grid"></div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stats" id="stats">
+    <div class="section-head">
+      <div class="section-tag">СТАТИСТИК</div>
+      <h2 class="section-title">Тоогоор <span class="accent">хэлбэл</span></h2>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card" data-tilt data-reveal>
+        <div class="stat-num" data-count="29">0</div>
+        <div class="stat-label">Cog</div>
+      </div>
+      <div class="stat-card" data-tilt data-reveal>
+        <div class="stat-num" data-count="77">0</div>
+        <div class="stat-label">Slash команд</div>
+      </div>
+      <div class="stat-card" data-tilt data-reveal>
+        <div class="stat-num" data-count="57">0</div>
+        <div class="stat-label">Database таблиц</div>
+      </div>
+      <div class="stat-card" data-tilt data-reveal>
+        <div class="stat-num" data-count="24" data-suffix="/7">0</div>
+        <div class="stat-label">Uptime</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE STATUS -->
+  <section class="live-status" id="livestatus">
+    <div class="section-head">
+      <div class="section-tag">СТАТУС</div>
+      <h2 class="section-title">Ботын <span class="accent">төлөв</span></h2>
+    </div>
+    <div class="status-card" data-tilt>
+      <div class="sc-glow"></div>
+      <div class="status-row">
+        <div class="status-orb">
+          <div class="status-dot online"></div>
+          <div class="so-ring"></div>
+        </div>
+        <div class="status-main">
+          <div class="status-title">𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ — <span class="online-text">Online</span></div>
+          <div class="status-sub">24/7 ажилладаг, Supabase дээр суурилсан бат бөх backend</div>
+          <div class="status-uptime"><span class="uptime-bar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span> Сүүлийн 30 хоног тогтвортой</div>
+        </div>
+        <div class="status-badge">v1.0</div>
+      </div>
+      <div class="status-grid">
+        <div class="sg-item" data-reveal>
+          <svg class="sg-svg" viewBox="0 0 64 64"><use href="img/icons.svg#about"/></svg>
+          <div class="sg-num">Python 3.12</div>
+          <div class="sg-label">Runtime</div>
+        </div>
+        <div class="sg-item" data-reveal>
+          <svg class="sg-svg" viewBox="0 0 64 64"><use href="img/icons.svg#status"/></svg>
+          <div class="sg-num">discord.py 2.7</div>
+          <div class="sg-label">Framework</div>
+        </div>
+        <div class="sg-item" data-reveal>
+          <svg class="sg-svg" viewBox="0 0 64 64"><use href="img/icons.svg#economy"/></svg>
+          <div class="sg-num">Supabase</div>
+          <div class="sg-label">Database (PostgreSQL)</div>
+        </div>
+        <div class="sg-item" data-reveal>
+          <svg class="sg-svg" viewBox="0 0 64 64"><use href="img/icons.svg#premium"/></svg>
+          <div class="sg-num">24/7</div>
+          <div class="sg-label">Uptime зорилт</div>
+        </div>
+      </div>
+      <div class="status-refresh">Ботын нарийвчилсан status-ийг Discord дээр <code>/status</code> командаар харна уу.</div>
+    </div>
+  </section>
+
+  <!-- ABOUT US -->
+  <section class="about" id="about">
+    <div class="section-head">
+      <div class="section-tag">БИДНИЙ ТУХАЙ</div>
+      <h2 class="section-title">About <span class="accent">Us</span></h2>
+    </div>
+    <div class="about-layout">
+      <div class="about-text" data-reveal>
+        <h3>Юугаараа онцлог вэ?</h3>
+        <p>
+          <strong>𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ</strong> нь Монгол серверүүдэд зориулж бүтээгдсэн бүрэн эрхтэй
+          Discord бот юм. Япон "蒼穹" (цэнхэр тэнгэр) гэдэг нэрэн дор бид Discord-ийг
+          зөвхөн чат биш — амьд эдийн засагтай, тоглоомтой, гэр бүлтэй нийгэмлэг болгож байна.
+        </p>
+        <p>
+          Supabase (PostgreSQL) дээр суурилсан бат бөх backend, discord.py 2.x-ийн
+          сүүлийн хувилбар, 29 тусгай cog — бүгд нэгдмэл системээр ажиллана.
+          Мөнгөний систем, гэрлэл, mafia, хувьцааны зах зээл — бүгд нэг ботонд.
+        </p>
+        <div class="about-stats-row">
+          <div class="as-item"><span class="as-num">100%</span><span class="as-label">Монгол UI</span></div>
+          <div class="as-item"><span class="as-num">0</span><span class="as-label">Алдааны мэдэгдэл</span></div>
+          <div class="as-item"><span class="as-num">29/29</span><span class="as-label">Cog ачаалалт</span></div>
+        </div>
+      </div>
+      <div class="about-cards">
+        <div class="about-card" data-tilt data-reveal>
+          <div class="ac-orb"></div>
+          <h4>🛠️ Backend</h4>
+          <p>Supabase + PostgREST. 57 таблиц, бат бөх түвшний RLS тохиргоо.</p>
+        </div>
+        <div class="about-card" data-tilt data-reveal>
+          <div class="ac-orb"></div>
+          <h4>⚙️ Framework</h4>
+          <p>discord.py 2.7.1, Python 3.12. Hybrid командыг (slash + text) бүрэн дэмжинэ.</p>
+        </div>
+        <div class="about-card" data-tilt data-reveal>
+          <div class="ac-orb"></div>
+          <h4>🧪 Чанарын тест</h4>
+          <p>Бүх 40 гол командыг автомат туршилтын хэрэгслээр баталгаажуулсан.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PREMIUM -->
+  <section class="premium" id="premium">
+    <div class="section-head">
+      <div class="section-tag">PREMIUM</div>
+      <h2 class="section-title">Дээд түвшний <span class="accent">эрх</span></h2>
+    </div>
+    <div class="price-grid">
+      <div class="price-card" data-tilt data-reveal>
+        <div class="pc-badge">FREE</div>
+        <h3>Үнэгүй</h3>
+        <div class="pc-price">₮0<span>/сар</span></div>
+        <ul>
+          <li>✅ Бүх үндсэн командууд</li>
+          <li>✅ Economy, Leveling</li>
+          <li>✅ Casino &amp; Тоглоомууд</li>
+          <li>✅ Модерац багц</li>
+          <li>✅ 24/7 ажиллагаа</li>
+          <li class="muted">❌ Premium онцлогууд</li>
+        </ul>
+        <a href="#invite" class="btn btn-ghost">Нэмэх</a>
+      </div>
+      <div class="price-card featured" data-tilt data-reveal>
+        <svg class="pc-icon" viewBox="0 0 64 64"><use href="img/icons.svg#premium"/></svg>
+        <div class="pc-badge gold">⭐ PREMIUM</div>
+        <h3>Premium</h3>
+        <div class="pc-price gold">₮5,000<span>/сар</span></div>
+        <ul>
+          <li>✅ Бүх үнэгүй эрхүүд</li>
+          <li>✅ Daily ×2 урамшуулал</li>
+          <li>✅ Тусгай badge &amp; роль</li>
+          <li>✅ Хурдан cooldown</li>
+          <li>✅ Priority command queue</li>
+          <li>✅ Тусгай дэлгүүрийн зүйлс</li>
+        </ul>
+        <a href="#invite" class="btn btn-primary">Premium авах</a>
+      </div>
+      <div class="price-card" data-tilt data-reveal>
+        <div class="pc-badge cyan">🏢 SERVER</div>
+        <h3>Server Premium</h3>
+        <div class="pc-price cyan">₮15,000<span>/сар</span></div>
+        <ul>
+          <li>✅ Бүх Premium эрхүүд</li>
+          <li>✅ Custom branding</li>
+          <li>✅ Dashboard эрх</li>
+          <li>✅ Priority support</li>
+          <li>✅ Тусгай тоглоомын хүсэлт</li>
+          <li>✅ Early access нэмэлтүүд</li>
+        </ul>
+        <a href="#invite" class="btn btn-ghost">Холбогдох</a>
+      </div>
+    </div>
+    <p class="premium-note">* Premium тохиргоо боловсруулагдсаар байгаа. Холбогдох: Discord — <strong>@aether.support</strong></p>
+  </section>
+
+  <!-- INVITE CTA -->
+  <section class="invite" id="invite">
+    <div class="invite-card" data-tilt>
+      <h2>Серверээ <span class="accent">амьдруулъя</span></h2>
+      <p>Нэг даралтаар нэмээд, өнөөдрөөс эхлүүл.</p>
+      <a href="https://discord.com/oauth2/authorize" class="btn btn-primary btn-lg" id="invite-btn">
+        <span class="btn-icon">🚀</span>Server-тээ нэмэх
+      </a>
+      <div class="invite-meta">Урилгын холбоосыг тохируулах: <code>js/config.js → INVITE_URL</code></div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-brand">𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 <span>•</span> Монгол Discord бот</div>
+    <div class="footer-links">
+      <a href="#features">Онцлогууд</a>
+      <a href="#commands">Командууд</a>
+      <a href="#premium">Premium</a>
+      <a href="https://github.com/ZERO1zx1/gurtendev" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <div class="footer-copy">© 2026 𝓐𝓮𝓽𝓱𝓮𝓻  蒼Қ. Бүх эрх хуулиар хамгаалагдсан.</div>
+  </footer>
+
+  <script src="js/config.js?v=2"></script>
+  <script src="js/commands.js?v=2"></script>
+  <script src="js/app.js?v=2"></script>
+</body>
+</html>
