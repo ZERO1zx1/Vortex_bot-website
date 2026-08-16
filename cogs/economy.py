@@ -219,6 +219,7 @@ class Economy(SupabaseCog):
 
     @commands.hybrid_command(name='workphrase', description='Ажлын өгүүлбэрийн тохиргоо (embed+button+modal)')
     @commands.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
     async def work_phrase_panel(self, ctx):
         embed = discord.Embed(
             title="📝 Ажлын өгүүлбэрийн тохиргоо",

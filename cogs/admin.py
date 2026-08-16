@@ -108,6 +108,8 @@ class Admin(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name='addmoney', description='Мөнгө нэмэх', aliases=['am'], with_app_command=True)
+    @commands.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
     async def addmoney(self, ctx, member: discord.Member, amount: int):
         if not self.is_owner_or_co_owner(ctx.author.id):
             embed = discord.Embed(title="⛔ ЭРХ ХҮРЭХГҮЙ", description="Зөвхөн бот эзэмшигч / хамт эзэмшигч", color=ERROR_COLOR)
@@ -130,6 +132,8 @@ class Admin(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name='removemoney', description='Мөнгө хасах', aliases=['rm'], with_app_command=True)
+    @commands.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
     async def removemoney(self, ctx, member: discord.Member, amount: int):
         if not self.is_owner_or_co_owner(ctx.author.id):
             embed = discord.Embed(title="⛔ ЭРХ ХҮРЭХГҮЙ", description="Зөвхөн бот эзэмшигч / хамт эзэмшигч", color=ERROR_COLOR)
