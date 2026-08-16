@@ -2,6 +2,7 @@ from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COL
 from utils.branding import footer_text
 import discord
 from discord.ext import commands
+from discord import app_commands
 from discord.ui import View, Button, Modal, TextInput
 from utils.supabase_cog import SupabaseCog
 import random
