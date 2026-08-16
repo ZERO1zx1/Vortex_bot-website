@@ -559,6 +559,82 @@ section {
   padding: 3rem;
   grid-column: 1 / -1;
 }
+/* ---------- Stats: themed 3D cards ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.6rem;
+}
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 2.6rem 1.6rem 2.2rem;
+  background: linear-gradient(160deg, rgba(30,30,47,0.75), rgba(11,11,20,0.85));
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 22px;
+  transform-style: preserve-3d;
+  transition: transform 0.15s ease-out, border-color 0.3s, box-shadow 0.3s;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--stat-color, var(--accent)), transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--stat-color, var(--accent)) 60%, transparent);
+}
+.stat-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 70% 55% at 50% 0%, color-mix(in srgb, var(--stat-color, var(--accent)) 14%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.stat-card:hover {
+  border-color: color-mix(in srgb, var(--stat-color, var(--accent)) 45%, transparent);
+  box-shadow: 0 12px 45px color-mix(in srgb, var(--stat-color, var(--accent)) 22%, rgba(0,0,0,0.5));
+  transform: translateY(-6px) rotateX(4deg);
+}
+.stat-icon {
+  width: 46px; height: 46px;
+  border-radius: 14px;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--stat-color, var(--accent)) 35%, transparent), color-mix(in srgb, var(--stat-color, var(--accent)) 12%, transparent));
+  border: 1px solid color-mix(in srgb, var(--stat-color, var(--accent)) 40%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--stat-color, var(--accent)) 30%, transparent);
+  margin-bottom: 0.4rem;
+  font-size: 1.35rem;
+}
+.stat-num {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 5vw, 3.4rem);
+  font-weight: 900;
+  line-height: 1;
+  color: var(--text);
+  text-shadow: 0 0 30px color-mix(in srgb, var(--stat-color, var(--accent)) 70%, transparent);
+}
+.stat-label {
+  position: relative;
+  z-index: 1;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+/* Per-card theme colors */
+.stat-card.cog    { --stat-color: #A6E3A1; }
+.stat-card.slash  { --stat-color: #89B4FA; }
+.stat-card.db     { --stat-color: #94E2D5; }
+.stat-card.uptime { --stat-color: #FAB387; }
+
 /* ---------- Category panels + themed command cards ---------- */
 .cmd-panels {
   display: grid;
@@ -717,6 +793,15 @@ section {
   box-shadow: 0 0 22px rgba(166, 227, 161, 0.85), inset 0 0 10px rgba(255,255,255,0.4);
   animation: dotPulse 1.8s ease-in-out infinite;
 }
+.status-dot.offline {
+  background: #F38BA8;
+  box-shadow: 0 0 22px rgba(243, 139, 168, 0.85), inset 0 0 10px rgba(255,255,255,0.4);
+  animation: dotPulseRed 1.8s ease-in-out infinite;
+}
+@keyframes dotPulseRed {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 22px rgba(243, 139, 168, 0.85), inset 0 0 10px rgba(255,255,255,0.4); }
+  50%      { transform: scale(0.9); box-shadow: 0 0 34px rgba(243, 139, 168, 1), inset 0 0 14px rgba(255,255,255,0.6); }
+}
 @keyframes dotPulse {
   0%, 100% { transform: scale(1); box-shadow: 0 0 22px rgba(166, 227, 161, 0.85), inset 0 0 10px rgba(255,255,255,0.4); }
   50%      { transform: scale(0.9); box-shadow: 0 0 34px rgba(166, 227, 161, 1), inset 0 0 14px rgba(255,255,255,0.6); }
@@ -735,7 +820,17 @@ section {
   color: #A6E3A1;
   text-shadow: 0 0 18px rgba(166,227,161,0.7);
   font-weight: 800;
+  transition: color 0.4s, text-shadow 0.4s;
 }
+body.offline-bot .online-text {
+  color: #F38BA8;
+  text-shadow: 0 0 18px rgba(243,139,168,0.7);
+}
+body.offline-bot .so-ring {
+  border-color: rgba(243,139,168,0.35);
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(243,139,168,0.5) 60deg, transparent 120deg);
+}
+body.offline-bot .status-uptime { display: none; }
 .status-title { font-weight: 700; font-size: 1.15rem; }
 .status-sub { color: var(--text-dim); font-size: 0.88rem; margin-top: 0.25rem; }
 /* Animated uptime bars */

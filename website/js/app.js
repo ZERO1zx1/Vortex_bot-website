@@ -259,3 +259,44 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     if (a.id === 'invite-btn') a.setAttribute('rel', 'noopener');
   });
 })();
+
+/* ---------------- Bot heartbeat: жинхэнэ Online / Offline ---------------- */
+(() => {
+  const cfg = window.AETHER_CONFIG || {};
+  const HEARTBEAT_URL = cfg.HEARTBEAT_URL || '';
+  const TIMEOUT_MS = cfg.HEARTBEAT_TIMEOUT_MS || 6000;
+  const POLL_MS = cfg.HEARTBEAT_POLL_MS || 60000;
+
+  const dot = document.getElementById('status-dot');
+  const text = document.getElementById('online-text');
+  if (!dot || !text) return;
+
+  const setOnline = () => {
+    dot.className = 'status-dot online';
+    text.textContent = 'Online';
+  };
+  const setOffline = () => {
+    dot.className = 'status-dot offline';
+    text.textContent = 'Offline';
+  };
+
+  if (!HEARTBEAT_URL) {
+    // URL тохируулаагүй бол Manual mode — үргэлж Online харуулна.
+    setOnline();
+    return;
+  }
+
+  const check = async () => {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+      const res = await fetch(HEARTBEAT_URL, { signal: ctrl.signal, cache: 'no-store' });
+      clearTimeout(t);
+      if (res.ok) setOnline(); else setOffline();
+    } catch {
+      setOffline();
+    }
+  };
+  check();
+  setInterval(check, POLL_MS);
+})();

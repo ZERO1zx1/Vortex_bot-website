@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=2" />
+  <link rel="stylesheet" href="css/style.css?v=3" />
 </head>
 <body>
   <!-- 3D particle canvas -->
@@ -168,19 +168,23 @@
       <h2 class="section-title">Тоогоор <span class="accent">хэлбэл</span></h2>
     </div>
     <div class="stat-grid">
-      <div class="stat-card" data-tilt data-reveal>
+      <div class="stat-card cog" data-tilt data-reveal>
+        <div class="stat-icon">🧩</div>
         <div class="stat-num" data-count="29">0</div>
         <div class="stat-label">Cog</div>
       </div>
-      <div class="stat-card" data-tilt data-reveal>
+      <div class="stat-card slash" data-tilt data-reveal>
+        <div class="stat-icon">⚡</div>
         <div class="stat-num" data-count="77">0</div>
         <div class="stat-label">Slash команд</div>
       </div>
-      <div class="stat-card" data-tilt data-reveal>
+      <div class="stat-card db" data-tilt data-reveal>
+        <div class="stat-icon">🗄️</div>
         <div class="stat-num" data-count="57">0</div>
         <div class="stat-label">Database таблиц</div>
       </div>
-      <div class="stat-card" data-tilt data-reveal>
+      <div class="stat-card uptime" data-tilt data-reveal>
+        <div class="stat-icon">🕐</div>
         <div class="stat-num" data-count="24" data-suffix="/7">0</div>
         <div class="stat-label">Uptime</div>
       </div>
@@ -197,11 +201,11 @@
       <div class="sc-glow"></div>
       <div class="status-row">
         <div class="status-orb">
-          <div class="status-dot online"></div>
+          <div class="status-dot online" id="status-dot"></div>
           <div class="so-ring"></div>
         </div>
         <div class="status-main">
-          <div class="status-title">𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ — <span class="online-text">Online</span></div>
+          <div class="status-title">𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ — <span class="online-text" id="online-text">Online</span></div>
           <div class="status-sub">24/7 ажилладаг, Supabase дээр суурилсан бат бөх backend</div>
           <div class="status-uptime"><span class="uptime-bar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span> Сүүлийн 30 хоног тогтвортой</div>
         </div>
@@ -356,8 +360,8 @@
     <div class="footer-copy">© 2026 𝓐𝓮𝓽𝓱𝓮𝓻  蒼Қ. Бүх эрх хуулиар хамгаалагдсан.</div>
   </footer>
 
-  <script src="js/config.js?v=2"></script>
-  <script src="js/commands.js?v=2"></script>
-  <script src="js/app.js?v=2"></script>
+  <script src="js/config.js?v=3"></script>
+  <script src="js/commands.js?v=3"></script>
+  <script src="js/app.js?v=3"></script>
 </body>
 </html>
