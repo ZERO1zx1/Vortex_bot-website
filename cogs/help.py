@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands, ui
-from utils.branding import BOT_NAME
+from utils.branding import BOT_NAME, BOT_FOOTER
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # БҮХ КОМАНДЫН ДЭЛГЭРЭНГҮЙ ТОДОРХОЙЛОЛТ (шинэчлэгдсэн, алдаагүй)
@@ -581,24 +581,47 @@ class HelpView(ui.View):
         emoji = CATEGORY_EMOJIS.get(category, "📁")
         color = CATEGORY_COLORS.get(category, 0x1e1e2f)
 
+        commands = [(cmd, info) for cmd, info in COMMAND_INFO.items() if info["category"] == category]
+
         embed = discord.Embed(
-            title=f"{emoji} {category.upper()} тушаалууд",
-            description="",
+            title=f"{emoji}  {category}  ·  {len(commands)} тушаал",
             color=color
         )
-        commands = [(cmd, info) for cmd, info in COMMAND_INFO.items() if info["category"] == category]
+        embed.add_field(
+            name="\u200b",  # zero-width name so the hero body has a clean top border
+            value=(
+                f"**{BOT_NAME}** · {CATEGORY_COUNT_INFO}\n\n"
+                "**Командын жагсаалт**\n"
+                "────────────────────\n"
+                f"Ангилал: {emoji} {category} · Нийт {len(COMMAND_INFO)} тушаал"
+            ),
+            inline=False,
+        )
         if not commands:
-            embed.description = "Энэ ангилалд тушаал байхгүй."
-            return embed
-
-        for cmd, info in commands:
-            embed.add_field(
-                name=f"`{cmd}`",
-                value=f"🇬🇧 {info['description_en']}\n🇲🇳 {info['description_mn']}",
-                inline=False
-            )
-        embed.set_footer(text=f"{self.ctx.author.name} | {BOT_NAME} | LGC",
-                         icon_url=self.ctx.author.display_avatar.url)
+            embed.add_field(name="📭", value="Энэ ангилалд тушаал байхгүй.", inline=False)
+        else:
+            # Discord embed field value limit is 1024 chars — split long lists
+            MAX_FIELD = 1000
+            chunks, current, size = [], [], 0
+            header = "────────────────────\n"
+            footer = "\n────────────────────"
+            for cmd, info in commands:
+                line = f"{emoji} **`{cmd}`** — {info['description_mn']}\n`{info['usage']}`\n"
+                if size + len(line) > MAX_FIELD and current:
+                    chunks.append("".join(current))
+                    current, size = [], 0
+                current.append(line)
+                size += len(line)
+            if current:
+                chunks.append("".join(current))
+            for i, chunk in enumerate(chunks, start=1):
+                embed.add_field(
+                    name=f"\u200b" + (f" ({i}/{len(chunks)})" if len(chunks) > 1 else ""),
+                    value=header + chunk + footer,
+                    inline=False,
+                )
+        embed.set_author(name=str(self.ctx.author), icon_url=self.ctx.author.display_avatar.url)
+        embed.set_footer(text=f"{BOT_NAME} · Тусламжийн самбар · 180 секундын дараа хугацаа дуусна")
         return embed
 
     # ── Эгнээ 0 ──
@@ -674,6 +697,9 @@ CATEGORY_COLORS = {
     "Даалгавар": 0xfab387,
 }
 
+# Тусламжийн самбарын мэдээллийн мөрөнд ашиглана (COMMAND_INFO-ийн дараа тооцно)
+CATEGORY_COUNT_INFO = f"{len(CATEGORY_EMOJIS)} ангилал · нийт {len(COMMAND_INFO)} тушаал"
+
 
 class Help(commands.Cog):
     def __init__(self, bot):
@@ -702,18 +728,31 @@ class Help(commands.Cog):
                 )
                 return await ctx.send(embed=embed)
 
+            cat_emoji = CATEGORY_EMOJIS.get(info["category"], "📁")
+            cat_color = CATEGORY_COLORS.get(info["category"], 0x89B4FA)
             embed = discord.Embed(
-                title=f"📖 {cmd_key.upper()} тушаалын тусламж",
-                color=0xfab387
+                title=f"{cat_emoji}  `{cmd_key}`",
+                description=(
+                    f"**{info['description_mn']}**\n"
+                    f"*{info['description_en']}*"
+                ),
+                color=cat_color,
             )
-            embed.add_field(name="📂 Ангилал", value=info["category"], inline=True)
-            embed.add_field(name="🇬🇧 Англи", value=info["description_en"], inline=False)
-            embed.add_field(name="🇲🇳 Монгол", value=info["description_mn"], inline=False)
-            embed.add_field(name="⚙️ Хэрэглэх хэлбэр", value=f"`{info['usage']}`", inline=False)
+            embed.add_field(
+                name="📂 Ангилал",
+                value=f"{cat_emoji} {info['category']}",
+                inline=True,
+            )
+            embed.add_field(
+                name="⚙️ Хэрэглэх хэлбэр",
+                value=f"```\n{info['usage']}\n```",
+                inline=True,
+            )
             if info.get("examples"):
-                examples = "\n".join(f"• `{ex}`" for ex in info["examples"])
+                examples = "\n".join(f"`{ex}`" for ex in info["examples"])
                 embed.add_field(name="📝 Жишээ", value=examples, inline=False)
-            embed.set_footer(text=f"{BOT_NAME} | Help System")
+            embed.set_author(name=str(ctx.author), icon_url=ctx.author.display_avatar.url)
+            embed.set_footer(text=f"{BOT_NAME} · Тусламжийн систем · {BOT_FOOTER}")
             await ctx.send(embed=embed)
 
 
