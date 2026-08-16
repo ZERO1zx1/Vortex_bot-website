@@ -3,7 +3,7 @@
    ТОХИРУУЛГА: зөвхөн энэ файлаас өөрчилнө.
 
    INVITE_URL — Ботын жинхэнэ invite холбоос.
-   Нэмэх: https://discord.com/oauth2/authorize?client_id=БОТЫН_CLIENT_ID&permissions=8&scope=bot%20applications.commands
+   Нэмэх: https://discord.com/oauth2/authorize?client_id=1493212321231802408&permissions=8&scope=bot%20applications.commands
    Client ID-ээ Discord Developer Portal-оос (https://discord.com/developers/applications)
    аваарай.
    ============================================================ */
