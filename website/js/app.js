@@ -254,9 +254,9 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   // Set your actual invite URL in js/config.js or here.
   const INVITE_URL = window.AETHER_CONFIG?.INVITE_URL || 'https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=8&scope=bot%20applications.commands';
   document.querySelectorAll('a[href="#invite"]').forEach(a => {
-    if (a.id === 'invite-btn') a.href = INVITE_URL;
-    if (a.id === 'invite-btn') a.setAttribute('target', '_blank');
-    if (a.id === 'invite-btn') a.setAttribute('rel', 'noopener');
+    a.href = INVITE_URL;
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener');
   });
 })();
 
