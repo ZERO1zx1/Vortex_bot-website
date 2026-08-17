@@ -136,9 +136,14 @@ const COMMANDS = [
   { name: 'cancel',       cat: 'Utility',    icon: '🛑', desc: 'Урсгал цуцлах' },
 ];
 
+/* Command policy: Admin and Moderation are slash-only; all other public commands use the text prefix. */
+const TYPED_COMMANDS = COMMANDS.map(c => ({
+  ...c,
+  type: (c.cat === 'Admin' || c.cat === 'Moderation') ? 'slash' : 'text',
+}));
 /* Dedupe (guard) and export */
 const seen = new Set();
-window.COMMAND_LIST = COMMANDS.filter(c => {
+window.COMMAND_LIST = TYPED_COMMANDS.filter(c => {
   if (seen.has(c.name)) return false;
   seen.add(c.name);
   return true;

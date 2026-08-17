@@ -202,7 +202,7 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
       <div class="cmd-panel" style="--cat-color:${m.color}" data-reveal>
         <div class="panel-head">
           <div class="panel-badge">${m.icon} ${m.label}</div>
-          <div class="panel-count">${list.length} команд</div>
+          <div class="panel-count">${list.length} команд · ${list.filter(c => c.type === 'slash').length} slash / ${list.filter(c => c.type === 'text').length} text</div>
         </div>
         <div class="panel-grid">
           ${list.map((c, i) => cmdCard(c, i)).join('')}
@@ -219,10 +219,11 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     return `<div class="cmd-card" style="--cat-color:${m.color};animation-delay:${Math.min(i * 0.03, 0.5)}s">
       <span class="cmd-icon">${c.icon}</span>
       <div class="cmd-body">
-        <span class="cmd-name">/${c.name}</span>
+        <span class="cmd-name">${c.type === 'slash' ? '/' : 'A!'}${c.name}</span>
         <span class="cmd-desc">${c.desc}</span>
       </div>
       <span class="cmd-cat">${m.icon} ${m.label}</span>
+      <span class="cmd-type ${c.type}">${c.type === 'slash' ? 'SLASH' : 'TEXT'}</span>
     </div>`;
   }
 

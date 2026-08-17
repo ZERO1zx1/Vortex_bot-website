@@ -745,6 +745,18 @@ section {
   font-weight: 700;
   white-space: nowrap;
 }
+.cmd-card .cmd-type {
+  position: absolute;
+  right: 0.7rem;
+  bottom: 0.55rem;
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  font-family: var(--font-body);
+  font-weight: 800;
+  opacity: 0.78;
+}
+.cmd-card .cmd-type.slash { color: var(--accent-2); }
+.cmd-card .cmd-type.text { color: var(--text-dim); }
 
 /* ---------------- STATUS ---------------- */
 .status-card {
