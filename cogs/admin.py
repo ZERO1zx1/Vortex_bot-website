@@ -7,6 +7,7 @@ import platform
 import psutil
 
 from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
+from utils.slash_context import SlashContext
 
 class Admin(commands.Cog):
     def __init__(self, bot):
@@ -16,8 +17,9 @@ class Admin(commands.Cog):
     def is_owner_or_co_owner(self, user_id):
         return user_id in self.bot.owner_ids
 
-    @commands.hybrid_command(name='status', description='Check bot status and health', with_app_command=True)
-    async def status(self, ctx):
+    @app_commands.command(name='status', description='Check bot status and health')
+    async def status(self, interaction):
+        ctx = SlashContext(interaction)
         await ctx.defer()
         uptime = str(datetime.fromtimestamp(self.start_time).strftime("%Y-%m-%d %H:%M:%S"))
         latency_ms = self.bot.latency * 1000
@@ -36,8 +38,9 @@ class Admin(commands.Cog):
         embed.set_footer(text=f"Хүсэлт гаргасан: {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name='info', description='Серверийн мэдээлэл харах', aliases=['serverinfo'], with_app_command=True)
-    async def info(self, ctx):
+    @app_commands.command(name='info', description='Серверийн мэдээлэл харах')
+    async def info(self, interaction):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         if ctx.guild is None:
             embed = discord.Embed(title="❌ АЛДАА", description="Зөвхөн сервер дотор ашиглах боломжтой.", color=ERROR_COLOR)
@@ -86,10 +89,11 @@ class Admin(commands.Cog):
         embed.set_footer(text=f"Хүсэлт гаргасан: {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name='rolelist', description='Role жагсаалт харах', aliases=['roles'], with_app_command=True)
-    @commands.has_permissions(administrator=True)
+    @app_commands.command(name='rolelist', description='Role жагсаалт харах')
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.default_permissions(administrator=True)
-    async def rolelist(self, ctx, member: discord.Member = None):
+    async def rolelist(self, interaction, member: discord.Member = None):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         if not ctx.guild:
             return
@@ -107,10 +111,11 @@ class Admin(commands.Cog):
         embed.set_footer(text=f"Хүсэлт гаргасан: {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name='addmoney', description='Мөнгө нэмэх', aliases=['am'], with_app_command=True)
-    @commands.has_permissions(administrator=True)
+    @app_commands.command(name='addmoney', description='Мөнгө нэмэх')
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.default_permissions(administrator=True)
-    async def addmoney(self, ctx, member: discord.Member, amount: int):
+    async def addmoney(self, interaction, member: discord.Member, amount: int):
+        ctx = SlashContext(interaction)
         if not self.is_owner_or_co_owner(ctx.author.id):
             embed = discord.Embed(title="⛔ ЭРХ ХҮРЭХГҮЙ", description="Зөвхөн бот эзэмшигч / хамт эзэмшигч", color=ERROR_COLOR)
             return await ctx.send(embed=embed)
@@ -131,10 +136,11 @@ class Admin(commands.Cog):
         embed.set_footer(text=f"Хүсэлт гаргасан: {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name='removemoney', description='Мөнгө хасах', aliases=['rm'], with_app_command=True)
-    @commands.has_permissions(administrator=True)
+    @app_commands.command(name='removemoney', description='Мөнгө хасах')
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.default_permissions(administrator=True)
-    async def removemoney(self, ctx, member: discord.Member, amount: int):
+    async def removemoney(self, interaction, member: discord.Member, amount: int):
+        ctx = SlashContext(interaction)
         if not self.is_owner_or_co_owner(ctx.author.id):
             embed = discord.Embed(title="⛔ ЭРХ ХҮРЭХГҮЙ", description="Зөвхөн бот эзэмшигч / хамт эзэмшигч", color=ERROR_COLOR)
             return await ctx.send(embed=embed)

@@ -1,4 +1,5 @@
 from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
+from utils.slash_context import SlashContext
 import logging
 
 logger = logging.getLogger(__name__)
@@ -496,10 +497,11 @@ class Moderation(SupabaseCog):
         await channel.send(embed=embed)
 
     # ================== МОДЕРАЦИОННЫЕ КОМАНДЫ ==================
-    @commands.hybrid_command(name='lock', with_app_command=True, description="Сувгийг түгжих")
-    @commands.has_permissions(manage_channels=True)
+    @app_commands.command(name='lock', description="Сувгийг түгжих")
+    @app_commands.checks.has_permissions(manage_channels=True)
     @app_commands.describe(channel="Түгжих суваг (хоосон бол одоогийн суваг)", reason="Шалтгаан")
-    async def lock(self, ctx, channel: Optional[discord.TextChannel] = None, *, reason: str = "Тодорхойгүй"):
+    async def lock(self, interaction, channel: Optional[discord.TextChannel] = None, *, reason: str = "Тодорхойгүй"):
+        ctx = SlashContext(interaction)
         target_channel = channel or ctx.channel
         await ctx.defer(ephemeral=False)
         if not ctx.guild.me.guild_permissions.manage_channels:
@@ -516,10 +518,11 @@ class Moderation(SupabaseCog):
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "mod_action", 1)
 
-    @commands.hybrid_command(name='unlock', with_app_command=True, description="Сувгийн түгжээг тайлах")
-    @commands.has_permissions(manage_channels=True)
+    @app_commands.command(name='unlock', description="Сувгийн түгжээг тайлах")
+    @app_commands.checks.has_permissions(manage_channels=True)
     @app_commands.describe(channel="Нээх суваг (хоосон бол одоогийн суваг)", reason="Шалтгаан")
-    async def unlock(self, ctx, channel: Optional[discord.TextChannel] = None, *, reason: str = "Тодорхойгүй"):
+    async def unlock(self, interaction, channel: Optional[discord.TextChannel] = None, *, reason: str = "Тодорхойгүй"):
+        ctx = SlashContext(interaction)
         target_channel = channel or ctx.channel
         await ctx.defer(ephemeral=False)
         if not ctx.guild.me.guild_permissions.manage_channels:
@@ -536,10 +539,11 @@ class Moderation(SupabaseCog):
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "mod_action", 1)
 
-    @commands.hybrid_command(name='kick', with_app_command=True, description="Хэрэглэгчийг хөөх")
-    @commands.has_permissions(kick_members=True)
+    @app_commands.command(name='kick', description="Хэрэглэгчийг хөөх")
+    @app_commands.checks.has_permissions(kick_members=True)
     @app_commands.describe(member="Хөөх хэрэглэгч", reason="Шалтгаан")
-    async def kick(self, ctx, member: discord.Member, *, reason: str = "Шалтгаан тодорхойгүй"):
+    async def kick(self, interaction, member: discord.Member, *, reason: str = "Шалтгаан тодорхойгүй"):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         if not ctx.guild.me.guild_permissions.kick_members:
             return await ctx.send("❌ Ботод `Kick Members` зөвшөөрөл байхгүй!", ephemeral=True)
@@ -558,10 +562,11 @@ class Moderation(SupabaseCog):
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "mod_action", 1)
 
-    @commands.hybrid_command(name='ban', with_app_command=True, description="Хэрэглэгчийг бан хийх")
-    @commands.has_permissions(ban_members=True)
+    @app_commands.command(name='ban', description="Хэрэглэгчийг бан хийх")
+    @app_commands.checks.has_permissions(ban_members=True)
     @app_commands.describe(member="Бан хийх хэрэглэгч", reason="Шалтгаан")
-    async def ban(self, ctx, member: discord.Member, *, reason: str = "Шалтгаан тодорхойгүй"):
+    async def ban(self, interaction, member: discord.Member, *, reason: str = "Шалтгаан тодорхойгүй"):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         if not ctx.guild.me.guild_permissions.ban_members:
             return await ctx.send("❌ Ботод `Ban Members` зөвшөөрөл байхгүй!", ephemeral=True)
@@ -581,10 +586,11 @@ class Moderation(SupabaseCog):
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "mod_action", 1)
 
-    @commands.hybrid_command(name='unban', with_app_command=True, description="Бан цуцлах")
-    @commands.has_permissions(ban_members=True)
+    @app_commands.command(name='unban', description="Бан цуцлах")
+    @app_commands.checks.has_permissions(ban_members=True)
     @app_commands.describe(user_id="Хэрэглэгчийн ID (тоо)", reason="Шалтгаан")
-    async def unban(self, ctx, user_id: str, *, reason: str = "Шалтгаан тодорхойгүй"):
+    async def unban(self, interaction, user_id: str, *, reason: str = "Шалтгаан тодорхойгүй"):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         if not ctx.guild.me.guild_permissions.ban_members:
             return await ctx.send("❌ Ботод `Ban Members` зөвшөөрөл байхгүй!", ephemeral=True)
@@ -607,9 +613,10 @@ class Moderation(SupabaseCog):
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "mod_action", 1)
 
-    @commands.hybrid_command(name='banlist', with_app_command=True, description="Бан хийгдсэн хэрэглэгчдийн жагсаалт")
-    @commands.has_permissions(ban_members=True)
-    async def banlist(self, ctx):
+    @app_commands.command(name='banlist', description="Бан хийгдсэн хэрэглэгчдийн жагсаалт")
+    @app_commands.checks.has_permissions(ban_members=True)
+    async def banlist(self, interaction):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         if not ctx.guild.me.guild_permissions.ban_members:
             return await ctx.send("❌ Ботод `Ban Members` зөвшөөрөл байхгүй!", ephemeral=True)
@@ -623,10 +630,11 @@ class Moderation(SupabaseCog):
             embed.set_footer(text=f"+ {len(bans)-20} бусад...")
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name='clear', aliases=['purge'], with_app_command=True, description="Мессеж устгах")
-    @commands.has_permissions(manage_messages=True)
+    @app_commands.command(name='clear', description="Мессеж устгах")
+    @app_commands.checks.has_permissions(manage_messages=True)
     @app_commands.describe(amount="Устгах мессежийн тоо (1-100)")
-    async def clear(self, ctx, amount: int):
+    async def clear(self, interaction, amount: int):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=True)
         if amount < 1 or amount > 100:
             return await ctx.send("❌ 1-100 хооронд тоо оруулна уу.", ephemeral=True)
@@ -648,8 +656,8 @@ class Moderation(SupabaseCog):
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "mod_action", 1)
 
-    @commands.hybrid_command(name='timeout', with_app_command=True, description="Хэрэглэгчийг түр хаах")
-    @commands.has_permissions(moderate_members=True)
+    @app_commands.command(name='timeout', description="Хэрэглэгчийг түр хаах")
+    @app_commands.checks.has_permissions(moderate_members=True)
     @app_commands.choices(duration=[
         app_commands.Choice(name="30 секунд", value="30s"),
         app_commands.Choice(name="1 минут", value="1m"),
@@ -665,7 +673,8 @@ class Moderation(SupabaseCog):
         app_commands.Choice(name="7 өдөр", value="7d"),
     ])
     @app_commands.describe(member="Түр хаах хэрэглэгч", duration="Хугацаа", reason="Шалтгаан")
-    async def timeout(self, ctx, member: discord.Member, duration: str, *, reason: str = "Шалтгаан тодорхойгүй"):
+    async def timeout(self, interaction, member: discord.Member, duration: str, *, reason: str = "Шалтгаан тодорхойгүй"):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         if not ctx.guild.me.guild_permissions.moderate_members:
             return await ctx.send("❌ Ботод `Moderate Members` зөвшөөрөл байхгүй!", ephemeral=True)
@@ -698,10 +707,11 @@ class Moderation(SupabaseCog):
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "mod_action", 1)
 
-    @commands.hybrid_command(name='untimeout', aliases=['unmute'], with_app_command=True, description="Түр хаалтыг цуцлах")
-    @commands.has_permissions(moderate_members=True)
+    @app_commands.command(name='untimeout', description="Түр хаалтыг цуцлах")
+    @app_commands.checks.has_permissions(moderate_members=True)
     @app_commands.describe(member="Түр хаалтыг цуцлах хэрэглэгч")
-    async def untimeout(self, ctx, member: discord.Member):
+    async def untimeout(self, interaction, member: discord.Member):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         if not ctx.guild.me.guild_permissions.moderate_members:
             return await ctx.send("❌ Ботод `Moderate Members` зөвшөөрөл байхгүй!", ephemeral=True)
@@ -720,10 +730,11 @@ class Moderation(SupabaseCog):
         else:
             await ctx.send(f"ℹ️ {member.mention} timeout төлөвт байхгүй.", ephemeral=True)
 
-    @commands.hybrid_command(name='warn', with_app_command=True, description="Анхааруулга өгөх")
-    @commands.has_permissions(kick_members=True)
+    @app_commands.command(name='warn', description="Анхааруулга өгөх")
+    @app_commands.checks.has_permissions(kick_members=True)
     @app_commands.describe(member="Анхааруулга өгөх хэрэглэгч", reason="Шалтгаан")
-    async def warn(self, ctx, member: discord.Member, *, reason: str):
+    async def warn(self, interaction, member: discord.Member, *, reason: str):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         now_ts = int(datetime.datetime.now().timestamp())
         await self.bot.db_manager.insert("warnings", {
@@ -748,10 +759,11 @@ class Moderation(SupabaseCog):
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "mod_action", 1)
 
-    @commands.hybrid_command(name='unwarn', with_app_command=True, description="Анхааруулгыг устгах")
-    @commands.has_permissions(kick_members=True)
+    @app_commands.command(name='unwarn', description="Анхааруулгыг устгах")
+    @app_commands.checks.has_permissions(kick_members=True)
     @app_commands.describe(warning_id="Устгах анхааруулгын ID")
-    async def unwarn(self, ctx, warning_id: int):
+    async def unwarn(self, interaction, warning_id: int):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         warn_row = await self.bot.db_manager.fetch_one(
             "warnings", {"id": warning_id, "guild_id": str(ctx.guild.id)}
@@ -779,10 +791,11 @@ class Moderation(SupabaseCog):
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "mod_action", 1)
 
-    @commands.hybrid_command(name='warnings', with_app_command=True, description="Хэрэглэгчийн анхааруулгыг харах")
-    @commands.has_permissions(kick_members=True)
+    @app_commands.command(name='warnings', description="Хэрэглэгчийн анхааруулгыг харах")
+    @app_commands.checks.has_permissions(kick_members=True)
     @app_commands.describe(member="Анхааруулгыг харах хэрэглэгч")
-    async def warnings(self, ctx, member: discord.Member):
+    async def warnings(self, interaction, member: discord.Member):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         warning_rows = await self.bot.db_manager.fetch_all(
             "warnings",
@@ -810,9 +823,10 @@ class Moderation(SupabaseCog):
             embed.set_footer(text=f"+ {len(rows)-10} бусад...")
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name='warnedusers', aliases=['warnlist'], with_app_command=True, description="Анхааруулга авсан хэрэглэгчдийн жагсаалт")
-    @commands.has_permissions(kick_members=True)
-    async def warned_users(self, ctx):
+    @app_commands.command(name='warnedusers', description="Анхааруулга авсан хэрэглэгчдийн жагсаалт")
+    @app_commands.checks.has_permissions(kick_members=True)
+    async def warned_users(self, interaction):
+        ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         warning_rows = await self.bot.db_manager.fetch_all("warnings", {"guild_id": str(ctx.guild.id)})
         counts = {}
