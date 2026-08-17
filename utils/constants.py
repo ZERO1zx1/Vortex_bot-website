@@ -18,4 +18,4 @@ GIFS_PATH = "./assets/gifs"
 
 # Bot Configuration
 # Prefix is loaded from config.json at runtime; this is a fallback default.
-DEFAULT_PREFIX = "!"
+DEFAULT_PREFIX = "A!"
