@@ -2,6 +2,7 @@ from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COL
 import discord
 from discord.ext import commands
 from discord.ui import View, Button
+from discord import ButtonStyle
 import random
 import time
 import asyncio
@@ -41,11 +42,459 @@ def _format_money(amount: int) -> str:
     if amount >= 1_000: return f"{amount/1_000:.1f}K₮"
     return f"{amount:,}₮"
 
-# ══════════════ ТОГЛООМЫН VIEW-үүд (өмнөх бүх view хэвээр, зөвхөн embed-үүд нь шинэчлэгдсэн) ══════════════
-# ... (BlackjackView, HighCardView, GambleView, CoinflipView, SlotsView, RouletteView,
-#      DiceView, RPSView, NumberGuessView, HighLowView, CrashView)
-# Дээрх бүх view-үүдийг таны одоогийн кодноос хуулж ашиглана.
-# (Хэмжээ хязгаартай тул тэдгээрийг бүрэн оруулахгүй, гэхдээ та өөрийн файлаас авч болно.)
+TRIVIA_QUESTIONS = [
+    {"question": "Монгол Улсын нийслэл хот аль нь вэ?", "answers": ["Улаанбаатар", "Эрдэнэт"], "correct": 0},
+    {"question": "Нэг жил хэдэн сартай вэ?", "answers": ["12 сар", "10 сар"], "correct": 0},
+    {"question": "Хүн хэдэн хөлтэй вэ?", "answers": ["2", "4"], "correct": 0},
+    {"question": "Нарны аймагт хэдэн гариг байдаг вэ?", "answers": ["8", "9"], "correct": 0},
+    {"question": "Ус хэдэн градуст буцалдаг вэ?", "answers": ["100°C", "90°C"], "correct": 0},
+    {"question": "Чингис хаан Монголыг хэдэн онд нэгтгэсэн бэ?", "answers": ["1206 он", "1306 он"], "correct": 0},
+    {"question": "Хүн жилд хэдэн удаа амьсгалдаг вэ?", "answers": ["Ойролцоогоор 8 сая", "Ойролцоогоор 800 мянга"], "correct": 0},
+    {"question": "Хамгийн том хөхтөн амьтан аль нь вэ?", "answers": ["Хөх халим", "Африкийн заан"], "correct": 0},
+]
+
+
+# ══════════════ ТОГЛООМЫН VIEW-үүд ══════════════
+
+class GambleView(View):
+    """🎲 GAMBLE — 30% хожих магадлалтай, 5x"""
+    def __init__(self, cog, ctx, amount):
+        super().__init__(timeout=30)
+        self.cog, self.ctx, self.amount = cog, ctx, amount
+        self.message = None
+
+    async def interaction_check(self, interaction):
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("❌ Энэ таны тоглоом биш!", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="БООЦОО ТАВИХ 🎲", style=ButtonStyle.danger)
+    async def roll(self, interaction, button):
+        for child in self.children:
+            child.disabled = True
+        await self.message.edit(view=self)
+        if random.random() < 0.30:
+            winnings = self.amount * 5
+            await self.cog.give_rewards(self.ctx, winnings, 10, won=True, bet=self.amount)
+            embed = discord.Embed(title="🎉 ЯЛАЛТ!", description=f"Таны {self.ctx.author.mention} дугарилтаар хожлоо!\n+{_format_money(winnings)} (5x)", color=SUCCESS_COLOR)
+        else:
+            await self.cog.give_rewards(self.ctx, -self.amount, 3, won=False, bet=self.amount)
+            embed = discord.Embed(title="💀 ХОЖИГДЛОО!", description=f"Таны {self.ctx.author.mention} хожигдлоо.\n-{_format_money(self.amount)}", color=ERROR_COLOR)
+        embed.set_footer(text=f"Бооцоо: {_format_money(self.amount)}")
+        await self.message.edit(embed=embed, view=self)
+        self.stop()
+
+
+class CoinflipView(View):
+    """🪙 COINFLIP — 2x"""
+    def __init__(self, cog, ctx, amount):
+        super().__init__(timeout=30)
+        self.cog, self.ctx, self.amount = cog, ctx, amount
+        self.choice = None
+        self.message = None
+
+    async def interaction_check(self, interaction):
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("❌ Энэ таны тоглоом биш!", ephemeral=True)
+            return False
+        return True
+
+    async def decide(self, interaction, choice):
+        for child in self.children:
+            child.disabled = True
+        await self.message.edit(view=self)
+        result = random.choice(["heads", "tails"])
+        label = "🌕 HEADS" if result == "heads" else "🌑 TAILS"
+        if choice == result:
+            winnings = self.amount * 2
+            await self.cog.give_rewards(self.ctx, winnings, 8, won=True, bet=self.amount)
+            embed = discord.Embed(title="🎉 ЯЛАЛТ!", description=f"Зоос: **{label}**\nТаны {self.ctx.author.mention} сонголт таарлаа! +{_format_money(winnings)} (2x)", color=SUCCESS_COLOR)
+        else:
+            await self.cog.give_rewards(self.ctx, -self.amount, 3, won=False, bet=self.amount)
+            embed = discord.Embed(title="💀 ХОЖИГДЛОО!", description=f"Зоос: **{label}**\nТаны {self.ctx.author.mention} сонголт таарахгүй. -{_format_money(self.amount)}", color=ERROR_COLOR)
+        embed.set_footer(text=f"Бооцоо: {_format_money(self.amount)}")
+        await self.message.edit(embed=embed, view=self)
+        self.stop()
+
+    @discord.ui.button(label="🌕 HEADS", style=ButtonStyle.primary)
+    async def heads(self, interaction, button):
+        await interaction.response.defer()
+        await self.decide(interaction, "heads")
+
+    @discord.ui.button(label="🌑 TAILS", style=ButtonStyle.secondary)
+    async def tails(self, interaction, button):
+        await interaction.response.defer()
+        await self.decide(interaction, "tails")
+
+
+class SlotsView(View):
+    """🎰 SLOTS — 3 ижил тэмдэг 50x, 2 ижил 3x"""
+    def __init__(self, cog, ctx, amount):
+        super().__init__(timeout=30)
+        self.cog, self.ctx, self.amount = cog, ctx, amount
+        self.message = None
+
+    async def interaction_check(self, interaction):
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("❌ Энэ таны тоглоом биш!", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="SPIN 🎰", style=ButtonStyle.danger)
+    async def spin(self, interaction, button):
+        for child in self.children:
+            child.disabled = True
+        await self.message.edit(view=self)
+        symbols = ["🍒", "🍋", "🍇", "💎", "7️⃣", "🔔", "⭐"]
+        r = [random.choice(symbols) for _ in range(3)]
+        display = "   ".join(r)
+        embed = discord.Embed(title="🎰 SLOTS", description=f"**{display}**", color=INFO_COLOR)
+        if r[0] == r[1] == r[2]:
+            winnings = self.amount * 50
+            await self.cog.give_rewards(self.ctx, winnings, 25, won=True, bet=self.amount)
+            embed.add_field(name="🎉 ЖЕКПОТ!", value=f"+{_format_money(winnings)} (50x)", inline=False)
+            embed.color = SUCCESS_COLOR
+        elif r[0] == r[1] or r[1] == r[2] or r[0] == r[2]:
+            winnings = self.amount * 3
+            await self.cog.give_rewards(self.ctx, winnings, 8, won=True, bet=self.amount)
+            embed.add_field(name="✅ Хоёр ижил!", value=f"+{_format_money(winnings)} (3x)", inline=False)
+            embed.color = SUCCESS_COLOR
+        else:
+            await self.cog.give_rewards(self.ctx, -self.amount, 3, won=False, bet=self.amount)
+            embed.add_field(name="💀 Олдсонгүй", value=f"-{_format_money(self.amount)}", inline=False)
+            embed.color = ERROR_COLOR
+        embed.set_footer(text=f"Бооцоо: {_format_money(self.amount)}")
+        await self.message.edit(embed=embed, view=self)
+        self.stop()
+
+
+class RouletteView(View):
+    """🎡 ROULETTE — Улаан/Хар 2x, Ногоон 14x"""
+    def __init__(self, cog, ctx, amount):
+        super().__init__(timeout=30)
+        self.cog, self.ctx, self.amount = cog, ctx, amount
+        self.message = None
+
+    async def interaction_check(self, interaction):
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("❌ Энэ таны тоглоом биш!", ephemeral=True)
+            return False
+        return True
+
+    async def spin(self, interaction, choice):
+        for child in self.children:
+            child.disabled = True
+        await self.message.edit(view=self)
+        n = random.randint(0, 36)
+        color = "green" if n == 0 else ("red" if n % 2 == 1 else "black")
+        color_label = {"red": "🔴 УЛААН", "black": "⚫ ХАР", "green": "🟢 НОГООН"}[color]
+        multiplier = {"red": 2, "black": 2, "green": 14}[choice]
+        embed = discord.Embed(title="🎡 ROULETTE", description=f"Тоо: **{n}** — {color_label}", color=INFO_COLOR)
+        if choice == color:
+            winnings = self.amount * multiplier
+            await self.cog.give_rewards(self.ctx, winnings, 10, won=True, bet=self.amount)
+            embed.add_field(name="🎉 ЯЛАЛТ!", value=f"+{_format_money(winnings)} ({multiplier}x)", inline=False)
+            embed.color = SUCCESS_COLOR
+        else:
+            await self.cog.give_rewards(self.ctx, -self.amount, 3, won=False, bet=self.amount)
+            embed.add_field(name="💀 ХОЖИГДЛОО!", value=f"-{_format_money(self.amount)}", inline=False)
+            embed.color = ERROR_COLOR
+        embed.set_footer(text=f"Бооцоо: {_format_money(self.amount)}")
+        await self.message.edit(embed=embed, view=self)
+        self.stop()
+
+    @discord.ui.button(label="🔴 УЛААН", style=ButtonStyle.danger)
+    async def red(self, interaction, button):
+        await interaction.response.defer()
+        await self.spin(interaction, "red")
+
+    @discord.ui.button(label="⚫ ХАР", style=ButtonStyle.secondary)
+    async def black(self, interaction, button):
+        await interaction.response.defer()
+        await self.spin(interaction, "black")
+
+    @discord.ui.button(label="🟢 НОГООН", style=ButtonStyle.success)
+    async def green(self, interaction, button):
+        await interaction.response.defer()
+        await self.spin(interaction, "green")
+
+
+class DiceView(View):
+    """🎲 DICE — 1-6 тоо тааж 6x"""
+    def __init__(self, cog, ctx, amount):
+        super().__init__(timeout=30)
+        self.cog, self.ctx, self.amount = cog, ctx, amount
+        self.message = None
+
+    async def interaction_check(self, interaction):
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("❌ Энэ таны тоглоом биш!", ephemeral=True)
+            return False
+        return True
+
+    async def roll(self, interaction, guess):
+        for child in self.children:
+            child.disabled = True
+        await self.message.edit(view=self)
+        result = random.randint(1, 6)
+        dice_emoji = ["", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣"][result]
+        embed = discord.Embed(title="🎲 DICE", description=f"Шоо буулаа: **{dice_emoji}** (тоо {result})", color=INFO_COLOR)
+        if guess == result:
+            winnings = self.amount * 6
+            await self.cog.give_rewards(self.ctx, winnings, 12, won=True, bet=self.amount)
+            embed.add_field(name="🎉 ЯЛАЛТ!", value=f"+{_format_money(winnings)} (6x)", inline=False)
+            embed.color = SUCCESS_COLOR
+        else:
+            await self.cog.give_rewards(self.ctx, -self.amount, 3, won=False, bet=self.amount)
+            embed.add_field(name="💀 ХОЖИГДЛОО!", value=f"Та {guess} гэж таасан. -{_format_money(self.amount)}", inline=False)
+            embed.color = ERROR_COLOR
+        embed.set_footer(text=f"Бооцоо: {_format_money(self.amount)}")
+        await self.message.edit(embed=embed, view=self)
+        self.stop()
+
+    @discord.ui.button(label="1️⃣", style=ButtonStyle.secondary)
+    async def d1(self, interaction, button):
+        await interaction.response.defer()
+        await self.roll(interaction, 1)
+
+    @discord.ui.button(label="2️⃣", style=ButtonStyle.secondary)
+    async def d2(self, interaction, button):
+        await interaction.response.defer()
+        await self.roll(interaction, 2)
+
+    @discord.ui.button(label="3️⃣", style=ButtonStyle.secondary)
+    async def d3(self, interaction, button):
+        await interaction.response.defer()
+        await self.roll(interaction, 3)
+
+    @discord.ui.button(label="4️⃣", style=ButtonStyle.secondary)
+    async def d4(self, interaction, button):
+        await interaction.response.defer()
+        await self.roll(interaction, 4)
+
+    @discord.ui.button(label="5️⃣", style=ButtonStyle.secondary)
+    async def d5(self, interaction, button):
+        await interaction.response.defer()
+        await self.roll(interaction, 5)
+
+    @discord.ui.button(label="6️⃣", style=ButtonStyle.secondary)
+    async def d6(self, interaction, button):
+        await interaction.response.defer()
+        await self.roll(interaction, 6)
+
+
+class RPSView(View):
+    """🪨📄✂️ RPS — хожиход 2x"""
+    CHOICES = {"rock": "🪨 Чулуу", "paper": "📄 Даавуу", "scissors": "✂️ Хайч"}
+    BEATS = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
+
+    def __init__(self, cog, ctx, amount):
+        super().__init__(timeout=30)
+        self.cog, self.ctx, self.amount = cog, ctx, amount
+        self.message = None
+
+    async def interaction_check(self, interaction):
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("❌ Энэ таны тоглоом биш!", ephemeral=True)
+            return False
+        return True
+
+    async def play(self, interaction, choice):
+        for child in self.children:
+            child.disabled = True
+        await self.message.edit(view=self)
+        bot_choice = random.choice(list(self.CHOICES.keys()))
+        embed = discord.Embed(title="🪨📄✂️ RPS", description=f"Та: **{self.CHOICES[choice]}**\nБот: **{self.CHOICES[bot_choice]}**", color=INFO_COLOR)
+        if choice == bot_choice:
+            await self.cog.give_rewards(self.ctx, 0, 4, won=False, bet=self.amount)
+            embed.add_field(name="🤝 ХАМТРАЛ!", value=f"Бооцоо буцаж ирлээ: {_format_money(self.amount)}", inline=False)
+            embed.color = WARNING_COLOR
+        elif self.BEATS[choice] == bot_choice:
+            winnings = self.amount * 2
+            await self.cog.give_rewards(self.ctx, winnings, 8, won=True, bet=self.amount)
+            embed.add_field(name="🎉 ЯЛАЛТ!", value=f"+{_format_money(winnings)} (2x)", inline=False)
+            embed.color = SUCCESS_COLOR
+        else:
+            await self.cog.give_rewards(self.ctx, -self.amount, 3, won=False, bet=self.amount)
+            embed.add_field(name="💀 ХОЖИГДЛОО!", value=f"-{_format_money(self.amount)}", inline=False)
+            embed.color = ERROR_COLOR
+        embed.set_footer(text=f"Бооцоо: {_format_money(self.amount)}")
+        await self.message.edit(embed=embed, view=self)
+        self.stop()
+
+    @discord.ui.button(label="🪨 Чулуу", style=ButtonStyle.primary)
+    async def rock(self, interaction, button):
+        await interaction.response.defer()
+        await self.play(interaction, "rock")
+
+    @discord.ui.button(label="📄 Даавуу", style=ButtonStyle.primary)
+    async def paper(self, interaction, button):
+        await interaction.response.defer()
+        await self.play(interaction, "paper")
+
+    @discord.ui.button(label="✂️ Хайч", style=ButtonStyle.primary)
+    async def scissors(self, interaction, button):
+        await interaction.response.defer()
+        await self.play(interaction, "scissors")
+
+
+class NumberGuessView(View):
+    """🔢 NUMBER GUESS — 1-10, 3x"""
+    def __init__(self, cog, ctx, amount, secret):
+        super().__init__(timeout=15)
+        self.cog, self.ctx, self.amount, self.secret = cog, ctx, amount, secret
+        self.message = None
+
+    async def interaction_check(self, interaction):
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("❌ Энэ таны тоглоом биш!", ephemeral=True)
+            return False
+        return True
+
+    async def guess(self, interaction, number):
+        for child in self.children:
+            child.disabled = True
+        await self.message.edit(view=self)
+        embed = discord.Embed(title="🔢 NUMBER GUESS", description=f"Нууц тоо: **{self.secret}**\nТаны таахсан тоо: **{number}**", color=INFO_COLOR)
+        if number == self.secret:
+            winnings = self.amount * 3
+            await self.cog.give_rewards(self.ctx, winnings, 12, won=True, bet=self.amount)
+            embed.add_field(name="🎉 ЯЛАЛТ!", value=f"+{_format_money(winnings)} (3x)", inline=False)
+            embed.color = SUCCESS_COLOR
+        else:
+            await self.cog.give_rewards(self.ctx, -self.amount, 3, won=False, bet=self.amount)
+            embed.add_field(name="💀 ХОЖИГДЛОО!", value=f"-{_format_money(self.amount)}", inline=False)
+            embed.color = ERROR_COLOR
+        embed.set_footer(text=f"Бооцоо: {_format_money(self.amount)}")
+        await self.message.edit(embed=embed, view=self)
+        self.stop()
+
+    @discord.ui.button(label="1-3", style=ButtonStyle.secondary)
+    async def low(self, interaction, button):
+        await interaction.response.defer()
+        await self.guess(interaction, random.randint(1, 3))
+
+    @discord.ui.button(label="4-7", style=ButtonStyle.secondary)
+    async def mid(self, interaction, button):
+        await interaction.response.defer()
+        await self.guess(interaction, random.randint(4, 7))
+
+    @discord.ui.button(label="8-10", style=ButtonStyle.secondary)
+    async def high(self, interaction, button):
+        await interaction.response.defer()
+        await self.guess(interaction, random.randint(8, 10))
+
+    async def on_timeout(self):
+        try:
+            embed = discord.Embed(title="⏰ ХУГАЦАА ДУУССАН", description=f"Нууц тоо **{self.secret}** байсан.", color=ERROR_COLOR)
+            await self.cog.give_rewards(self.ctx, -self.amount, 2, won=False, bet=self.amount)
+            await self.message.edit(embed=embed, view=self)
+        except Exception:
+            pass
+
+
+class HighCardView(View):
+    """🃏 HIGH CARD — таны карт > дилер 2x"""
+    def __init__(self, ctx, cog, amount):
+        super().__init__(timeout=30)
+        self.ctx, self.cog, self.amount = ctx, cog, amount
+        self.message = None
+
+    async def interaction_check(self, interaction):
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("❌ Энэ таны тоглоом биш!", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="🃏 ХӨЗРӨӨ ИЛРҮҮЛЭХ", style=ButtonStyle.danger)
+    async def reveal(self, interaction, button):
+        for child in self.children:
+            child.disabled = True
+        await self.message.edit(view=self)
+        player = random.randint(1, 13)
+        dealer = random.randint(1, 13)
+        names = {1: "A", 11: "J", 12: "Q", 13: "K"}
+        p_label = names.get(player, str(player))
+        d_label = names.get(dealer, str(dealer))
+        embed = discord.Embed(title="🃏 HIGH CARD", description=f"🎴 ТАНЫ КАРТ: **{p_label}**\n🃟 ДИЛЕР: **{d_label}**", color=INFO_COLOR)
+        if player > dealer:
+            winnings = self.amount * 2
+            await self.cog.give_rewards(self.ctx, winnings, 10, won=True, bet=self.amount)
+            embed.add_field(name="🎉 ЯЛАЛТ!", value=f"+{_format_money(winnings)} (2x)", inline=False)
+            embed.color = SUCCESS_COLOR
+        elif player == dealer:
+            await self.cog.give_rewards(self.ctx, 0, 4, won=False, bet=self.amount)
+            embed.add_field(name="🤝 ТЭНЦЭЭ!", value=f"Бооцоо буцаж ирлээ: {_format_money(self.amount)}", inline=False)
+            embed.color = WARNING_COLOR
+        else:
+            await self.cog.give_rewards(self.ctx, -self.amount, 3, won=False, bet=self.amount)
+            embed.add_field(name="💀 ХОЖИГДЛОО!", value=f"-{_format_money(self.amount)}", inline=False)
+            embed.color = ERROR_COLOR
+        embed.set_footer(text=f"Бооцоо: {_format_money(self.amount)}")
+        await self.message.edit(embed=embed, view=self)
+        self.stop()
+
+
+class CrashView(View):
+    """💥 CRASH — өсөж байхад CASH OUT дарж хож"""
+    def __init__(self, cog, ctx, amount):
+        super().__init__(timeout=20)
+        self.cog, self.ctx, self.amount = cog, ctx, amount
+        self.multiplier = 1.00
+        self.crash_point = max(1.01, random.expovariate(0.5) + 1.0)
+        self.running = True
+        self.message = None
+
+    async def interaction_check(self, interaction):
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("❌ Энэ таны тоглоом биш!", ephemeral=True)
+            return False
+        return True
+
+    async def start(self):
+        self.cashout.disabled = False
+        embed = discord.Embed(title="💥 CRASH", description=f"Хүчин зүйл: **1.00x**\n📈 Өсөж байна...", color=INFO_COLOR)
+        embed.set_footer(text=f"Бооцоо: {_format_money(self.amount)} — CASH OUT эсвэл CRASH хүлээ")
+        self.message = await self.ctx.send(embed=embed, view=self)
+        while self.running and self.multiplier < self.crash_point:
+            await asyncio.sleep(1)
+            self.multiplier = round(self.multiplier + random.uniform(0.05, 0.15), 2)
+            try:
+                embed = discord.Embed(title="💥 CRASH", description=f"Хүчин зүйл: **{self.multiplier:.2f}x**\n📈 Өсөж байна...", color=WARNING_COLOR)
+                embed.set_footer(text=f"CASH OUT дарж хож! Бооцоо: {_format_money(self.amount)}")
+                await self.message.edit(embed=embed, view=self)
+            except Exception:
+                break
+        if self.running:
+            self.running = False
+            for child in self.children:
+                child.disabled = True
+            try:
+                embed = discord.Embed(title="💥 CRASH!", description=f"Хүчин зүйл **{self.crash_point:.2f}x**-д уналаа!\n😢 Хожигдлоо: **-{_format_money(self.amount)}**", color=ERROR_COLOR)
+                await self.cog.give_rewards(self.ctx, -self.amount, 3, won=False, bet=self.amount)
+                await self.message.edit(embed=embed, view=self)
+            except Exception:
+                pass
+            self.stop()
+
+    @discord.ui.button(label="💰 CASH OUT", style=ButtonStyle.success)
+    async def cashout(self, interaction, button):
+        if not self.running:
+            await interaction.response.send_message("⏰ Тоглоом дууссан!", ephemeral=True)
+            return
+        self.running = False
+        for child in self.children:
+            child.disabled = True
+        winnings = int(self.amount * self.multiplier)
+        await self.cog.give_rewards(self.ctx, winnings, 10, won=True, bet=self.amount)
+        embed = discord.Embed(title="💰 CASH OUT!", description=f"**{self.multiplier:.2f}x**-д гарлаа!\n🎉 +{_format_money(winnings)}", color=SUCCESS_COLOR)
+        embed.set_footer(text=f"CRASH цэг: {self.crash_point:.2f}x")
+        try:
+            await self.message.edit(embed=embed, view=self)
+        except Exception:
+            pass
+        self.stop()
 
 class Games(commands.Cog):
     def __init__(self, bot):
