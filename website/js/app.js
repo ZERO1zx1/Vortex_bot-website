@@ -265,20 +265,47 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
 (() => {
   const cfg = window.AETHER_CONFIG || {};
   const HEARTBEAT_URL = cfg.HEARTBEAT_URL || '';
+  const APIKEY = cfg.HEARTBEAT_APIKEY || '';
   const TIMEOUT_MS = cfg.HEARTBEAT_TIMEOUT_MS || 6000;
   const POLL_MS = cfg.HEARTBEAT_POLL_MS || 60000;
 
   const dot = document.getElementById('status-dot');
   const text = document.getElementById('online-text');
+  // "Сүүлд:" мэдээлэл — status-meta эсвэл uptime bars дэргэд байвал шинэчилнэ
+  const lastSeenEl = document.getElementById('last-seen') || document.querySelector('.uptime-bars .uptime-meta, .status-meta');
   if (!dot || !text) return;
 
-  const setOnline = () => {
+  const fmtTime = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+  const fmtSince = (iso) => {
+    if (!iso) return '';
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (mins < 1) return 'саяхан';
+    if (mins < 60) return `${mins} мин өмнө`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} цаг ${mins % 60} мин өмнө`;
+    const days = Math.floor(hrs / 24);
+    return `${days} хоног ${hrs % 24} цаг өмнө`;
+  };
+
+  const setOnline = (row) => {
     dot.className = 'status-dot online';
     text.textContent = 'Online';
+    if (lastSeenEl && row?.uptime_since) {
+      lastSeenEl.textContent = `Бот ${fmtSince(row.uptime_since)} асаагдсан · сүүлд: ${fmtTime(row.uptime_since)}`;
+    }
   };
-  const setOffline = () => {
+  const setOffline = (row) => {
     dot.className = 'status-dot offline';
     text.textContent = 'Offline';
+    if (lastSeenEl) {
+      lastSeenEl.textContent = row?.last_ping
+        ? `Сүүлд онлайн байсан: ${fmtSince(row.last_ping)} (${fmtTime(row.last_ping)})`
+        : 'Бот одоогоор унтарсан байна';
+    }
   };
 
   if (!HEARTBEAT_URL) {
@@ -291,11 +318,20 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-      const res = await fetch(HEARTBEAT_URL, { signal: ctrl.signal, cache: 'no-store' });
+      const res = await fetch(HEARTBEAT_URL, {
+        signal: ctrl.signal,
+        cache: 'no-store',
+        headers: APIKEY ? { apikey: APIKEY, Authorization: `Bearer ${APIKEY}` } : undefined,
+      });
       clearTimeout(t);
-      if (res.ok) setOnline(); else setOffline();
+      if (!res.ok) { setOffline(null); return; }
+      const rows = await res.json();
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (!row?.last_ping) { setOffline(row); return; }
+      const age = Date.now() - new Date(row.last_ping).getTime();
+      if (age <= TIMEOUT_MS) setOnline(row); else setOffline(row);
     } catch {
-      setOffline();
+      setOffline(null);
     }
   };
   check();

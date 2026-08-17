@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=6" />
+  <link rel="stylesheet" href="css/style.css?v=7" />
 </head>
 <body>
   <!-- 3D particle canvas -->
@@ -207,7 +207,7 @@
         <div class="status-main">
           <div class="status-title">𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ — <span class="online-text" id="online-text">Online</span></div>
           <div class="status-sub">24/7 ажилладаг, Supabase дээр суурилсан бат бөх backend</div>
-          <div class="status-uptime"><span class="uptime-bar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span> Сүүлийн 30 хоног тогтвортой</div>
+          <div class="status-uptime" id="last-seen">Ботын жинхэнэ төлөвийг шалгаж байна…</div>
         </div>
         <div class="status-badge">v1.0</div>
       </div>
@@ -286,7 +286,7 @@
   <section class="premium" id="premium">
     <div class="section-head">
       <div class="section-tag">PREMIUM</div>
-      <h2 class="section-title">Дээд түвшний <span class="accent">эрх</span></h2>
+      <h2 class="section-title">Дээд түвшний <span class="accent">эрх</span> <span class="coming-soon-pill">🚧 Удахгүй</span></h2>
     </div>
     <div class="price-grid">
       <div class="price-card" data-tilt data-reveal>
@@ -316,7 +316,8 @@
           <li>✅ Priority command queue</li>
           <li>✅ Тусгай дэлгүүрийн зүйлс</li>
         </ul>
-        <a href="https://discord.com/oauth2/authorize?client_id=1493212321231802408&permissions=8&scope=bot%20applications.commands" class="btn btn-primary" target="_blank" rel="noopener">Premium авах</a>
+        <div class="coming-soon-overlay">🚧 Удахгүй — боловсруулагдаж байна</div>
+        <a href="#premium" class="btn btn-primary disabled" onclick="return false;">Premium авах</a>
       </div>
       <div class="price-card" data-tilt data-reveal>
         <div class="pc-badge cyan">🏢 SERVER</div>
@@ -330,10 +331,11 @@
           <li>✅ Тусгай тоглоомын хүсэлт</li>
           <li>✅ Early access нэмэлтүүд</li>
         </ul>
-        <a href="https://discord.com/oauth2/authorize?client_id=1493212321231802408&permissions=8&scope=bot%20applications.commands" class="btn btn-ghost" target="_blank" rel="noopener">Холбогдох</a>
+        <div class="coming-soon-overlay">🚧 Удахгүй — боловсруулагдаж байна</div>
+        <a href="#premium" class="btn btn-ghost disabled" onclick="return false;">Холбогдох</a>
       </div>
     </div>
-    <p class="premium-note">* Premium тохиргоо боловсруулагдсаар байгаа. Холбогдох: Discord — <strong>@aether.support</strong></p>
+    <p class="premium-note">🚧 Premium систем одоогоор боловсруулагдаж байна. Бэлэн болоход танд Discord дамжуулан мэдэгдэнэ. Одоогоор бүх үндсэн командууд <strong>ҮНЭГҮЙ</strong>.</p>
   </section>
 
   <!-- INVITE CTA -->

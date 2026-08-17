@@ -13,11 +13,14 @@ window.AETHER_CONFIG = {
   GITHUB: 'https://github.com/ZERO1zx1/gurtendev',
   /*
    * БОТЫН ЖИНХЭНЭ STATUS (Online / Offline):
-   * Ботын main.py-д жижиг heartbeat server нэмсэн бол энд URL-оо бичнэ.
-   * Жишээ: "http://89.19.xx.xx:9001/heartbeat" (VPS) эсвэл "" (хоосон бол manual mode)
-   * Хариу ирэхгүй бол (timeout / CORS / бот унтарсан) сайт автоматаар "Offline" гэж харуулна.
+   * Supabase bot_status таблицыг heartbeat эх үүсвэр болгоно.
+   * Бот асаахад main.py дахь heartbeat loop 60 сек тутам
+   * Supabase-д "last_ping" бичдэг → сайт эндээс уншиж харуулна.
+   * Бот унтарвал last_ping хуучирч, сайт автоматаар "Offline" +
+   * "сүүлд X цагын өмнө асаагдсан" гэж харуулна.
    */
-  HEARTBEAT_URL: '',
-  HEARTBEAT_TIMEOUT_MS: 6000,   // мс — энэ хугацаанд хариу ирэхгүй бол Offline
-  HEARTBEAT_POLL_MS: 60000,     // мс — 60 сек тутам дахин шалгана
+  HEARTBEAT_URL: 'https://onpxpvemmjesobxpilgd.supabase.co/rest/v1/bot_status?id=eq.1&select=*',
+  HEARTBEAT_APIKEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ucHhwdmVtbWplc29ieHBpbGdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2ODQ2OTcsImV4cCI6MjEwMjI2MDY5N30.Wh5O6JJLuYbykLBbfHSuvrj2-sC_AqlkWp0ix3X_jMk',
+  HEARTBEAT_TIMEOUT_MS: 120000,   // мс — 2 минутаас дээш ping ирэхгүй бол Offline
+  HEARTBEAT_POLL_MS: 60000,       // мс — 60 сек тутам дахин шалгана
 };

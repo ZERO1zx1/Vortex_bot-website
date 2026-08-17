@@ -1026,6 +1026,48 @@ body.offline-bot .status-uptime { display: none; }
 @property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
 /* Keep content above the glow layers */
 .price-card > * { position: relative; z-index: 1; }
+/* Premium: "Удахгүй" Coming Soon overlay */
+.coming-soon-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 11, 20, 0.78);
+  backdrop-filter: blur(3px);
+  border-radius: 20px;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.5px;
+  text-align: center;
+  padding: 1rem;
+  z-index: 5;
+  animation: overlayIn 0.8s ease both;
+}
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+.coming-soon-pill {
+  display: inline-block;
+  margin-left: 0.6rem;
+  vertical-align: middle;
+  padding: 0.25rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(250, 179, 135, 0.15);
+  color: var(--gold);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  animation: pillPulse 2s ease-in-out infinite;
+}
+@keyframes pillPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(250,179,135,0); }
+  50%      { box-shadow: 0 0 18px rgba(250,179,135,0.35); }
+}
+.btn.disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  filter: grayscale(0.6);
+  pointer-events: none;
+}
 /* Badge pulse on the featured card */
 .price-card.featured .pc-badge.gold { animation: badgePulse 2.6s ease-in-out infinite; }
 @keyframes badgePulse {
