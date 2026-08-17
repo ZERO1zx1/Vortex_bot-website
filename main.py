@@ -109,6 +109,17 @@ class MyBot(commands.Bot):
                 name=f"{config.get('prefix', DEFAULT_PREFIX)}help | {BOT_NAME}"
             )
         )
+        # Website status heartbeat: ping Supabase every 60s
+        self.add_loop(self._heartbeat_loop())
+
+    async def _heartbeat_loop(self):
+        """Send a heartbeat to bot_status so the website shows the real Online/Offline state."""
+        try:
+            await self.db_manager.ping_bot("online")
+            logger.debug("💓 Heartbeat sent")
+        except Exception:  # noqa: BLE001
+            logger.warning("⚠️ Failed to send heartbeat")
+        await asyncio.sleep(60)
 
     async def close(self):
         await self.db_manager.close()

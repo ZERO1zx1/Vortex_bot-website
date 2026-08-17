@@ -8,6 +8,7 @@ Legacy ``.acquire()`` / ``.cursor()`` / raw-SQL usage is not allowed.
 import asyncio
 import logging
 import os
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from supabase import create_client, Client
@@ -295,3 +296,41 @@ class SupabaseManager:
 
     async def execute(self, table: str, data: Dict[str, Any]):
         return await self.upsert(table, data)
+
+    # ------------------------------------------------------------------
+    # Bot heartbeat (website status page)
+    # ------------------------------------------------------------------
+    async def ping_bot(self, status: str = "online") -> bool:
+        """Update the bot_status row (id=1) with current status and timestamps.
+
+        Keeps the website status page accurate without a dedicated backend:
+        the bot writes ``last_ping`` and ``uptime_since`` directly to Supabase,
+        and the static site reads them with the anon key.
+        """
+        try:
+            now = datetime.utcnow().isoformat() + "Z"
+            data: Dict[str, Any] = {"id": 1, "status": status, "last_ping": now}
+
+            def _ping():
+                # postgrest 2.x upsert() defaults to merge-duplicates;
+                # only write uptime_since on the first ping (when row absent)
+                existing = self.table("bot_status").select("uptime_since").eq("id", 1).execute().data or []
+                payload = dict(data)
+                if not existing or not existing[0].get("uptime_since"):
+                    payload["uptime_since"] = now
+                try:
+                    result = self.table("bot_status").upsert(payload, on_conflict="id").execute()
+                    return result.data or []
+                except Exception:
+                    # Fallback: row already exists with uptime_since — update status/last_ping only
+                    result = (
+                        self.table("bot_status")
+                        .update({"status": status, "last_ping": now})
+                        .eq("id", 1)
+                        .execute()
+                    )
+                    return result.data or []
+
+            return bool(await self._run(_ping))
+        except Exception:  # noqa: BLE001
+            return False
