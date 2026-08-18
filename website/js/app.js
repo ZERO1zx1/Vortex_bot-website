@@ -584,7 +584,7 @@ const AETHER_I18N = {
     if (window.__aetherLang === 'en' || window.__aetherLang === 'mn') {
       // status нь аль хэдийн тогтсон байвал last-seen-ийг зөвхөн шалгах текстээр
       const ls = document.getElementById('last-seen');
-      if (ls && ls.textContent.includes('…') === false && ls.dataset.ok !== '1') {
+      if (ls && !ls.textContent.includes('…') && ls.dataset.ok !== '1') {
         ls.textContent = dict['heartbeat.checking'];
       }
     }
