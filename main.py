@@ -116,7 +116,7 @@ class MyBot(commands.Bot):
         """Send a heartbeat to bot_status so the website shows the real Online/Offline state."""
         try:
             await self.db_manager.ping_bot("online")
-            logger.debug("💓 Heartbeat sent")
+            logger.info("💓 Heartbeat sent (website status: Online)")
         except Exception:  # noqa: BLE001
             logger.warning("⚠️ Failed to send heartbeat")
         await asyncio.sleep(60)
