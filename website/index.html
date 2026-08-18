@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=14" />
+  <link rel="stylesheet" href="css/style.css?v=15" />
 </head>
 <body>
   <!-- 3D particle canvas -->
@@ -414,7 +414,8 @@
 
     <!-- Logo -->
     <div class="community-logo-wrap" data-reveal>
-      <img src="assets/aether_logo.png" alt="AETHER logo" class="community-logo" loading="lazy"/>
+      <img src="assets/aether_logo.png" alt="AETHER logo" class="community-logo" loading="lazy" onerror="this.dataset.failed='1'"/>
+      <span class="community-logo-fallback">蒼穹</span>
     </div>
 
     <!-- Server intro -->

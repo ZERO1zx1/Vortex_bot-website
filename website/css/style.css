@@ -702,6 +702,7 @@ section {
 .cmd-card {
   display: flex; align-items: center; gap: 0.8rem;
   padding: 0.95rem 1.15rem;
+  min-height: 4.5rem;
   background: rgba(11, 11, 20, 0.55);
   border: 1px solid rgba(255,255,255,0.07);
   border-left: 3px solid var(--cat-color);
@@ -731,12 +732,25 @@ section {
   background: rgba(137,180,250,0.06);
   box-shadow: 0 10px 28px rgba(0,0,0,0.4), 0 0 22px color-mix(in srgb, var(--cat-color) 25%, transparent);
 }
-.cmd-card .cmd-icon { font-size: 1.35rem; line-height: 1; }
+.cmd-card .cmd-icon {
+  flex: 0 0 auto;
+  width: 2rem; height: 2rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1.35rem; line-height: 1;
+  text-align: center;
+  overflow: hidden;
+}
 .cmd-body { display: flex; flex-direction: column; gap: 0.18rem; }
-.cmd-card .cmd-name { color: var(--cat-color); font-weight: 700; font-family: monospace; }
+.cmd-card .cmd-name {
+  color: var(--cat-color); font-weight: 700; font-family: monospace;
+  min-height: 2.2em;
+  display: flex; align-items: center;
+  padding-top: 0.15rem;
+}
 .cmd-card .cmd-desc { color: var(--text-dim); font-size: 0.72rem; font-family: var(--font-body); }
 .cmd-card .cmd-cat {
   margin-left: auto;
+  flex: 0 0 auto;
   font-size: 0.64rem;
   padding: 0.22rem 0.6rem;
   border-radius: 999px;
@@ -1027,6 +1041,8 @@ body.offline-bot .status-uptime { display: none; }
 @property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
 /* Keep content above the glow layers */
 .price-card > * { position: relative; z-index: 1; }
+.price-card > :first-child { margin-top: 1.6rem; }
+.price-card .btn { margin-top: auto; }
 /* Premium: "Удахгүй" Coming Soon overlay */
 .coming-soon-overlay {
   position: absolute;
@@ -1318,12 +1334,18 @@ body.offline-bot .status-uptime { display: none; }
 .community-logo-wrap { text-align: center; margin: 16px 0 40px; }
 .community-logo {
   width: min(420px, 72vw);
+  height: auto;
+  object-fit: contain;
   border-radius: 28px;
   filter: drop-shadow(0 0 36px rgba(137, 180, 250, 0.35));
   transition: transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1), filter 0.5s;
   cursor: zoom-in;
 }
 .community-logo:hover { transform: scale(1.04) rotate(-1deg); filter: drop-shadow(0 0 52px rgba(137, 180, 250, 0.55)); }
+.community-logo[src=""] , .community-logo[data-failed="1"] { visibility: hidden; height: 80px; }
+.community-logo-fallback { display: none; }
+.community-logo[src=""] ~ .community-logo-fallback,
+.community-logo[data-failed="1"] ~ .community-logo-fallback { display: block; font-family: var(--font-display); font-size: clamp(2.5rem, 6vw, 4rem); font-weight: 900; background: linear-gradient(135deg, #fff, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 30px rgba(137,180,250,0.5)); letter-spacing: 0.2em; }
 
 .community-sub {
   text-align: center;
@@ -1399,6 +1421,9 @@ body.offline-bot .status-uptime { display: none; }
   padding-bottom: 8px;
 }
 .punish-step {
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 5.6rem;
   flex: 1;
   min-width: 120px;
   display: flex;
