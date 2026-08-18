@@ -254,11 +254,18 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
 (() => {
   // Set your actual invite URL in js/config.js or here.
   const INVITE_URL = window.AETHER_CONFIG?.INVITE_URL || 'https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=8&scope=bot%20applications.commands';
-  document.querySelectorAll('a[href="#invite"]').forEach(a => {
+  const setInvite = (a) => {
+    if (!a) return;
     a.href = INVITE_URL;
+    a.removeAttribute('onclick');
+    a.onclick = null;
     a.setAttribute('target', '_blank');
     a.setAttribute('rel', 'noopener');
-  });
+  };
+  // Бүх "элсэх" холбоос (nav, hero, premium, invite CTA, footer биш) — аюулгүй, баталгаажсан
+  document.querySelectorAll('a.nav-invite, .hero-actions a.btn-primary, a.btn-ghost[href^="https://discord.com/oauth2"], #invite-btn').forEach(setInvite);
+  // Нэмэлт баталгаа: invite-btn id-тэй элемент заавал ажиллана (ямар ч хэв маягтай)
+  setInvite(document.getElementById('invite-btn'));
 })();
 
 /* ---------------- Bot heartbeat: жинхэнэ Online / Offline ---------------- */

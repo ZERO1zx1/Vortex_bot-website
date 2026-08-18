@@ -1542,3 +1542,32 @@ body.offline-bot .status-uptime { display: none; }
 @media (max-width: 960px) {
   .lang-switcher { margin: 0; }
 }
+
+/* ---------------- Invite CTA polish ---------------- */
+.invite-orb {
+  width: 74px; height: 74px;
+  margin: 0 auto 1.6rem;
+  border-radius: 50%;
+  position: relative;
+  display: grid; place-items: center;
+  font-size: 2rem;
+  background: linear-gradient(135deg, #3B5EA8, var(--accent));
+  box-shadow: 0 0 35px rgba(137, 180, 250, 0.5);
+  animation: orbPulse 2.6s ease-in-out infinite;
+}
+.invite-orb-glow {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(137,180,250,0.4), transparent 70%);
+  filter: blur(8px);
+  animation: orbPulse 2.6s ease-in-out infinite reverse;
+}
+.invite-pulse {
+  position: relative;
+  animation: inviteBtnPulse 2.4s ease-in-out infinite;
+}
+@keyframes inviteBtnPulse {
+  0%, 100% { box-shadow: 0 8px 30px rgba(137, 180, 250, 0.35); }
+  50%      { box-shadow: 0 8px 55px rgba(137, 180, 250, 0.75), 0 0 0 6px rgba(137, 180, 250, 0.12); }
+}
