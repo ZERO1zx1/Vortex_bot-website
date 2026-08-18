@@ -338,6 +338,44 @@
     <p class="premium-note">🚧 Premium систем одоогоор боловсруулагдаж байна. Бэлэн болоход танд Discord дамжуулан мэдэгдэнэ. Одоогоор бүх үндсэн командууд <strong>ҮНЭГҮЙ</strong>.</p>
   </section>
 
+  <!-- FAQ -->
+  <section class="faq" id="faq">
+    <div class="section-head">
+      <div class="section-tag">ТҮЛХЭЦ</div>
+      <h2 class="section-title">Түгээмэл <span class="accent">асуултууд</span></h2>
+    </div>
+    <div class="faq-grid">
+      <details class="faq-item" data-reveal>
+        <summary>Ботыг хэрхэн сервертээ нэмэх вэ?</summary>
+        <p>“Ботыг нэмэх” товч дээр даран Discord урилгын хуудас руу ороод, нэмэх серверээ сонгоно. Менеджер эрхтэй бүртгэлээр Server Management зөвшөөрлийг идэвхжүүлэх хэрэгтэй. Бот автоматаар 44 slash командыг бүртгэдэг.</p>
+      </details>
+      <details class="faq-item" data-reveal>
+        <summary>Командууд хэрхэн ашиглах вэ?</summary>
+        <p>Admin ба Модерац командыг <code class="mono">/</code> slash байдлаар (жишээ нь /ban), бусад бүх командыг <code class="mono">A!</code> префиксээр (жишээ нь A!daily, A!work) ашиглана.</p>
+      </details>
+      <details class="faq-item" data-reveal>
+        <summary>Мөнгөний систем хэрхэн ажилладаг вэ?</summary>
+        <p><code class="mono">A!daily</code> дарж өдөр бүрийн урамшуулал авах, <code class="mono">A!work</code> ажиллах, <code class="mono">A!market</code> дэлгүүрээс юм худалдаж авах, <code class="mono">A!gamble</code> казино тоглохоор мөнгө олж болно.</p>
+      </details>
+      <details class="faq-item" data-reveal>
+        <summary>Бот 24/7 ажилладаг уу?</summary>
+        <p>Тийм ээ — Supabase backend дээр heartbeat системээр ажилладаг. Энэ вэбсайтын “Ботын төлөв” хэсгээс жинхэнэ цаг хугацааны Online/Offline төлөвийг харж болно.</p>
+      </details>
+      <details class="faq-item" data-reveal>
+        <summary>Өгөгдөл хадгалагддаг уу?</summary>
+        <p>Тийм — Supabase (PostgreSQL) дээр 57 таблицээр хэрэглэгч, эдийн засаг, гэрлэл, түвшин гэх мэт бүх өгөгдөл бат бөх хадгалагдана. Бот унтарч асахад ч мөнгө, түвшин устахгүй.</p>
+      </details>
+      <details class="faq-item" data-reveal>
+        <summary>Premium хэдийд нээгдэх вэ?</summary>
+        <p>Premium систем одоогоор боловсруулагдаж байна. Бэлэн болоход Discord дамжуулан мэдэгдэх болно. Одоогоор бүх үндсэн командууд <strong>ҮНЭГҮЙ</strong>.</p>
+      </details>
+      <details class="faq-item" data-reveal>
+        <summary>Алдаа гарвал хаана хэлэх вэ?</summary>
+        <p>Discord дамжуулан шууд хэлэх эсвэл <a href="https://github.com/ZERO1zx1/gurtendev/issues" target="_blank" rel="noopener">GitHub Issues</a> хуудсанд бичээрэй.</p>
+      </details>
+    </div>
+  </section>
+
   <!-- INVITE CTA -->
   <section class="invite" id="invite">
     <div class="invite-card" data-tilt>
@@ -349,6 +387,9 @@
     </div>
   </section>
 
+  <!-- SCROLL TO TOP -->
+  <button id="scroll-top" aria-label="Дээшээ">↑</button>
+
   <!-- FOOTER -->
   <footer class="footer">
     <div class="footer-brand">𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 <span>•</span> Монгол Discord бот</div>
@@ -356,13 +397,13 @@
       <a href="#features">Онцлогууд</a>
       <a href="#commands">Командууд</a>
       <a href="#premium">Premium</a>
+      <a href="#faq">Асуулт хариулт</a>
       <a href="https://github.com/ZERO1zx1/gurtendev" target="_blank" rel="noopener">GitHub</a>
     </div>
     <div class="footer-copy">© 2026 𝓐𝓮𝓽𝓱𝓮𝓻  蒼Қ. Бүх эрх хуулиар хамгаалагдсан.</div>
   </footer>
 
-  <script src="js/config.js?v=5"></script>
-  <script src="js/commands.js?v=6"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/commands.js?v=7"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>

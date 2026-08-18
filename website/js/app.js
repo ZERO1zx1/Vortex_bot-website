@@ -337,3 +337,18 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   check();
   setInterval(check, POLL_MS);
 })();
+
+/* ---------------- Mobile: tilt reset on touch ---------------- */
+document.querySelectorAll('[data-tilt]').forEach(el => {
+  el.addEventListener('touchstart', () => { el.style.transform = ''; }, { passive: true });
+});
+
+/* ---------------- Scroll to top ---------------- */
+(() => {
+  const btn = document.getElementById('scroll-top');
+  if (!btn) return;
+  window.addEventListener('scroll', () => {
+    btn.classList.toggle('visible', window.scrollY > 500);
+  }, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+})();
