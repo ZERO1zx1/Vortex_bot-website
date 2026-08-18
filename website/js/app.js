@@ -386,6 +386,27 @@ const AETHER_I18N = {
     'premium.note': '🚧 Premium систем одоогоор боловсруулагдаж байна. Бэлэн болоход танд Discord дамжуулан мэдэгдэнэ. Одоогоор бүх үндсэн командууд <strong>ҮНЭГҮЙ</strong>.',
     'faq.title1': 'Түгээмэл',
     'faq.title2': 'асуултууд',
+    'faq.q1': 'Ботыг хэрхэн сервертээ нэмэх вэ?',
+    'faq.a1': '𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 нь <strong>private bot</strong> — зөвхөн нэг Discord серверт ажилладаг, өөр серверт нэмэх боломжгүй. Бусад серверүүдтэй <span data-i18n="faq.a1join">Discord сервертээ элсэж</span> бүх командиудыг үнэгүй ашиглаарай.',
+    'faq.a1join': 'Discord сервертээ элсэж',
+    'faq.q2': 'Командууд хэрхэн ашиглах вэ?',
+    'faq.a2': 'Admin ба Модерац командыг <code class="mono">/</code> slash байдлаар (жишээ нь /ban), бусад бүх командыг <code class="mono">A!</code> префиксээр (жишээ нь A!daily, A!work) ашиглана.',
+    'faq.q3': 'Мөнгөний систем хэрхэн ажилладаг вэ?',
+    'faq.a3': '<code class="mono">A!daily</code> дарж өдөр бүрийн урамшуулал авах, <code class="mono">A!work</code> ажиллах, <code class="mono">A!market</code> дэлгүүрээс юм худалдаж авах, <code class="mono">A!gamble</code> казино тоглохоор мөнгө олж болно.',
+    'faq.q4': 'Бот 24/7 ажилладаг уу?',
+    'faq.a4': 'Тийм ээ — Supabase backend дээр heartbeat системээр ажилладаг. Энэ вэбсайтын “Ботын төлөв” хэсгээс жинхэнэ цаг хугацааны Online/Offline төлөвийг харж болно.',
+    'faq.q5': 'Өгөгдөл хадгалагддаг уу?',
+    'faq.a5': 'Тийм — Supabase (PostgreSQL) дээр 57 таблицээр хэрэглэгч, эдийн засаг, гэрлэл, түвшин гэх мэт бүх өгөгдөл бат бөх хадгалагдана. Бот унтарч асахад ч мөнгө, түвшин устахгүй.',
+    'faq.q6': 'Premium хэдийд нээгдэх вэ?',
+    'faq.a6': 'Premium систем одоогоор боловсруулагдаж байна. Бэлэн болоход Discord дамжуулан мэдэгдэх болно. Одоогоор бүх үндсэн командууд <strong>ҮНЭГҮЙ</strong>.',
+    'faq.q7': 'Алдаа гарвал хаана хэлэх вэ?',
+    'faq.a7': 'Discord дамжуулан шууд хэлэх эсвэл <a href="https://github.com/ZERO1zx1/gurtendev/issues" target="_blank" rel="noopener">GitHub Issues</a> хуудсанд бичээрэй.',
+    'modal.howto': '👆 Командын карт дээр дарвал дэлгэрэнгүй харна',
+    'modal.args': 'Аргумент',
+    'modal.example': 'Жишээ',
+    'modal.close': 'Хаах',
+    'modal.required': 'заавал',
+    'modal.optional': 'сонголттой',
     'invite.title1': 'Серверээ',
     'invite.title2': 'амьдруулъя',
     'invite.sub': 'Нэг даралтаар нэмээд, өнөөдрөөс эхлүүл.',
@@ -423,6 +444,115 @@ const AETHER_I18N = {
     'premium.note': '🚧 The Premium system is under development. We will notify you via Discord when it is ready. For now, all core commands are <strong>FREE</strong>.',
     'faq.title1': 'Frequently',
     'faq.title2': 'asked questions',
+    'faq.q1': 'How do I add the bot to my server?',
+    'faq.a1': '𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 is a <strong>private bot</strong> — it runs on exactly one Discord server and cannot be invited to other servers. To use all commands, simply <span data-i18n="faq.a1join">join our Discord server</span> and start typing.',
+    'faq.a1join': 'join our Discord server',
+    'faq.q2': 'How do I use the commands?',
+    'faq.a2': 'Admin and Moderation commands are slash-only (e.g. /ban). All other commands use the <code class="mono">A!</code> prefix (e.g. A!daily, A!work).',
+    'faq.q3': 'How does the economy work?',
+    'faq.a3': 'Use <code class="mono">A!daily</code> for the daily reward, <code class="mono">A!work</code> to work, <code class="mono">A!market</code> to buy from the shop, and <code class="mono">A!gamble</code> for casino games.',
+    'faq.q4': 'Does the bot run 24/7?',
+    'faq.a4': 'Yes — it runs on a Supabase-backed heartbeat. You can see its real-time Online/Offline status right here in the “Bot Status” section.',
+    'faq.q5': 'Is my data saved?',
+    'faq.a5': 'Yes — everything (users, economy, marriage, levels) is safely stored in 57 Supabase (PostgreSQL) tables. Your coins and level never disappear, even if the bot restarts.',
+    'faq.q6': 'When will Premium launch?',
+    'faq.a6': 'The Premium system is under development and will be announced via Discord. Until then, all core commands are <strong>FREE</strong>.',
+    'faq.q7': 'Where can I report a bug?',
+    'faq.a7': 'Tell us directly via Discord or open an issue on <a href="https://github.com/ZERO1zx1/gurtendev/issues" target="_blank" rel="noopener">GitHub Issues</a>.',
+    'modal.howto': '👆 Click a command card to see its details',
+    'modal.args': 'Arguments',
+    'modal.example': 'Example',
+    'modal.close': 'Close',
+    'modal.required': 'required',
+    'modal.optional': 'optional',
+    'cmd.daily.desc': 'Claim your daily coin reward',
+    'cmd.work.desc': 'Work to earn coins',
+    'cmd.balance.desc': 'View your coin balance',
+    'cmd.pay.desc': 'Send coins to another user',
+    'cmd.rob.desc': 'Attempt to rob another user (risky!)',
+    'cmd.workphrase.desc': 'Customize your work phrases',
+    'cmd.addmoney.desc': 'Add coins to a user (admin)',
+    'cmd.removemoney.desc': 'Remove coins from a user (admin)',
+    'cmd.market.desc': 'Browse the cafe shop items',
+    'cmd.dine.desc': 'Eat a meal at the cafe (spend coins)',
+    'cmd.cafe.desc': 'View cafe menu and info',
+    'cmd.rank.desc': 'View your rank and XP',
+    'cmd.grank.desc': 'View the global XP leaderboard',
+    'cmd.leaderboard.desc': 'Show the top users by rank',
+    'cmd.serveractivity.desc': 'View server activity stats',
+    'cmd.addxp.desc': 'Add XP to a user (admin)',
+    'cmd.removexp.desc': 'Remove XP from a user (admin)',
+    'cmd.leveling_setup.desc': 'Configure leveling settings (admin)',
+    'cmd.invites.desc': 'View your invites and invite XP',
+    'cmd.inviter.desc': 'See who invited you',
+    'cmd.propose.desc': 'Propose marriage to someone',
+    'cmd.marry.desc': 'Marry your partner',
+    'cmd.divorce.desc': 'End your marriage',
+    'cmd.spouse.desc': 'View your spouse info',
+    'cmd.love.desc': 'Check your love level',
+    'cmd.gift.desc': 'Send a gift to your spouse',
+    'cmd.adopt.desc': 'Adopt a child',
+    'cmd.disown.desc': 'Disown a child',
+    'cmd.children.desc': 'List your children',
+    'cmd.makeparent.desc': 'Assign parents to a child (admin)',
+    'cmd.familytree.desc': 'View your family tree',
+    'cmd.tree.desc': 'Family tree summary',
+    'cmd.fulltree.desc': 'Full family tree view',
+    'cmd.marriage_setup.desc': 'Marriage system settings (admin)',
+    'cmd.marriagepro.desc': 'Your marriage profile',
+    'cmd.confess.desc': 'Anonymous confession in the channel',
+    'cmd.gamble.desc': 'Gambling with buttons (high/low)',
+    'cmd.coinflip.desc': 'Flip a coin (heads/tails)',
+    'cmd.slots.desc': 'Play the slot machine',
+    'cmd.roulette.desc': 'Play roulette',
+    'cmd.dice.desc': 'Roll dice against the bot',
+    'cmd.rps.desc': 'Rock-paper-scissors vs the bot',
+    'cmd.mines.desc': 'Minesweeper-style mine game',
+    'cmd.counting.desc': 'Counting challenge (1,2,3...) with members',
+    'cmd.count_stats_server.desc': 'Server counting stats',
+    'cmd.pvp.desc': 'Duel another player',
+    'cmd.trade.desc': 'Trade items with another user',
+    'cmd.marketplace.desc': 'Open the item marketplace',
+    'cmd.mp.desc': 'Marketplace shortcut',
+    'cmd.stock.desc': 'View stock market info',
+    'cmd.graph.desc': 'View stock price chart',
+    'cmd.buy.desc': 'Buy stocks',
+    'cmd.sell.desc': 'Sell your stocks',
+    'cmd.stock_ticker.desc': 'List available tickers',
+    'cmd.stock_leaderboard.desc': 'Stock profit leaderboard',
+    'cmd.mafia.desc': 'Join a Mafia game round',
+    'cmd.mafiacreate.desc': 'Create a Mafia game (admin)',
+    'cmd.mafiastart.desc': 'Start the Mafia game (admin)',
+    'cmd.mafiaend.desc': 'End the Mafia game (admin)',
+    'cmd.giveaway.desc': 'Start a giveaway',
+    'cmd.reroll.desc': 'Reroll the giveaway',
+    'cmd.end.desc': 'End a giveaway early',
+    'cmd.ban.desc': 'Ban a user from the server',
+    'cmd.unban.desc': 'Unban a user',
+    'cmd.kick.desc': 'Kick a user from the server',
+    'cmd.timeout.desc': 'Timeout a user temporarily',
+    'cmd.warn.desc': 'Issue a warning (admin)',
+    'cmd.warnings.desc': 'View a user',
+    'cmd.clear.desc': 'Bulk-delete messages',
+    'cmd.lock.desc': 'Lock a channel (admin)',
+    'cmd.unlock.desc': 'Unlock a channel (admin)',
+    'cmd.template_create.desc': 'Create an embed template (admin)',
+    'cmd.template_edit.desc': 'Edit a template (admin)',
+    'cmd.template_delete.desc': 'Delete a template (admin)',
+    'cmd.template_list.desc': 'List saved templates',
+    'cmd.template_preview.desc': 'Preview a template (admin)',
+    'cmd.help.desc': 'List all commands by category',
+    'cmd.invite.desc': 'Get the bot invite link',
+    'cmd.avatar.desc': 'View a user',
+    'cmd.boost.desc': 'Server boost info',
+    'cmd.partners.desc': 'Partner server list',
+    'cmd.entries.desc': 'Giveaway entries list',
+    'cmd.list.desc': 'View various lists',
+    'cmd.relationship.desc': 'Relationship between two users',
+    'cmd.placeholders.desc': 'Placeholder info',
+    'cmd.codes.desc': 'Redeem a promo code',
+    'cmd.autoaccept.desc': 'Toggle auto-accept flows',
+    'cmd.cancel.desc': 'Cancel any active flow',
     'invite.title1': 'Let\u2019s bring your',
     'invite.title2': 'server to life',
     'invite.sub': 'One click, done — start today.',
@@ -469,4 +599,77 @@ const AETHER_I18N = {
     });
   }
   applyLang(lang);
+})();
+
+/* ---------------- Command detail modal (click a card) ---------------- */
+(() => {
+  const openModal = (c) => {
+    let modal = document.getElementById('cmd-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'cmd-modal';
+      modal.className = 'cmd-modal';
+      modal.innerHTML = `
+        <div class="cmd-modal-backdrop"></div>
+        <div class="cmd-modal-box" role="dialog" aria-modal="true">
+          <button class="cmd-modal-close" aria-label="Close">✕</button>
+          <div class="cmd-modal-head"></div>
+          <div class="cmd-modal-body"></div>
+        </div>`;
+      document.body.appendChild(modal);
+      modal.querySelector('.cmd-modal-close').addEventListener('click', closeModal);
+      modal.querySelector('.cmd-modal-backdrop').addEventListener('click', closeModal);
+    }
+    const dict = AETHER_I18N[window.__aetherLang || 'mn'] || AETHER_I18N.mn;
+    const m = window.CAT_META?.[c.cat] || { label: c.cat, color: '#89B4FA', icon: '🔧' };
+    const prefix = c.type === 'slash' ? '/' : 'A!';
+    const args = Array.isArray(c.args) && c.args.length ? c.args : null;
+    modal.querySelector('.cmd-modal-head').innerHTML = `
+      <span class="cmd-modal-icon">${c.icon}</span>
+      <div>
+        <div class="cmd-modal-name">${prefix}${c.name}</div>
+        <div class="cmd-modal-cat">${m.icon} ${m.label} · <span class="cmd-type ${c.type}">${c.type === 'slash' ? 'SLASH' : 'TEXT'}</span></div>
+      </div>`;
+    const desc = (window.__aetherLang === 'en' && (dict[`cmd.${c.name}.desc`])) || c.desc;
+    modal.querySelector('.cmd-modal-body').innerHTML = `
+      <p class="cmd-modal-desc">${desc}</p>
+      ${args ? `<div class="cmd-modal-row">
+        <div class="cmd-modal-label">${dict['modal.args']}</div>
+        <div class="cmd-modal-args">${args.map(a => `<span class="cmd-arg ${a.req ? 'req' : 'opt'}">${a.key} <small>${dict[a.req ? 'modal.required' : 'modal.optional']}</small></span>`).join('')}</div>
+      </div>` : ''}
+      ${c.example ? `<div class="cmd-modal-row">
+        <div class="cmd-modal-label">${dict['modal.example']}</div>
+        <div class="cmd-modal-example"><code>${c.example}</code><button class="cmd-copy-btn" type="button">📋</button></div>
+      </div>` : ''}`;
+    const copyBtn = modal.querySelector('.cmd-copy-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard?.writeText(c.example).then(() => {
+          copyBtn.textContent = '✅';
+          setTimeout(() => { copyBtn.textContent = '📋'; }, 1500);
+        });
+      });
+    }
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  };
+  const closeModal = () => {
+    const modal = document.getElementById('cmd-modal');
+    if (modal) {
+      modal.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+  };
+  window.closeCmdModal = closeModal;
+  document.addEventListener('click', (e) => {
+    const card = e.target.closest('.cmd-card');
+    if (!card) return;
+    /* Хэрэв карт доторх link/badge дээр дарсан бол modal нээхгүй */
+    if (e.target.closest('a, .cmd-type')) return;
+    /* Нэмэгдсэн args/example өгөгдөлтэй командыг тохируулна */
+    const nameMatch = card.querySelector('.cmd-name')?.textContent?.replace(/^\/|^A!/, '');
+    const c = window.COMMAND_LIST?.find(x => x.name === nameMatch);
+    if (c) openModal(c);
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 })();
