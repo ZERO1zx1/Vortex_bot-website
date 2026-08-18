@@ -2,14 +2,16 @@
    𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ — Site config
    ТОХИРУУЛГА: зөвхөн энэ файлаас өөрчилнө.
 
-   INVITE_URL — Ботын жинхэнэ invite холбоос.
-   Нэмэх: https://discord.com/oauth2/authorize?client_id=1493212321231802408&permissions=8&scope=bot%20applications.commands
+   SERVER_INVITE_URL — AETHER Discord серверийн join холбоос (бүх товчин дээр).
+   BOT_INVITE_URL — Ботыг сервертээ нэмэх OAuth2 холбоос.
    Client ID-ээ Discord Developer Portal-оос (https://discord.com/developers/applications)
    аваарай.
    ============================================================ */
 window.AETHER_CONFIG = {
   BOT_NAME: '𝓐𝓮𝓽𝓱𝓮𝓻  蒼Қ',
-  INVITE_URL: 'https://discord.com/oauth2/authorize?client_id=1493212321231802408&permissions=8&scope=bot%20applications.commands',
+  SERVER_INVITE_URL: 'https://discord.gg/Nu8ubdpZ2',
+  BOT_INVITE_URL: 'https://discord.com/oauth2/authorize?client_id=1493212321231802408&permissions=8&scope=bot%20applications.commands',
+  INVITE_URL: 'https://discord.gg/Nu8ubdpZ2',
   GITHUB: 'https://github.com/ZERO1zx1/gurtendev',
   /*
    * БОТЫН ЖИНХЭНЭ STATUS (Online / Offline):

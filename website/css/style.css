@@ -1447,6 +1447,19 @@ body.offline-bot .status-uptime { display: none; }
   background: radial-gradient(circle at 30% 30%, rgba(137,180,250,0.22), rgba(11,11,20,0.9));
   border: 2px solid rgba(137,180,250,0.35);
   box-shadow: 0 0 22px rgba(137,180,250,0.2);
+  overflow: hidden;
+}
+.staff-avatar img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.staff-uname {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin: 0 0 6px;
+  letter-spacing: 0.03em;
 }
 .staff-role {
   display: inline-block;
@@ -1470,7 +1483,17 @@ body.offline-bot .status-uptime { display: none; }
   text-align: left;
 }
 .staff-desc p { margin: 0; padding: 0 4px; font-size: 0.84rem; color: var(--text-dim); line-height: 1.6; }
-.staff-card:hover .staff-desc, .staff-card:focus-visible .staff-desc { max-height: 320px; opacity: 1; margin-top: 12px; }
+.staff-profile {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 0 4px;
+  font-size: 0.8rem;
+  color: #89B4FA;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.staff-profile:hover { color: #FAB387; }
+.staff-card:hover .staff-desc, .staff-card:focus-visible .staff-desc { max-height: 400px; opacity: 1; margin-top: 12px; }
 
 /* Community responsive */
 @media (max-width: 960px) {
