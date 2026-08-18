@@ -175,6 +175,9 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   function meta(cat) {
     return window.CAT_META?.[cat] || { label: cat, color: '#89B4FA', icon: '🔧' };
   }
+  function catLabel(m) {
+    return (window.__aetherLang === 'en' && m.labelEN) || m.label;
+  }
 
   function render() {
     const q = (search?.value || '').trim().toLowerCase();
@@ -201,7 +204,7 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
       parts.push(`
       <div class="cmd-panel" style="--cat-color:${m.color}" data-reveal>
         <div class="panel-head">
-          <div class="panel-badge">${m.icon} ${m.label}</div>
+          <div class="panel-badge">${m.icon} ${catLabel(m)}</div>
           <div class="panel-count">${list.length} команд · ${list.filter(c => c.type === 'slash').length} slash / ${list.filter(c => c.type === 'text').length} text</div>
         </div>
         <div class="panel-grid">
@@ -222,7 +225,7 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
         <span class="cmd-name">${c.type === 'slash' ? '/' : 'A!'}${c.name}</span>
         <span class="cmd-desc">${c.desc}</span>
       </div>
-      <span class="cmd-cat">${m.icon} ${m.label}</span>
+      <span class="cmd-cat">${m.icon} ${catLabel(m)}</span>
       <span class="cmd-type ${c.type}">${c.type === 'slash' ? 'SLASH' : 'TEXT'}</span>
     </div>`;
   }
@@ -595,6 +598,8 @@ const AETHER_I18N = {
       const c = window.COMMAND_LIST?.find(x => x.name === modal.__cmdName);
       if (c) openModal(c);
     }
+    /* Командын карт болон категорын шошгыг дахин зурна */
+    if (typeof render === 'function') render();
   };
   let lang = 'mn';
   try { lang = localStorage.getItem('aether-lang') || 'mn'; } catch {}
@@ -628,13 +633,14 @@ const AETHER_I18N = {
     }
     const dict = AETHER_I18N[window.__aetherLang || 'mn'] || AETHER_I18N.mn;
     const m = window.CAT_META?.[c.cat] || { label: c.cat, color: '#89B4FA', icon: '🔧' };
+    const catLabel = (window.__aetherLang === 'en' && m.labelEN) || m.label;
     const prefix = c.type === 'slash' ? '/' : 'A!';
     const args = Array.isArray(c.args) && c.args.length ? c.args : null;
     modal.querySelector('.cmd-modal-head').innerHTML = `
       <span class="cmd-modal-icon">${c.icon}</span>
       <div>
         <div class="cmd-modal-name">${prefix}${c.name}</div>
-        <div class="cmd-modal-cat">${m.icon} ${m.label} · <span class="cmd-type ${c.type}">${c.type === 'slash' ? 'SLASH' : 'TEXT'}</span></div>
+        <div class="cmd-modal-cat">${m.icon} ${catLabel} · <span class="cmd-type ${c.type}">${c.type === 'slash' ? 'SLASH' : 'TEXT'}</span></div>
       </div>`;
     const desc = (window.__aetherLang === 'en' && (dict[`cmd.${c.name}.desc`])) || c.desc;
     modal.querySelector('.cmd-modal-body').innerHTML = `

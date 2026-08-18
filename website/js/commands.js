@@ -152,12 +152,12 @@ window.COMMAND_CATS = ['all', 'Economy', 'Leveling', 'Social', 'Games', 'Moderat
 
 /* Category metadata: mongolian label, theme color, emoji */
 window.CAT_META = {
-  all:        { label: 'Бүгд',        color: '#89B4FA', icon: '🗂️' },
-  Economy:    { label: 'Economy',     color: '#89B4FA', icon: '💰' },
-  Leveling:   { label: 'Leveling',    color: '#94E2D5', icon: '📊' },
-  Social:     { label: 'Гэр бүл',     color: '#F38BA8', icon: '💍' },
-  Games:      { label: 'Тоглоом',     color: '#FAB387', icon: '🎲' },
-  Moderation: { label: 'Модерац',     color: '#A6E3A1', icon: '🛡️' },
-  Admin:      { label: 'Админ',       color: '#B4BEFE', icon: '⚙️' },
-  Utility:    { label: 'Бусад',       color: '#8C8FA1', icon: '🔧' },
+  all:        { label: 'Бүгд',        labelEN: 'All',           color: '#89B4FA', icon: '🗂️' },
+  Economy:    { label: 'Economy',     labelEN: 'Economy',       color: '#89B4FA', icon: '💰' },
+  Leveling:   { label: 'Leveling',    labelEN: 'Leveling',      color: '#94E2D5', icon: '📊' },
+  Social:     { label: 'Гэр бүл',     labelEN: 'Family',        color: '#F38BA8', icon: '💍' },
+  Games:      { label: 'Тоглоом',     labelEN: 'Games',         color: '#FAB387', icon: '🎲' },
+  Moderation: { label: 'Модерац',     labelEN: 'Moderation',    color: '#A6E3A1', icon: '🛡️' },
+  Admin:      { label: 'Админ',       labelEN: 'Admin',         color: '#B4BEFE', icon: '⚙️' },
+  Utility:    { label: 'Бусад',       labelEN: 'Utility',       color: '#8C8FA1', icon: '🔧' },
 };
