@@ -589,6 +589,13 @@ const AETHER_I18N = {
       }
     }
     window.__aetherLang = lang;
+    /* Нээлттэй modal байвал хэл солихын дагуу дахин render */
+    const modal = document.getElementById('cmd-modal');
+    if (modal && modal.classList.contains('open')) {
+      const nameMatch = modal.querySelector('.cmd-modal-name')?.textContent?.replace(/^\/?/, '');
+      const c = window.COMMAND_LIST?.find(x => nameMatch.replace(/^A!/, '') === x.name);
+      if (c) openModal(c);
+    }
   };
   let lang = 'mn';
   try { lang = localStorage.getItem('aether-lang') || 'mn'; } catch {}
