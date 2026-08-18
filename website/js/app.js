@@ -240,6 +240,8 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     render();
   });
   render();
+  /* Хэл солиход анги/картын шошгыг дахин зурахын тулд глобал болгоно */
+  window.__aetherRender = render;
 })();
 
 /* ---------------- Premium cards: cursor-following glow ---------------- */
@@ -599,7 +601,7 @@ const AETHER_I18N = {
       if (c) openModal(c);
     }
     /* Командын карт болон категорын шошгыг дахин зурна */
-    if (typeof render === 'function') render();
+    if (typeof window.__aetherRender === 'function') window.__aetherRender();
   };
   let lang = 'mn';
   try { lang = localStorage.getItem('aether-lang') || 'mn'; } catch {}
