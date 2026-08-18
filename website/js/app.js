@@ -18,8 +18,16 @@
     canvas.style.height = window.innerHeight + 'px';
   }
 
+  function particleHues() {
+    const cs = getComputedStyle(document.documentElement);
+    const n = (s) => parseFloat(cs.getPropertyValue(s)) || 218;
+    return [n('--particle-hue-a'), n('--particle-hue-b'), n('--particle-hue-c')];
+  }
+  function isLight() { return document.documentElement.getAttribute('data-theme') === 'light'; }
+
   function init() {
     resize();
+    const [ha, hb, hc] = particleHues();
     const count = Math.min(90, Math.floor((W * H) / 24000));
     particles = Array.from({ length: count }, () => ({
       x: Math.random() * W,
@@ -27,7 +35,7 @@
       vx: (Math.random() - 0.5) * 0.45,
       vy: (Math.random() - 0.5) * 0.45,
       r: Math.random() * 2.2 + 0.8,
-      hue: Math.random() < 0.7 ? 218 : (Math.random() < 0.5 ? 168 : 30),
+      hue: Math.random() < 0.7 ? ha : (Math.random() < 0.5 ? hb : hc),
     }));
   }
 
@@ -39,13 +47,15 @@
       if (p.y < -10) p.y = H + 10; if (p.y > H + 10) p.y = -10;
     }
     // lines between close particles
+    const linkAlpha = isLight() ? 0.14 : 0.18;
+    const lineColor = isLight() ? `rgba(59,94,168,` : `rgba(137,180,250,`;
     for (let i = 0; i < particles.length; i++) {
       for (let j = i + 1; j < particles.length; j++) {
         const a = particles[i], b = particles[j];
         const dx = a.x - b.x, dy = a.y - b.y;
         const dist = Math.hypot(dx, dy);
         if (dist < 130) {
-          ctx.strokeStyle = `rgba(137,180,250,${(1 - dist / 130) * 0.18})`;
+          ctx.strokeStyle = `${lineColor}${(1 - dist / 130) * linkAlpha})`;
           ctx.lineWidth = 0.7;
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
@@ -54,10 +64,11 @@
         }
       }
     }
-    // dots
+    // dots — light mode uses slightly deeper saturation for visibility
+    const dotLight = isLight() ? 72 : 78;
     for (const p of particles) {
-      ctx.fillStyle = `hsla(${p.hue}, 80%, 78%, 0.85)`;
-      ctx.shadowColor = `hsla(${p.hue}, 80%, 78%, 0.8)`;
+      ctx.fillStyle = `hsla(${p.hue}, 80%, ${dotLight}%, 0.85)`;
+      ctx.shadowColor = `hsla(${p.hue}, 80%, ${dotLight}%, 0.8)`;
       ctx.shadowBlur = 10;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
@@ -75,6 +86,29 @@
   draw();
 })();
 
+/* ---------------- Dark / Light theme toggle ---------------- */
+(() => {
+  const root = document.documentElement;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  const applyTheme = (theme) => {
+    root.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark');
+    if (meta) meta.setAttribute('content', theme === 'light' ? '#F7F9FC' : '#0B0B14');
+    try { localStorage.setItem('aether-theme', theme); } catch {}
+    window.__aetherTheme = theme;
+  };
+  let theme = 'dark';
+  try {
+    const saved = localStorage.getItem('aether-theme');
+    const prefersLight = window.matchMedia?.('(prefers-color-scheme: light)')?.matches;
+    theme = (saved === 'light' || saved === 'dark') ? saved : (prefersLight ? 'light' : 'dark');
+  } catch {}
+  applyTheme(theme);
+  const toggle = document.getElementById('theme-toggle');
+  if (toggle) {
+    toggle.setAttribute('aria-label', 'Toggle dark/light theme');
+    toggle.addEventListener('click', () => applyTheme(window.__aetherTheme === 'light' ? 'dark' : 'light'));
+  }
+})();
 /* ---------------- 3D tilt on hover ---------------- */
 (() => {
   document.querySelectorAll('[data-tilt]').forEach(el => {
@@ -155,9 +189,10 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   const burger = document.getElementById('nav-burger');
   const links = document.querySelector('.nav-links');
   window.addEventListener('scroll', () => {
+    const light = document.documentElement.getAttribute('data-theme') === 'light';
     nav.style.background = window.scrollY > 40
-      ? 'rgba(11,11,20,0.92)'
-      : 'rgba(11,11,20,0.65)';
+      ? (light ? 'rgba(247,249,252,0.94)' : 'rgba(11,11,20,0.92)')
+      : (light ? 'rgba(247,249,252,0.78)' : 'rgba(11,11,20,0.65)');
   }, { passive: true });
   burger?.addEventListener('click', () => {
     links.classList.toggle('open');
@@ -375,6 +410,32 @@ const AETHER_I18N = {
     'hero.subtitle': 'Эдийн засаг, түвшин, гэрлэл, дэлгүүр, тоглоом, модерац — бүгдийг нэг ботонд. Таны серверийг амьд болго.',
     'hero.viewCommands': 'Командууд үзэх',
     'hero.tags1': 'Slash + Text команд',
+    'cmd.placeholder': '🔎 Команд хайх... (жишээ нь: A!daily, /ban, marry)',
+    'cat.all': '🌐 Бүгд',
+    'cat.economy': '💰 Economy',
+    'cat.leveling': '📊 Leveling',
+    'cat.social': '💍 Гэр бүл',
+    'cat.games': '🎲 Тоглоом',
+    'cat.moderation': '🛡️ Модерац',
+    'cat.admin': '⚙️ Админ',
+    'cat.utility': '🔧 Бусад',
+    'stats.cog': 'Cog',
+    'stats.uptime': 'Uptime',
+    'community.tag': 'DISCORD SERVER',
+    'community.title': 'Албан ёсны <span class="accent">AETHER</span> сервер',
+    'community.subtitle': '🌌 AETHER SERVER — YOUR GAMING COMMUNITY<br/>Төрөл бүрийн тоглоом · Active Community · Endless Events',
+    'community.rules': 'ОФИЦИАЛЬ СЕРВЕРИЙН ДҮРМҮҮД',
+    'community.punish': 'ШИЙТГЭЛИЙН СИСТЕМ',
+    'community.punish_imp': 'АНХААРАЛ:',
+    'community.staff_title': 'AETHER — STAFF-ИЙН <span class="accent">ТАНИЛЦУУЛГА</span>',
+    'rule.r1t': 'ХҮНДЭТГЭЛ',
+    'rule.r2t': 'НУУЦЛАЛ',
+    'rule.r3t': 'АЮУЛГҮЙ БАЙДАЛ',
+    'rule.r4t': 'КОНТЕНТ',
+    'rule.r5t': 'ЧАТ',
+    'rule.r6t': 'ROLEPLAY',
+    'rule.r7t': 'СУВГУУД',
+    'rule.r8t': 'STAFF',
     'features.tag': 'ОНЦЛОГ ФУНКЦҮҮД',
     'features.title1': 'Бүгд нэг дор.',
     'commands.tag': 'КОМАНДУУД',
@@ -433,6 +494,32 @@ const AETHER_I18N = {
     'hero.subtitle': 'Economy, leveling, marriage, shop, games, moderation — everything in one bot. Bring your server to life.',
     'hero.viewCommands': 'View commands',
     'hero.tags1': 'Slash + Text commands',
+    'cmd.placeholder': '🔎 Search commands... (e.g. A!daily, /ban, marry)',
+    'cat.all': '🌐 All',
+    'cat.economy': '💰 Economy',
+    'cat.leveling': '📊 Leveling',
+    'cat.social': '💍 Family',
+    'cat.games': '🎲 Games',
+    'cat.moderation': '🛡️ Moderation',
+    'cat.admin': '⚙️ Admin',
+    'cat.utility': '🔧 Utility',
+    'stats.cog': 'Cogs',
+    'stats.uptime': 'Uptime',
+    'community.tag': 'DISCORD SERVER',
+    'community.title': 'Official <span class="accent">AETHER</span> server',
+    'community.subtitle': '🌌 AETHER SERVER — YOUR GAMING COMMUNITY<br/>All kinds of games · Active Community · Endless Events',
+    'community.rules': 'OFFICIAL SERVER RULES',
+    'community.punish': 'PUNISHMENT SYSTEM',
+    'community.punish_imp': 'IMPORTANT:',
+    'community.staff_title': 'AETHER — STAFF <span class="accent">INTRO</span>',
+    'rule.r1t': 'RESPECT',
+    'rule.r2t': 'PRIVACY',
+    'rule.r3t': 'SAFETY',
+    'rule.r4t': 'CONTENT',
+    'rule.r5t': 'CHAT',
+    'rule.r6t': 'ROLEPLAY',
+    'rule.r7t': 'CHANNELS',
+    'rule.r8t': 'STAFF',
     'features.tag': 'FEATURES',
     'features.title1': 'All in one.',
     'commands.tag': 'COMMANDS',
@@ -580,6 +667,11 @@ const AETHER_I18N = {
     document.querySelectorAll('[data-i18n]').forEach(el => {
       const v = dict[el.getAttribute('data-i18n')];
       if (v !== undefined) el.innerHTML = v;
+    });
+    /* Placeholder-уудыг мөн солих */
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+      const v = dict[el.getAttribute('data-i18n-ph')];
+      if (v !== undefined) el.setAttribute('placeholder', v);
     });
     document.querySelectorAll('.lang-btn').forEach(b => {
       b.classList.toggle('active', b.getAttribute('data-lang') === lang);

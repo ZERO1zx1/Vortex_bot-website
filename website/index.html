@@ -1,20 +1,20 @@
 <!DOCTYPE html>
-<html lang="mn">
+<html lang="mn" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 — Монгол Discord Бот</title>
-  <meta name="description" content="Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, мафия, модерац — 118 командтай Монгол Discord бот. Economy, leveling, marriage, shop, games, moderation in one bot." />
-  <meta name="keywords" content="Discord bot, Монгол бот, Aether, AETHER, Discord, economy bot, leveling, marriage, moderation, Roblox" />
+  <title>𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Монгол Discord Бот &amp; Gaming Community</title>
+  <meta name="description" content="Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, мафия, модерац — 118 командтай Монгол Discord бот. AETHER gaming community-ийн албан ёсны сайт." />
+  <meta name="keywords" content="Discord bot, Монгол бот, Aether, AETHER, Discord, economy bot, leveling, marriage, moderation, Roblox, gaming community" />
   <meta name="author" content="Vortex | 虚空" />
   <meta name="theme-color" content="#0B0B14" />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://zero1zx1.github.io/Vortex/" />
 
-  <!-- Open Graph (Facebook, Discord, LinkedIn) -->
+  <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹" />
-  <meta property="og:title" content="𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Монгол Discord Бот" />
+  <meta property="og:title" content="𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Монгол Discord Бот &amp; AETHER Community" />
   <meta property="og:description" content="Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, мафия, модерац — бүгдийг нэг ботонд. 118 команд · 29 cog · 24/7 online." />
   <meta property="og:url" content="https://zero1zx1.github.io/Vortex/" />
   <meta property="og:image" content="https://zero1zx1.github.io/Vortex/assets/demo/hero.png" />
@@ -31,30 +31,38 @@
   <link rel="apple-touch-icon" href="assets/aether_logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=16" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css?v=17" />
 </head>
 <body>
-  <!-- 3D particle canvas -->
+  <!-- Particle canvas: dark/light өнгөтэйгээр JS-д солигдоно -->
   <canvas id="bg-canvas"></canvas>
 
-  <!-- Navigation -->
+  <!-- ================= NAVIGATION ================= -->
   <nav class="navbar">
     <div class="nav-brand">
       <div class="brand-orb"></div>
-      <span>𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹</span>
+      <span>𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹</span>
     </div>
     <div class="nav-links">
       <a href="#features" data-i18n="nav.features">Онцлогууд</a>
       <a href="#commands" data-i18n="nav.commands">Командууд</a>
-      <a href="#stats" data-i18n="nav.stats">Статистик</a>
-      <a href="#about">About Us</a>
-      <a href="#premium">Premium</a>
       <a href="#community">Community</a>
+      <a href="#stats" data-i18n="nav.stats">Статистик</a>
+      <a href="#premium">Premium</a>
+      <a href="#faq" data-i18n="footer.faq">FAQ</a>
     </div>
-    <div class="lang-switcher" id="lang-switcher">
-      <button type="button" data-lang="mn" class="lang-btn active">MN</button>
-      <button type="button" data-lang="en" class="lang-btn">EN</button>
+    <div class="nav-controls">
+      <!-- Dark / Light toggle -->
+      <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle light mode">
+        <span class="theme-icon theme-icon-moon">🌙</span>
+        <span class="theme-icon theme-icon-sun">☀️</span>
+      </button>
+      <!-- Language switcher -->
+      <div class="lang-switcher" id="lang-switcher">
+        <button type="button" data-lang="mn" class="lang-btn active">MN</button>
+        <button type="button" data-lang="en" class="lang-btn">EN</button>
+      </div>
     </div>
     <a href="https://discord.gg/Nu8ubdpZ2" class="btn btn-glow nav-invite" target="_blank" rel="noopener">Server-т элсэх</a>
     <button class="nav-burger" id="nav-burger" aria-label="Цэс">
@@ -62,13 +70,13 @@
     </button>
   </nav>
 
-  <!-- HERO -->
+  <!-- ================= HERO ================= -->
   <section class="hero" id="home">
     <div class="hero-content" data-parallax="0.4">
-      <div class="hero-badge" data-i18n="hero.badge">🇲🇳 Монгол Discord бот</div>
-      <h1 class="hero-title"><span class="title-orbitron">𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹</span></h1>
+      <div class="hero-badge" data-i18n="hero.badge">🇲🇳 Монгол Discord бот &amp; gaming community</div>
+      <h1 class="hero-title"><span class="title-orbitron">𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹</span></h1>
       <p class="hero-subtitle">
-        <span data-i18n="hero.subtitle">Эдийн засаг, түвшин, гэрлэл, дэлгүүр, тоглоом, модерац — бүгдийг нэг ботонд. Таны серверийг амьд болго.</span>
+        <span data-i18n="hero.subtitle">Эдийн засаг, түвшин, гэрлэл, дэлгүүр, тоглоом, модерац — бүгдийг нэг ботонд. AETHER gaming community-г амьд болго.</span>
       </p>
       <div class="hero-actions">
         <a href="https://discord.gg/Nu8ubdpZ2" class="btn btn-primary" target="_blank" rel="noopener">
@@ -109,7 +117,7 @@
     </div>
   </section>
 
-  <!-- FEATURES -->
+  <!-- ================= FEATURES ================= -->
   <section class="features" id="features">
     <div class="section-head">
       <div class="section-tag" data-i18n="features.tag">ОНЦЛОГ ФУНКЦҮҮД</div>
@@ -119,77 +127,77 @@
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-econ"></div>
         <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#economy"/></svg>
-        <h3>Эдийн засаг</h3>
-        <p>daily, work, gamble, мөнгөний систем. Хөдөлмөрлөөд баяжина.</p>
+        <h3 data-i18n="feat.econ">Эдийн засаг</h3>
+        <p data-i18n="feat.econ_d">daily, work, gamble, мөнгөний систем. Хөдөлмөрлөөд баяжина.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-lvl"></div>
         <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#leveling"/></svg>
-        <h3>Түвшин / Leveling</h3>
-        <p>XP систем, leaderboard, voice XP. Идэвхтэй байх тусам түвшин авна.</p>
+        <h3 data-i18n="feat.lvl">Түвшин / Leveling</h3>
+        <p data-i18n="feat.lvl_d">XP систем, leaderboard, voice XP. Идэвхтэй байх тусам түвшин авна.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-love"></div>
         <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#marriage"/></svg>
-        <h3>Гэрлэл / Гэр бүл</h3>
-        <p>Учрахаас эхлээд гэр бүлийн мод хүртэл. Хайртай хүнтэйгээ гэрлэ.</p>
+        <h3 data-i18n="feat.mar">Гэрлэл / Гэр бүл</h3>
+        <p data-i18n="feat.mar_d">Учрахаас эхлээд гэр бүлийн мод хүртэл. Хайртай хүнтэйгээ гэрлэ.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-shop"></div>
         <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#shop"/></svg>
-        <h3>Дэлгүүр &amp; Хувьцаа</h3>
-        <p>Market, marketplace, амьд stock систем. Худалдаж, худалд.</p>
+        <h3 data-i18n="feat.shop">Дэлгүүр &amp; Хувьцаа</h3>
+        <p data-i18n="feat.shop_d">Market, marketplace, амьд stock систем. Худалдаж, худалд.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-cas"></div>
         <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#casino"/></svg>
-        <h3>Казино &amp; Тоглоом</h3>
-        <p>Coinflip, slots, roulette, mines, pvp, counting, cards.</p>
+        <h3 data-i18n="feat.cas">Казино &amp; Тоглоом</h3>
+        <p data-i18n="feat.cas_d">Coinflip, slots, roulette, mines, pvp, counting, cards.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-maf"></div>
         <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#mafia"/></svg>
-        <h3>Mafia</h3>
-        <p>Дорнодын мафия тоглоом — нойрсох, шалгах, ялалт байгуул.</p>
+        <h3 data-i18n="feat.maf">Mafia</h3>
+        <p data-i18n="feat.maf_d">Дорнодын мафия тоглоом — нойрсох, шалгах, ялалт байгуул.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-mod"></div>
         <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#moderation"/></svg>
-        <h3>Модерац</h3>
-        <p>Ban, kick, warn, timeout, purge, mod-log. Цэвэрхэн сервер.</p>
+        <h3 data-i18n="feat.mod">Модерац</h3>
+        <p data-i18n="feat.mod_d">Ban, kick, warn, timeout, purge, mod-log. Цэвэрхэн сервер.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-fun"></div>
         <svg class="fc-svg" viewBox="0 0 64 64"><use href="img/icons.svg#fun"/></svg>
-        <h3>Fun &amp; Бусад</h3>
-        <p>Cafe, quests, confessions, giveaway, temp voice, avatar logger...</p>
+        <h3 data-i18n="feat.fun">Fun &amp; Бусад</h3>
+        <p data-i18n="feat.fun_d">Cafe, quests, confessions, giveaway, temp voice, avatar logger...</p>
       </div>
     </div>
   </section>
 
-  <!-- COMMANDS -->
+  <!-- ================= COMMANDS ================= -->
   <section class="commands" id="commands">
     <div class="section-head">
       <div class="section-tag" data-i18n="commands.tag">КОМАНДУУД</div>
       <h2 class="section-title">118 <span class="accent" data-i18n="commands.title2">команд</span> · 44 slash / 74 text</h2>
     </div>
     <div class="cmd-toolbar">
-      <input type="text" id="cmd-search" placeholder="🔎 Команд хайх... (жишээ нь: A!daily, /ban, marry)" />
+      <input type="text" id="cmd-search" data-i18n-ph="cmd.placeholder" placeholder="🔎 Команд хайх... (жишээ нь: A!daily, /ban, marry)" />
       <div class="cmd-filters" id="cmd-filters">
-        <button class="filter active" data-cat="all">Бүгд</button>
-        <button class="filter" data-cat="Economy">💰 Economy</button>
-        <button class="filter" data-cat="Leveling">📊 Leveling</button>
-        <button class="filter" data-cat="Social">💍 Гэр бүл</button>
-        <button class="filter" data-cat="Games">🎲 Тоглоом</button>
-        <button class="filter" data-cat="Moderation">🛡️ Модерац</button>
-        <button class="filter" data-cat="Admin">⚙️ Админ</button>
-        <button class="filter" data-cat="Utility">🔧 Бусад</button>
+        <button class="filter active" data-cat="all">🌐 All</button>
+        <button class="filter" data-cat="Economy" data-i18n="cat.economy">💰 Economy</button>
+        <button class="filter" data-cat="Leveling" data-i18n="cat.leveling">📊 Leveling</button>
+        <button class="filter" data-cat="Social" data-i18n="cat.social">💍 Гэр бүл</button>
+        <button class="filter" data-cat="Games" data-i18n="cat.games">🎲 Тоглоом</button>
+        <button class="filter" data-cat="Moderation" data-i18n="cat.moderation">🛡️ Модерац</button>
+        <button class="filter" data-cat="Admin" data-i18n="cat.admin">⚙️ Админ</button>
+        <button class="filter" data-cat="Utility" data-i18n="cat.utility">🔧 Бусад</button>
       </div>
     </div>
     <div class="cmd-grid" id="cmd-grid"></div>
   </section>
 
-  <!-- STATS -->
+  <!-- ================= STATS ================= -->
   <section class="stats" id="stats">
     <div class="section-head">
       <div class="section-tag" data-i18n="stats.tag">СТАТИСТИК</div>
@@ -199,7 +207,7 @@
       <div class="stat-card cog" data-tilt data-reveal>
         <div class="stat-icon">🧩</div>
         <div class="stat-num" data-count="29">0</div>
-        <div class="stat-label">Cog</div>
+        <div class="stat-label" data-i18n="stats.cog">Cog</div>
       </div>
       <div class="stat-card slash" data-tilt data-reveal>
         <div class="stat-icon">⚡</div>
@@ -214,16 +222,16 @@
       <div class="stat-card uptime" data-tilt data-reveal>
         <div class="stat-icon">🕐</div>
         <div class="stat-num" data-count="24" data-suffix="/7">0</div>
-        <div class="stat-label">Uptime</div>
+        <div class="stat-label" data-i18n="stats.uptime">Uptime</div>
       </div>
     </div>
   </section>
 
-  <!-- LIVE STATUS -->
+  <!-- ================= LIVE STATUS ================= -->
   <section class="live-status" id="livestatus">
     <div class="section-head">
-      <div class="section-tag">СТАТУС</div>
-      <h2 class="section-title">Ботын <span class="accent">төлөв</span></h2>
+      <div class="section-tag" data-i18n="status.tag">СТАТУС</div>
+      <h2 class="section-title"><span data-i18n="status.title1">Ботын</span> <span class="accent" data-i18n="status.title2">төлөв</span></h2>
     </div>
     <div class="status-card" data-tilt>
       <div class="sc-glow"></div>
@@ -233,7 +241,7 @@
           <div class="so-ring"></div>
         </div>
         <div class="status-main">
-          <div class="status-title">𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ — <span class="online-text" id="online-text">Online</span></div>
+          <div class="status-title">𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — <span class="online-text" id="online-text">Online</span></div>
           <div class="status-sub"><span data-i18n="status.sub">24/7 ажилладаг, Supabase дээр суурилсан бат бөх backend</span></div>
           <div class="status-uptime" id="last-seen">Ботын жинхэнэ төлөвийг шалгаж байна…</div>
         </div>
@@ -261,30 +269,91 @@
           <div class="sg-label">Uptime зорилт</div>
         </div>
       </div>
-      <div class="status-refresh">Ботын нарийвчилсан status-ийг Discord дээр <code>/status</code> командаар харна уу.</div>
+      <div class="status-refresh" data-i18n="status.refresh">Ботын нарийвчилсан status-ийг Discord дээр <code>/status</code> командаар харна уу.</div>
     </div>
   </section>
 
-  <!-- ABOUT US -->
+  <!-- ================= AETHER COMMUNITY ================= -->
+  <section class="community" id="community">
+    <div class="section-head" data-reveal>
+      <span class="eyebrow" data-i18n="community.tag">DISCORD SERVER</span>
+      <h2 data-i18n="community.title">Албан ёсны <span class="accent">AETHER</span> сервер</h2>
+      <p class="section-sub" data-i18n="community.subtitle">🌌 AETHER SERVER — YOUR GAMING COMMUNITY<br/>Төрөл бүрийн тоглоом · Active Community · Endless Events</p>
+    </div>
+
+    <!-- Logo -->
+    <div class="community-logo-wrap" data-reveal>
+      <img src="assets/aether_logo.png" alt="AETHER logo" class="community-logo" loading="lazy" onerror="this.dataset.failed='1'"/>
+      <span class="community-logo-fallback">蒼穹</span>
+    </div>
+
+    <!-- Server intro -->
+    <div class="community-intro" data-reveal>
+      <p data-i18n="community.intro">Aether бол зөвхөн Roblox сервер биш — төрөл бүрийн тоглоом сонирхдог хүмүүс нэг дор цугладаг gaming community ⚡</p>
+      <div class="intro-grid">
+        <div class="intro-card"><span class="intro-icon">🎮</span><h4 data-i18n="community.gaming">Gaming</h4><p data-i18n="community.gaming_d">Roblox болон бусад олон төрлийн тоглоом тоглож, найзуудтайгаа хамт хөгжилдөөрэй.</p></div>
+        <div class="intro-card"><span class="intro-icon">💎</span><h4 data-i18n="community.topup">Top-Up &amp; Currency</h4><p data-i18n="community.topup_d">Robux · UX · Diamonds болон бусад тоглоомын currency-ээр цэнэглэлт хийх боломжтой. 💰</p></div>
+        <div class="intro-card"><span class="intro-icon">🎁</span><h4 data-i18n="community.event">Event &amp; Giveaway</h4><p data-i18n="community.event_d">Байнгын Event, Giveaway, Mini Event зохион байгуулагдана. Оролцоод гоё reward-ууд аваарай! 🏆</p></div>
+        <div class="intro-card"><span class="intro-icon">👥</span><h4 data-i18n="community.active">Active Community</h4><p data-i18n="community.active_d">Шинэ хүмүүстэй танилцаж, хамт тоглож, gaming-ээ илүү хөгжилтэй болго. 🔥</p></div>
+      </div>
+      <p class="community-slogan"><strong>AETHER — PLAY. CONNECT. WIN.</strong> 🌌</p>
+    </div>
+
+    <!-- Rules -->
+    <h3 class="community-sub" data-reveal><span class="accent">𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹</span> <span data-i18n="community.rules">OFFICIAL SERVER RULES</span></h3>
+    <div class="rules-grid" data-reveal>
+      <div class="rule-card"><span class="rule-num">01</span><h4 data-i18n="rule.r1t">RESPECT</h4><p data-i18n="rule.r1">Бүх гишүүд бие биедээ хүндэтгэлтэй хандана. Доромжлол, harassment, сүрдүүлэг, үзэн ядалт, ялгаварлан гадуурхал болон бусдыг санаатайгаар өдөөн хатгах үйлдэл хориотой.</p></div>
+      <div class="rule-card"><span class="rule-num">02</span><h4 data-i18n="rule.r2t">PRIVACY</h4><p data-i18n="rule.r2">Бусдын хувийн мэдээллийг зөвшөөрөлгүй нийтлэх, тараах, хадгалах болон ашиглахыг хориглоно. Doxxing, malicious link, scam link болон зөвшөөрөлгүй invite мөн адил хориотой.</p></div>
+      <div class="rule-card"><span class="rule-num">03</span><h4 data-i18n="rule.r3t">SAFETY</h4><p data-i18n="rule.r3">Насанд хүрээгүй гишүүдийг аливаа хэлбэрээр ашиглах, дарамтлах, заналхийлэх болон эрсдэлтэй нөхцөлд оруулахыг хатуу хориглоно.</p></div>
+      <div class="rule-card"><span class="rule-num">04</span><h4 data-i18n="rule.r4t">CONTENT</h4><p data-i18n="rule.r4">Серверийн бүх орчин Family Friendly байна. NSFW, pornography, sexual content, explicit зураг/бичлэг болон зохисгүй материал нийтлэхгүй.</p></div>
+      <div class="rule-card"><span class="rule-num">05</span><h4 data-i18n="rule.r5t">CHAT</h4><p data-i18n="rule.r5">Spam, flood, unnecessary tagging, begging, хэрүүл маргаан, passive-aggressive харилцаа гаргахгүй. Улс төр, шашин зэрэг маргаантай сэдвийг серверт өдөөхгүй.</p></div>
+      <div class="rule-card"><span class="rule-num">06</span><h4 data-i18n="rule.r6t">ROLEPLAY</h4><p data-i18n="rule.r6">Discord сервер дээр RP хийхгүй. RP нь зөвхөн тоглоомын орчинд явагдана. Тоглоомын маргааныг Discord дээр хувийн зөрчил болгон үргэлжлүүлэхийг хориглоно.</p></div>
+      <div class="rule-card"><span class="rule-num">07</span><h4 data-i18n="rule.r7t">CHANNELS</h4><p data-i18n="rule.r7">Суваг бүр өөрийн зориулалттай. Контент, advertisement, self-promotion болон бусад мэдээллийг зөвхөн тохирох channel-д байршуулна.</p></div>
+      <div class="rule-card"><span class="rule-num">08</span><h4 data-i18n="rule.r8t">STAFF</h4><p data-i18n="rule.r8">Админ болон Moderator-ийн шийдвэрийг хүндэтгэнэ. Дүрмийн loophole ашиглах, шийтгэлээс бултах болон Staff-ийн ажлыг саатуулахыг хориглоно.</p></div>
+    </div>
+
+    <!-- Punishment -->
+    <h3 class="community-sub" data-reveal>⚔️ <span class="accent" data-i18n="community.punish">Шийтгэлийн систем</span></h3>
+    <div class="punish-wrap" data-reveal>
+      <div class="punish-track">
+        <div class="punish-step"><span class="punish-warn">01 WARN</span><span class="punish-act">⚠️ Warning</span></div>
+        <div class="punish-step"><span class="punish-warn">02 WARN</span><span class="punish-act">🔇 2h Mute</span></div>
+        <div class="punish-step"><span class="punish-warn">04 WARN</span><span class="punish-act">🔇 6h Mute</span></div>
+        <div class="punish-step"><span class="punish-warn">06 WARN</span><span class="punish-act">🔇 9h Mute</span></div>
+        <div class="punish-step"><span class="punish-warn">08 WARN</span><span class="punish-act">🔇 12h Mute</span></div>
+        <div class="punish-step"><span class="punish-warn">10 WARN</span><span class="punish-act">🔇 24h Mute</span></div>
+        <div class="punish-step punish-ban"><span class="punish-warn">12 WARN</span><span class="punish-act">🔨 Permanent Ban</span></div>
+      </div>
+      <p class="punish-note"><strong data-i18n="community.punish_imp">IMPORTANT:</strong> <span data-i18n="community.punish_note">Rules are not optional. Зөрчлийн хэмжээ болон нөхцөл байдлаас хамааран Staff Team нь дээрх дарааллыг алгасаж, шууд тохирох арга хэмжээ авах эрхтэй.</span> <em>Respect the community. Follow the rules. Enjoy 𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹.</em></p>
+    </div>
+
+    <!-- Staff -->
+    <h3 class="community-sub" data-reveal data-i18n="community.staff_title">AETHER — STAFF-ИЙН <span class="accent">ТАНИЛЦУУЛГА</span></h3>
+    <div class="community-intro" data-reveal style="max-width:900px; margin:0 auto 32px; text-align:center;">
+      <p data-i18n="community.staff_intro">🪽 <strong>AETHER COMMUNITY</strong> — AETHER нь Roblox-ийн төрөл бүрийн тоглоом сонирхдог тоглогчдыг нэг дор цуглуулж, хамтдаа тоглох, чатлах, шинэ найз нөхөдтэй болох зорилготойгоор байгуулагдсан Discord сервер. Серверийг анх <strong>@Vortex | 虚空</strong> санаачлан байгуулж, цаашид найдвартай, идэвхтэй гишүүдийг staff-ийн багт авч хамтран хөгжүүлж байна.</p>
+    </div>
+    <div class="staff-grid" data-reveal>
+      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/vortex.png" alt="Vortex" loading="lazy"/></div><span class="staff-role role-founder">FOUNDER / OWNER</span><h4>Vortex | 虚空</h4><span class="staff-uname">discord: @vortex_1269</span><div class="staff-desc"><p data-i18n="staff.vortex">Vortex бол AETHER-ийг анх санаачилж, үүсгэн байгуулсан хүн. 0-ээс эхлүүлж өдөр бүр өөрөө хөгжүүлж ирсэн. Үндсэн санаа, зохион байгуулалт, дүрэм болон эцсийн шийдвэрүүдийг удирдан явуулдаг.</p><a class="staff-profile" href="https://discord.com/users/1269304623135457281" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
+      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/irla.png" alt="Irla" loading="lazy"/></div><span class="staff-role role-coowner">CO-OWNER</span><h4>Irla</h4><span class="staff-uname">discord: @irlabug</span><div class="staff-desc"><p data-i18n="staff.irla">AETHER-ийн удирдлагын багийн гол гишүүд. Server-ийн зохион байгуулалт, staff-ийн үйл ажиллагаа болон community-ийн хөгжлийг Vortex-той хамтран хариуцдаг. Идэвх, хариуцлагаараа Co-Owner болсон.</p><a class="staff-profile" href="https://discord.com/users/1294315450355941471" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
+      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/aferrz.png" alt="Aferrz" loading="lazy"/></div><span class="staff-role role-coowner">CO-OWNER</span><h4>Aferrz</h4><span class="staff-uname">discord: @aferrz</span><div class="staff-desc"><p data-i18n="staff.aferrz">Дээд удирдлагын багт багтдаг. Server-ийн management, staff-ийн зохион байгуулалт болон community-ийн хэвийн үйл ажиллагаанд Owner-той хамтран ажилладаг.</p><a class="staff-profile" href="https://discord.com/users/1264431949351485583" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
+      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/aiku.png" alt="Aiku" loading="lazy"/></div><span class="staff-role role-admin">ADMIN</span><h4>Aiku</h4><span class="staff-uname">discord: @aaayq_</span><div class="staff-desc"><p data-i18n="staff.aiku">Өдөр тутмын үйл ажиллагааг хариуцдаг Administrator. Server-ийн зохион байгуулалт, дүрэм хэрэгжүүлэх, staff болон members-тэй холбоотой асуудлыг шийдвэрлэхэд оролцоно.</p><a class="staff-profile" href="https://discord.com/users/1303208774487511100" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
+      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/bakuna.png" alt="Bakuna" loading="lazy"/></div><span class="staff-role role-mod">MODERATOR</span><h4>Bakuna</h4><span class="staff-uname">discord: @eggland_09653</span><div class="staff-desc"><p data-i18n="staff.bakuna">Community болон chat-ийн хэвийн орчныг хамгаалах үүрэгтэй Moderator. Гишүүдийн хоорондын харилцааг зохицуулах, серверийн дүрмийг мөрдүүлэхэд тусалдаг.</p><a class="staff-profile" href="https://discord.com/users/1389059584919863357" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
+      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/aiken.png" alt="Aiken" loading="lazy"/></div><span class="staff-role role-mod">MODERATOR</span><h4>Aiken</h4><span class="staff-uname">discord: @amraabn.</span><div class="staff-desc"><p data-i18n="staff.aiken">Moderation team-ийн нэг хэсэг. Гишүүдэд тав тухтай, найрсаг орчин бүрдүүлэх, chat болон server-ийн дүрэм журмыг сахиулах, staff team-д туслах үүрэгтэй.</p><a class="staff-profile" href="https://discord.com/users/1109125727988748411" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
+    </div>
+  </section>
+
+  <!-- ================= ABOUT US ================= -->
   <section class="about" id="about">
     <div class="section-head">
-      <div class="section-tag">БИДНИЙ ТУХАЙ</div>
+      <div class="section-tag" data-i18n="about.tag">БИДНИЙ ТУХАЙ</div>
       <h2 class="section-title">About <span class="accent">Us</span></h2>
     </div>
     <div class="about-layout">
       <div class="about-text" data-reveal>
-        <h3>Юугаараа онцлог вэ?</h3>
-        <p>
-          <strong>𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ</strong> нь Монгол серверүүдэд зориулж бүтээгдсэн бүрэн эрхтэй
-          Discord бот юм. Япон "蒼穹" (цэнхэр тэнгэр) гэдэг нэрэн дор бид Discord-ийг
-          зөвхөн чат биш — амьд эдийн засагтай, тоглоомтой, гэр бүлтэй нийгэмлэг болгож байна.
-        </p>
-        <p>
-          Supabase (PostgreSQL) дээр суурилсан бат бөх backend, discord.py 2.x-ийн
-          сүүлийн хувилбар, 29 тусгай cog — бүгд нэгдмэл системээр ажиллана.
-          Мөнгөний систем, гэрлэл, mafia, хувьцааны зах зээл — бүгд нэг ботонд.
-        </p>
-        <div class="about-stats-row">
+        <h3 data-i18n="about.q">Юугаараа онцлог вэ?</h3>
+        <p data-i18n="about.p1"><strong>𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹</strong> нь Монгол серверүүдэд зориулж бүтээгдсэн бүрэн эрхтэй Discord бот юм. Япон "蒼穹" (цэнхэр тэнгэр) гэдэг нэрэн дор бид Discord-ийг зөвхөн чат биш — амьд эдийн засагтай, тоглоомтой, гэр бүлтэй нийгэмлэг болгож байна.</p>
+        <p data-i18n="about.p2">Supabase (PostgreSQL) дээр суурилсан бат бөх backend, discord.py 2.x-ийн сүүлийн хувилбар, 29 тусгай cog — бүгд нэгдмэл системээр ажиллана. Мөнгөний систем, гэрлэл, mafia, хувьцааны зах зээл — бүгд нэг ботонд.</p>
+        <div class="about-stats">
           <div class="as-item"><span class="as-num">100%</span><span class="as-label">Монгол UI</span></div>
           <div class="as-item"><span class="as-num">0</span><span class="as-label">Алдааны мэдэгдэл</span></div>
           <div class="as-item"><span class="as-num">29/29</span><span class="as-label">Cog ачаалалт</span></div>
@@ -310,7 +379,7 @@
     </div>
   </section>
 
-  <!-- PREMIUM -->
+  <!-- ================= PREMIUM ================= -->
   <section class="premium" id="premium">
     <div class="section-head">
       <div class="section-tag">PREMIUM</div>
@@ -366,10 +435,10 @@
     <p class="premium-note" data-i18n="premium.note">🚧 Premium систем одоогоор боловсруулагдаж байна. Бэлэн болоход танд Discord дамжуулан мэдэгдэнэ. Одоогоор бүх үндсэн командууд <strong>ҮНЭГҮЙ</strong>.</p>
   </section>
 
-  <!-- FAQ -->
+  <!-- ================= FAQ ================= -->
   <section class="faq" id="faq">
     <div class="section-head">
-      <div class="section-tag">ТҮЛХЭЦ</div>
+      <div class="section-tag" data-i18n="faq.tag">ТҮЛХЭЦ</div>
       <h2 class="section-title"><span data-i18n="faq.title1">Түгээмэл</span> <span class="accent" data-i18n="faq.title2">асуултууд</span></h2>
     </div>
     <div class="faq-grid">
@@ -387,7 +456,7 @@
       </details>
       <details class="faq-item" data-reveal>
         <summary><span data-i18n="faq.q4">Бот 24/7 ажилладаг уу?</span></summary>
-        <p><span data-i18n="faq.a4">Тийм ээ — Supabase backend дээр heartbeat системээр ажилладаг. Энэ вэбсайтын “Ботын төлөв” хэсгээс жинхэнэ цаг хугацааны Online/Offline төлөвийг харж болно.</span></p>
+        <p><span data-i18n="faq.a4">Тийм ээ — Supabase backend дээр heartbeat системээр ажилладаг. Энэ вэбсайтын "Ботын төлөв" хэсгээс жинхэнэ цаг хугацааны Online/Offline төлөвийг харж болно.</span></p>
       </details>
       <details class="faq-item" data-reveal>
         <summary><span data-i18n="faq.q5">Өгөгдөл хадгалагддаг уу?</span></summary>
@@ -404,76 +473,7 @@
     </div>
   </section>
 
-  <!-- AETHER COMMUNITY -->
-  <section class="community" id="community">
-    <div class="section-head" data-reveal>
-      <span class="eyebrow">DISCORD SERVER</span>
-      <h2>Албан ёсны <span class="accent">AETHER</span> сервер</h2>
-      <p class="section-sub">🌌 AETHER SERVER — YOUR GAMING COMMUNITY<br/>Төрөл бүрийн тоглоом · Active Community · Endless Events</p>
-    </div>
-
-    <!-- Logo -->
-    <div class="community-logo-wrap" data-reveal>
-      <img src="assets/aether_logo.png" alt="AETHER logo" class="community-logo" loading="lazy" onerror="this.dataset.failed='1'"/>
-      <span class="community-logo-fallback">蒼穹</span>
-    </div>
-
-    <!-- Server intro -->
-    <div class="community-intro" data-reveal>
-      <p>Aether бол зөвхөн Roblox сервер биш — төрөл бүрийн тоглоом сонирхдог хүмүүс нэг дор цугладаг gaming community ⚡</p>
-      <div class="intro-grid">
-        <div class="intro-card"><span class="intro-icon">🎮</span><h4>Gaming</h4><p>Roblox болон бусад олон төрлийн тоглоом тоглож, найзуудтайгаа хамт хөгжилдөөрэй.</p></div>
-        <div class="intro-card"><span class="intro-icon">💎</span><h4>Top-Up &amp; Currency</h4><p>Robux · UX · Diamonds болон бусад тоглоомын currency-ээр цэнэглэлт хийх боломжтой. 💰</p></div>
-        <div class="intro-card"><span class="intro-icon">🎁</span><h4>Event &amp; Giveaway</h4><p>Байнгын Event, Giveaway, Mini Event зохион байгуулагдана. Оролцоод гоё reward-ууд аваарай! 🏆</p></div>
-        <div class="intro-card"><span class="intro-icon">👥</span><h4>Active Community</h4><p>Шинэ хүмүүстэй танилцаж, хамт тоглож, gaming-ээ илүү хөгжилтэй болго. 🔥</p></div>
-      </div>
-      <p class="community-slogan"><strong>AETHER — PLAY. CONNECT. WIN.</strong> 🌌</p>
-    </div>
-
-    <!-- Rules -->
-    <h3 class="community-sub" data-reveal><span class="accent">𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹</span> OFFICIAL SERVER RULES</h3>
-    <div class="rules-grid" data-reveal>
-      <div class="rule-card"><span class="rule-num">01</span><h4>RESPECT</h4><p>Бүх гишүүд бие биедээ хүндэтгэлтэй хандана. Доромжлол, harassment, сүрдүүлэг, үзэн ядалт, ялгаварлан гадуурхал болон бусдыг санаатайгаар өдөөн хатгах үйлдэл хориотой.</p></div>
-      <div class="rule-card"><span class="rule-num">02</span><h4>PRIVACY</h4><p>Бусдын хувийн мэдээллийг зөвшөөрөлгүй нийтлэх, тараах, хадгалах болон ашиглахыг хориглоно. Doxxing, malicious link, scam link болон зөвшөөрөлгүй invite мөн адил хориотой.</p></div>
-      <div class="rule-card"><span class="rule-num">03</span><h4>SAFETY</h4><p>Насанд хүрээгүй гишүүдийг аливаа хэлбэрээр ашиглах, дарамтлах, заналхийлэх болон эрсдэлтэй нөхцөлд оруулахыг хатуу хориглоно.</p></div>
-      <div class="rule-card"><span class="rule-num">04</span><h4>CONTENT</h4><p>Серверийн бүх орчин Family Friendly байна. NSFW, pornography, sexual content, explicit зураг/бичлэг болон зохисгүй материал нийтлэхгүй.</p></div>
-      <div class="rule-card"><span class="rule-num">05</span><h4>CHAT</h4><p>Spam, flood, unnecessary tagging, begging, хэрүүл маргаан, passive-aggressive харилцаа гаргахгүй. Улс төр, шашин зэрэг маргаантай сэдвийг серверт өдөөхгүй.</p></div>
-      <div class="rule-card"><span class="rule-num">06</span><h4>ROLEPLAY</h4><p>Discord сервер дээр RP хийхгүй. RP нь зөвхөн тоглоомын орчинд явагдана. Тоглоомын маргааныг Discord дээр хувийн зөрчил болгон үргэлжлүүлэхийг хориглоно.</p></div>
-      <div class="rule-card"><span class="rule-num">07</span><h4>CHANNELS</h4><p>Суваг бүр өөрийн зориулалттай. Контент, advertisement, self-promotion болон бусад мэдээллийг зөвхөн тохирох channel-д байршуулна.</p></div>
-      <div class="rule-card"><span class="rule-num">08</span><h4>STAFF</h4><p>Админ болон Moderator-ийн шийдвэрийг хүндэтгэнэ. Дүрмийн loophole ашиглах, шийтгэлээс бултах болон Staff-ийн ажлыг саатуулахыг хориглоно.</p></div>
-    </div>
-
-    <!-- Punishment -->
-    <h3 class="community-sub" data-reveal>⚔️ <span class="accent">PUNISHMENT SYSTEM</span></h3>
-    <div class="punish-wrap" data-reveal>
-      <div class="punish-track">
-        <div class="punish-step"><span class="punish-warn">01 WARN</span><span class="punish-act">⚠️ Warning</span></div>
-        <div class="punish-step"><span class="punish-warn">02 WARN</span><span class="punish-act">🔇 2h Mute</span></div>
-        <div class="punish-step"><span class="punish-warn">04 WARN</span><span class="punish-act">🔇 6h Mute</span></div>
-        <div class="punish-step"><span class="punish-warn">06 WARN</span><span class="punish-act">🔇 9h Mute</span></div>
-        <div class="punish-step"><span class="punish-warn">08 WARN</span><span class="punish-act">🔇 12h Mute</span></div>
-        <div class="punish-step"><span class="punish-warn">10 WARN</span><span class="punish-act">🔇 24h Mute</span></div>
-        <div class="punish-step punish-ban"><span class="punish-warn">12 WARN</span><span class="punish-act">🔨 Permanent Ban</span></div>
-      </div>
-      <p class="punish-note"><strong>IMPORTANT:</strong> Rules are not optional. Зөрчлийн хэмжээ болон нөхцөл байдлаас хамааран Staff Team нь дээрх дарааллыг алгасаж, шууд тохирох арга хэмжээ авах эрхтэй. <em>Respect the community. Follow the rules. Enjoy 𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹.</em></p>
-    </div>
-
-    <!-- Staff -->
-    <h3 class="community-sub" data-reveal>AETHER — STAFF-ИЙН <span class="accent">ТАНИЛЦУУЛГА</span></h3>
-    <div class="community-intro" data-reveal style="max-width:900px; margin:0 auto 32px; text-align:center;">
-      <p>🪽 <strong>AETHER COMMUNITY</strong> — AETHER нь Roblox-ийн төрөл бүрийн тоглоом сонирхдог тоглогчдыг нэг дор цуглуулж, хамтдаа тоглох, чатлах, шинэ найз нөхөдтэй болох зорилготойгоор байгуулагдсан Discord сервер. Серверийг анх <strong>@Vortex | 虚空</strong> санаачлан байгуулж, цаашид найдвартай, идэвхтэй гишүүдийг staff-ийн багт авч хамтран хөгжүүлж байна.</p>
-    </div>
-    <div class="staff-grid" data-reveal>
-      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/vortex.png" alt="Vortex" loading="lazy"/></div><span class="staff-role role-founder">FOUNDER / OWNER</span><h4>Vortex | 虚空</h4><span class="staff-uname">discord: @vortex_1269</span><div class="staff-desc"><p>Vortex бол AETHER-ийг анх санаачилж, үүсгэн байгуулсан хүн. 0-ээс эхлүүлж өдөр бүр өөрөө хөгжүүлж ирсэн. Үндсэн санаа, зохион байгуулалт, дүрэм болон эцсийн шийдвэрүүдийг удирдан явуулдаг.</p><a class="staff-profile" href="https://discord.com/users/1269304623135457281" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
-      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/irla.png" alt="Irla" loading="lazy"/></div><span class="staff-role role-coowner">CO-OWNER</span><h4>Irla</h4><span class="staff-uname">discord: @irlabug</span><div class="staff-desc"><p>AETHER-ийн удирдлагын багийн гол гишүүд. Server-ийн зохион байгуулалт, staff-ийн үйл ажиллагаа болон community-ийн хөгжлийг Vortex-той хамтран хариуцдаг. Идэвх, хариуцлагаараа Co-Owner болсон.</p><a class="staff-profile" href="https://discord.com/users/1294315450355941471" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
-      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/aferrz.png" alt="Aferrz" loading="lazy"/></div><span class="staff-role role-coowner">CO-OWNER</span><h4>Aferrz</h4><span class="staff-uname">discord: @aferrz</span><div class="staff-desc"><p>Дээд удирдлагын багт багтдаг. Server-ийн management, staff-ийн зохион байгуулалт болон community-ийн хэвийн үйл ажиллагаанд Owner-той хамтран ажилладаг.</p><a class="staff-profile" href="https://discord.com/users/1264431949351485583" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
-      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/aiku.png" alt="Aiku" loading="lazy"/></div><span class="staff-role role-admin">ADMIN</span><h4>Aiku</h4><span class="staff-uname">discord: @aaayq_</span><div class="staff-desc"><p>Өдөр тутмын үйл ажиллагааг хариуцдаг Administrator. Server-ийн зохион байгуулалт, дүрэм хэрэгжүүлэх, staff болон members-тэй холбоотой асуудлыг шийдвэрлэхэд оролцоно.</p><a class="staff-profile" href="https://discord.com/users/1303208774487511100" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
-      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/bakuna.png" alt="Bakuna" loading="lazy"/></div><span class="staff-role role-mod">MODERATOR</span><h4>Bakuna</h4><span class="staff-uname">discord: @eggland_09653</span><div class="staff-desc"><p>Community болон chat-ийн хэвийн орчныг хамгаалах үүрэгтэй Moderator. Гишүүдийн хоорондын харилцааг зохицуулах, серверийн дүрмийг мөрдүүлэхэд тусалдаг.</p><a class="staff-profile" href="https://discord.com/users/1389059584919863357" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
-      <div class="staff-card" tabindex="0"><div class="staff-avatar"><img src="assets/staff/aiken.png" alt="Aiken" loading="lazy"/></div><span class="staff-role role-mod">MODERATOR</span><h4>Aiken</h4><span class="staff-uname">discord: @amraabn.</span><div class="staff-desc"><p>Moderation team-ийн нэг хэсэг. Гишүүдэд тав тухтай, найрсаг орчин бүрдүүлэх, chat болон server-ийн дүрэм журмыг сахиулах, staff team-д туслах үүрэгтэй.</p><a class="staff-profile" href="https://discord.com/users/1109125727988748411" target="_blank" rel="noopener">🔗 Discord профиль</a></div></div>
-    </div>
-  </section>
-
-  <!-- INVITE CTA -->
+  <!-- ================= INVITE CTA ================= -->
   <section class="invite" id="invite">
     <div class="invite-card" data-tilt>
       <div class="invite-orb" aria-hidden="true"><div class="invite-orb-glow"></div>🚀</div>
@@ -486,25 +486,25 @@
     </div>
   </section>
 
-  <!-- SCROLL TO TOP -->
-  <button id="scroll-top" aria-label="Дээшээ">↑</button>
-
-  <!-- FOOTER -->
+  <!-- ================= FOOTER ================= -->
   <footer class="footer">
-    <div class="footer-brand">𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 <span>•</span> <span data-i18n="footer.brand">Монгол Discord бот</span></div>
+    <div class="footer-brand">𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 <span>•</span> <span data-i18n="footer.brand">Монгол Discord бот &amp; AETHER gaming community</span></div>
     <div class="footer-links">
       <a href="#features" data-i18n="nav.features">Онцлогууд</a>
       <a href="#commands" data-i18n="nav.commands">Командууд</a>
-      <a href="#premium">Premium</a>
       <a href="#community">Community</a>
+      <a href="#premium">Premium</a>
       <a href="#faq" data-i18n="footer.faq">Асуулт хариулт</a>
       <a href="https://github.com/ZERO1zx1/gurtendev" target="_blank" rel="noopener">GitHub</a>
     </div>
-    <div class="footer-copy"><span data-i18n="footer.copy">© 2026 𝓐𝓮𝓽𝓱𝓮𝓻  蒼Қ. Бүх эрх хуулиар хамгаалагдсан.</span></div>
+    <div class="footer-copy"><span data-i18n="footer.copy">© 2026 𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹. Бүх эрх хуулиар хамгаалагдсан.</span></div>
   </footer>
+
+  <!-- SCROLL TO TOP -->
+  <button id="scroll-top" aria-label="Дээшээ">↑</button>
 
   <script src="js/config.js?v=6"></script>
   <script src="js/commands.js?v=9"></script>
-  <script src="js/app.js?v=13"></script>
+  <script src="js/app.js?v=14"></script>
 </body>
 </html>
