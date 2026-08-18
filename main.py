@@ -66,7 +66,7 @@ class MyBot(commands.Bot):
             "admin", "avatar_check", "cafe", "carts", "confessions",
             "counting", "economy", "fun", "games", "giveaway",
             "help", "invite_tracker", "leveling", "mafia", "mines",
-            "moderation", "pvp", "roles", "shop", "stock",
+            "lang", "moderation", "pvp", "roles", "shop", "stock",
             "stick", "marriage", "announcement", "tempvoice", "trade",
             "quests", "leaderboard", "casino", "greetings"
         ]

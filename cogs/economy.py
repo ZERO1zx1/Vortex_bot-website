@@ -5,6 +5,7 @@ from discord.ext import commands
 from discord import app_commands
 from discord.ui import View, Button, Modal, TextInput
 from utils.supabase_cog import SupabaseCog
+from utils import i18n
 import random
 import time
 import asyncio
@@ -325,7 +326,9 @@ class Economy(SupabaseCog):
         if last and now - last < 86400:
             rem = 86400 - (now-last)
             h, m, s = rem//3600, (rem%3600)//60, rem%60
-            return await ctx.send(embed=discord.Embed(title="⏰ ӨДРИЙН УРАМШУУЛАЛ АВСАН", description=f"Дараагийн урамшуулал {h}ц {m}м {s}с дараа", color=WARNING_COLOR))
+            lang = await i18n.get_guild_lang(ctx.guild.id)
+            time_left = f"{h}ч {m}м {s}с" if lang == "mn" else f"{h}h {m}m {s}s"
+            return await ctx.send(embed=discord.Embed(title="⏰ Daily", description=i18n.t_direct(lang, "economy.daily.already", time_left=time_left), color=WARNING_COLOR))
         reward = random.randint(DAILY_MIN, DAILY_MAX)
         await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_daily": now})
         await self.update_balance(ctx.author.id, ctx.guild.id, reward)
@@ -333,15 +336,16 @@ class Economy(SupabaseCog):
         if leveling:
             try: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(5, 10), member=ctx.author, check_mute=True, channel=ctx.channel)
             except: pass
+        lang = await i18n.get_guild_lang(ctx.guild.id)
         embed = discord.Embed(
-            title="🎉 ӨДРИЙН УРАМШУУЛАЛ!",
-            description=f"{ctx.author.mention} та өнөөдрийн урамшуулал авлаа.",
+            title="🎉 Daily Reward",
+            description=i18n.t_direct(lang, "economy.daily.success", amount=reward),
             color=SUCCESS_COLOR,
             timestamp=datetime.now(timezone.utc)
         )
-        embed.add_field(name="💰 Шагнал", value=f"+ **{reward:,}** ₮")
+        embed.add_field(name=i18n.t_direct(lang, "economy.daily.reward_field", mn="💰 Шагнал", en="💰 Reward"), value=f"+ **{reward:,}** ₮")
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
-        embed.set_footer(text="Дараагийн урамшуулал 24 цагийн дараа")
+        embed.set_footer(text=i18n.t_direct(lang, "economy.daily.footer", mn="Дараагийн урамшуулал 24 цагийн дараа", en="Next reward in 24 hours"))
         await ctx.send(embed=embed)
 
     @commands.command(name='crime')
