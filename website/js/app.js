@@ -352,3 +352,114 @@ document.querySelectorAll('[data-tilt]').forEach(el => {
   }, { passive: true });
   btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 })();
+
+/* ---------------- Language switcher: MN / EN ---------------- */
+const AETHER_I18N = {
+  mn: {
+    'nav.features': 'Онцлогууд',
+    'nav.commands': 'Командууд',
+    'nav.stats': 'Статистик',
+    'hero.badge': '🇲🇳 Монгол Discord бот',
+    'hero.subtitle': 'Эдийн засаг, түвшин, гэрлэл, дэлгүүр, тоглоом, модерац — бүгдийг нэг ботонд. Таны серверийг амьд болго.',
+    'hero.viewCommands': 'Командууд үзэх',
+    'hero.tags1': 'Slash + Text команд',
+    'features.tag': 'ОНЦЛОГ ФУНКЦҮҮД',
+    'features.title1': 'Бүгд нэг дор.',
+    'commands.tag': 'КОМАНДУУД',
+    'commands.title2': 'команд',
+    'stats.tag': 'СТАТИСТИК',
+    'stats.title1': 'Тоогоор',
+    'stats.title2': 'хэлбэл',
+    'stats.cmd': 'Команд (44 slash / 74 text)',
+    'stats.tables': 'Database таблиц',
+    'status.sub': '24/7 ажилладаг, Supabase дээр суурилсан бат бөх backend',
+    'premium.title1': 'Дээд түвшний',
+    'premium.title2': 'эрх',
+    'premium.soon': 'Удахгүй',
+    'premium.note': '🚧 Premium систем одоогоор боловсруулагдаж байна. Бэлэн болоход танд Discord дамжуулан мэдэгдэнэ. Одоогоор бүх үндсэн командууд <strong>ҮНЭГҮЙ</strong>.',
+    'faq.title1': 'Түгээмэл',
+    'faq.title2': 'асуултууд',
+    'invite.title1': 'Серверээ',
+    'invite.title2': 'амьдруулъя',
+    'invite.sub': 'Нэг даралтаар нэмээд, өнөөдрөөс эхлүүл.',
+    'invite.btn': 'Server-т элсэх',
+    'footer.brand': 'Монгол Discord бот',
+    'footer.faq': 'Асуулт хариулт',
+    'footer.copy': '© 2026 𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ. Бүх эрх хуулиар хамгаалагдсан.',
+    'heartbeat.checking': 'Ботын жинхэнэ төлөвийг шалгаж байна…',
+    'heartbeat.now': 'Сүүлд онлайн байсан: саяхан',
+    'heartbeat.ago': 'Сүүлд онлайн байсан: {since} ({time})',
+    'heartbeat.off': 'Бот одоогоор унтарсан байна',
+    'heartbeat.up': 'Бот {since} асаагдсан · сүүлд: {time}',
+  },
+  en: {
+    'nav.features': 'Features',
+    'nav.commands': 'Commands',
+    'nav.stats': 'Stats',
+    'hero.badge': '🇲🇳 Mongolian Discord Bot',
+    'hero.subtitle': 'Economy, leveling, marriage, shop, games, moderation — everything in one bot. Bring your server to life.',
+    'hero.viewCommands': 'View commands',
+    'hero.tags1': 'Slash + Text commands',
+    'features.tag': 'FEATURES',
+    'features.title1': 'All in one.',
+    'commands.tag': 'COMMANDS',
+    'commands.title2': 'commands',
+    'stats.tag': 'STATISTICS',
+    'stats.title1': 'By the',
+    'stats.title2': 'numbers',
+    'stats.cmd': 'Commands (44 slash / 74 text)',
+    'stats.tables': 'Database tables',
+    'status.sub': 'Runs 24/7 with a Supabase-backed heartbeat',
+    'premium.title1': 'Top-tier',
+    'premium.title2': 'perks',
+    'premium.soon': 'Coming Soon',
+    'premium.note': '🚧 The Premium system is under development. We will notify you via Discord when it is ready. For now, all core commands are <strong>FREE</strong>.',
+    'faq.title1': 'Frequently',
+    'faq.title2': 'asked questions',
+    'invite.title1': 'Let\u2019s bring your',
+    'invite.title2': 'server to life',
+    'invite.sub': 'One click, done — start today.',
+    'invite.btn': 'Join server',
+    'footer.brand': 'Mongolian Discord bot',
+    'footer.faq': 'FAQ',
+    'footer.copy': '© 2026 𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ. All rights reserved.',
+    'heartbeat.checking': 'Checking real bot status…',
+    'heartbeat.now': 'Last online: just now',
+    'heartbeat.ago': 'Last online: {since} ({time})',
+    'heartbeat.off': 'Bot is currently offline',
+    'heartbeat.up': 'Bot started {since} · last ping: {time}',
+  },
+};
+
+(() => {
+  const applyLang = (lang) => {
+    const dict = AETHER_I18N[lang] || AETHER_I18N.mn;
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const v = dict[el.getAttribute('data-i18n')];
+      if (v !== undefined) el.innerHTML = v;
+    });
+    document.querySelectorAll('.lang-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-lang') === lang);
+    });
+    try { localStorage.setItem('aether-lang', lang); } catch {}
+    // Heartbeat статусын текстүүдийг одоогийн төлөвөөр дахин зурна
+    if (window.__aetherLang === 'en' || window.__aetherLang === 'mn') {
+      // status нь аль хэдийн тогтсон байвал last-seen-ийг зөвхөн шалгах текстээр
+      const ls = document.getElementById('last-seen');
+      if (ls && ls.textContent.includes('…') === false && ls.dataset.ok !== '1') {
+        ls.textContent = dict['heartbeat.checking'];
+      }
+    }
+    window.__aetherLang = lang;
+  };
+  let lang = 'mn';
+  try { lang = localStorage.getItem('aether-lang') || 'mn'; } catch {}
+  const switcher = document.getElementById('lang-switcher');
+  if (switcher) {
+    switcher.querySelectorAll('.lang-btn').forEach(b => {
+      b.addEventListener('click', () => applyLang(b.getAttribute('data-lang')));
+    });
+  }
+  applyLang(lang);
+})();

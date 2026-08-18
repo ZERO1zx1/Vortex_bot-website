@@ -1508,3 +1508,37 @@ body.offline-bot .status-uptime { display: none; }
   .punish-track { flex-wrap: wrap; }
   .punish-step { min-width: calc(50% - 8px); }
 }
+
+/* ---------------- Language switcher MN/EN ---------------- */
+.lang-switcher {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  margin-left: 8px;
+}
+.lang-btn {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 5px 9px;
+  cursor: pointer;
+  transition: color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+.lang-btn:hover { color: var(--accent); }
+.lang-btn.active {
+  color: #0B0B14;
+  background: linear-gradient(135deg, #89B4FA, #94E2D5);
+  box-shadow: 0 0 12px rgba(137, 180, 250, 0.45);
+}
+@media (max-width: 960px) {
+  .lang-switcher { margin: 0; }
+}

@@ -4,11 +4,35 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 — Монгол Discord Бот</title>
-  <meta name="description" content="Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, мафия, модерац болон бусад олон функцтэй Монгол Discord бот." />
+  <meta name="description" content="Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, мафия, модерац — 118 командтай Монгол Discord бот. Economy, leveling, marriage, shop, games, moderation in one bot." />
+  <meta name="keywords" content="Discord bot, Монгол бот, Aether, AETHER, Discord, economy bot, leveling, marriage, moderation, Roblox" />
+  <meta name="author" content="Vortex | 虚空" />
+  <meta name="theme-color" content="#0B0B14" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://zero1zx1.github.io/Vortex/" />
+
+  <!-- Open Graph (Facebook, Discord, LinkedIn) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹" />
+  <meta property="og:title" content="𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Монгол Discord Бот" />
+  <meta property="og:description" content="Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, мафия, модерац — бүгдийг нэг ботонд. 118 команд · 29 cog · 24/7 online." />
+  <meta property="og:url" content="https://zero1zx1.github.io/Vortex/" />
+  <meta property="og:image" content="https://zero1zx1.github.io/Vortex/assets/demo/hero.png" />
+  <meta property="og:image:width" content="1280" />
+  <meta property="og:image:height" content="1024" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Монгол Discord Бот" />
+  <meta name="twitter:description" content="Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, мафия, модерац — бүгдийг нэг ботонд. 118 команд · 29 cog · 24/7 online." />
+  <meta name="twitter:image" content="https://zero1zx1.github.io/Vortex/assets/demo/hero.png" />
+
+  <link rel="icon" type="image/png" href="assets/aether_logo.png" />
+  <link rel="apple-touch-icon" href="assets/aether_logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=10" />
+  <link rel="stylesheet" href="css/style.css?v=11" />
 </head>
 <body>
   <!-- 3D particle canvas -->
@@ -21,12 +45,16 @@
       <span>𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹</span>
     </div>
     <div class="nav-links">
-      <a href="#features">Онцлогууд</a>
-      <a href="#commands">Командууд</a>
-      <a href="#stats">Статистик</a>
+      <a href="#features" data-i18n="nav.features">Онцлогууд</a>
+      <a href="#commands" data-i18n="nav.commands">Командууд</a>
+      <a href="#stats" data-i18n="nav.stats">Статистик</a>
       <a href="#about">About Us</a>
       <a href="#premium">Premium</a>
       <a href="#community">Community</a>
+    </div>
+    <div class="lang-switcher" id="lang-switcher">
+      <button type="button" data-lang="mn" class="lang-btn active">MN</button>
+      <button type="button" data-lang="en" class="lang-btn">EN</button>
     </div>
     <a href="https://discord.gg/Nu8ubdpZ2" class="btn btn-glow nav-invite" target="_blank" rel="noopener">Server-т элсэх</a>
     <button class="nav-burger" id="nav-burger" aria-label="Цэс">
@@ -37,22 +65,21 @@
   <!-- HERO -->
   <section class="hero" id="home">
     <div class="hero-content" data-parallax="0.4">
-      <div class="hero-badge">🇲🇳 Монгол Discord бот</div>
+      <div class="hero-badge" data-i18n="hero.badge">🇲🇳 Монгол Discord бот</div>
       <h1 class="hero-title"><span class="title-orbitron">𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹</span></h1>
       <p class="hero-subtitle">
-        Эдийн засаг, түвшин, гэрлэл, дэлгүүр, тоглоом, модерац —
-        бүгдийг нэг ботонд. Таны серверийг амьд болго.
+        <span data-i18n="hero.subtitle">Эдийн засаг, түвшин, гэрлэл, дэлгүүр, тоглоом, модерац — бүгдийг нэг ботонд. Таны серверийг амьд болго.</span>
       </p>
       <div class="hero-actions">
         <a href="https://discord.gg/Nu8ubdpZ2" class="btn btn-primary" target="_blank" rel="noopener">
           <span class="btn-icon">⚡</span>Server-т элсэх
         </a>
         <a href="#commands" class="btn btn-ghost">
-          <span class="btn-icon">📜</span>Командууд үзэх
+          <span class="btn-icon">📜</span><span data-i18n="hero.viewCommands">Командууд үзэх</span>
         </a>
       </div>
       <div class="hero-tags">
-        <span>29 cog</span><span>Slash + Text команд</span><span>24/7 online</span>
+        <span>29 cog</span><span data-i18n="hero.tags1">Slash + Text команд</span><span>24/7 online</span>
       </div>
     </div>
 
@@ -85,8 +112,8 @@
   <!-- FEATURES -->
   <section class="features" id="features">
     <div class="section-head">
-      <div class="section-tag">ОНЦЛОГ ФУНКЦҮҮД</div>
-      <h2 class="section-title">Бүгд нэг дор. <span class="accent">29 cog.</span></h2>
+      <div class="section-tag" data-i18n="features.tag">ОНЦЛОГ ФУНКЦҮҮД</div>
+      <h2 class="section-title"><span data-i18n="features.title1">Бүгд нэг дор.</span> <span class="accent">29 cog.</span></h2>
     </div>
     <div class="feature-grid">
       <div class="feature-card" data-tilt data-reveal>
@@ -143,8 +170,8 @@
   <!-- COMMANDS -->
   <section class="commands" id="commands">
     <div class="section-head">
-      <div class="section-tag">КОМАНДУУД</div>
-      <h2 class="section-title">118 <span class="accent">команд</span> · 44 slash / 74 text</h2>
+      <div class="section-tag" data-i18n="commands.tag">КОМАНДУУД</div>
+      <h2 class="section-title">118 <span class="accent" data-i18n="commands.title2">команд</span> · 44 slash / 74 text</h2>
     </div>
     <div class="cmd-toolbar">
       <input type="text" id="cmd-search" placeholder="🔎 Команд хайх... (жишээ нь: A!daily, /ban, marry)" />
@@ -165,8 +192,8 @@
   <!-- STATS -->
   <section class="stats" id="stats">
     <div class="section-head">
-      <div class="section-tag">СТАТИСТИК</div>
-      <h2 class="section-title">Тоогоор <span class="accent">хэлбэл</span></h2>
+      <div class="section-tag" data-i18n="stats.tag">СТАТИСТИК</div>
+      <h2 class="section-title"><span data-i18n="stats.title1">Тоогоор</span> <span class="accent" data-i18n="stats.title2">хэлбэл</span></h2>
     </div>
     <div class="stat-grid">
       <div class="stat-card cog" data-tilt data-reveal>
@@ -177,12 +204,12 @@
       <div class="stat-card slash" data-tilt data-reveal>
         <div class="stat-icon">⚡</div>
         <div class="stat-num" data-count="118">0</div>
-        <div class="stat-label">Команд (44 slash / 74 text)</div>
+        <div class="stat-label" data-i18n="stats.cmd">Команд (44 slash / 74 text)</div>
       </div>
       <div class="stat-card db" data-tilt data-reveal>
         <div class="stat-icon">🗄️</div>
         <div class="stat-num" data-count="57">0</div>
-        <div class="stat-label">Database таблиц</div>
+        <div class="stat-label" data-i18n="stats.tables">Database таблиц</div>
       </div>
       <div class="stat-card uptime" data-tilt data-reveal>
         <div class="stat-icon">🕐</div>
@@ -207,7 +234,7 @@
         </div>
         <div class="status-main">
           <div class="status-title">𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ — <span class="online-text" id="online-text">Online</span></div>
-          <div class="status-sub">24/7 ажилладаг, Supabase дээр суурилсан бат бөх backend</div>
+          <div class="status-sub"><span data-i18n="status.sub">24/7 ажилладаг, Supabase дээр суурилсан бат бөх backend</span></div>
           <div class="status-uptime" id="last-seen">Ботын жинхэнэ төлөвийг шалгаж байна…</div>
         </div>
         <div class="status-badge">v1.0</div>
@@ -287,7 +314,7 @@
   <section class="premium" id="premium">
     <div class="section-head">
       <div class="section-tag">PREMIUM</div>
-      <h2 class="section-title">Дээд түвшний <span class="accent">эрх</span> <span class="coming-soon-pill">🚧 Удахгүй</span></h2>
+      <h2 class="section-title"><span data-i18n="premium.title1">Дээд түвшний</span> <span class="accent" data-i18n="premium.title2">эрх</span> <span class="coming-soon-pill">🚧 <span data-i18n="premium.soon">Удахгүй</span></span></h2>
     </div>
     <div class="price-grid">
       <div class="price-card" data-tilt data-reveal>
@@ -336,14 +363,14 @@
         <a href="#premium" class="btn btn-ghost disabled" onclick="return false;">Холбогдох</a>
       </div>
     </div>
-    <p class="premium-note">🚧 Premium систем одоогоор боловсруулагдаж байна. Бэлэн болоход танд Discord дамжуулан мэдэгдэнэ. Одоогоор бүх үндсэн командууд <strong>ҮНЭГҮЙ</strong>.</p>
+    <p class="premium-note" data-i18n="premium.note">🚧 Premium систем одоогоор боловсруулагдаж байна. Бэлэн болоход танд Discord дамжуулан мэдэгдэнэ. Одоогоор бүх үндсэн командууд <strong>ҮНЭГҮЙ</strong>.</p>
   </section>
 
   <!-- FAQ -->
   <section class="faq" id="faq">
     <div class="section-head">
       <div class="section-tag">ТҮЛХЭЦ</div>
-      <h2 class="section-title">Түгээмэл <span class="accent">асуултууд</span></h2>
+      <h2 class="section-title"><span data-i18n="faq.title1">Түгээмэл</span> <span class="accent" data-i18n="faq.title2">асуултууд</span></h2>
     </div>
     <div class="faq-grid">
       <details class="faq-item" data-reveal>
@@ -448,10 +475,10 @@
   <!-- INVITE CTA -->
   <section class="invite" id="invite">
     <div class="invite-card" data-tilt>
-      <h2>Серверээ <span class="accent">амьдруулъя</span></h2>
-      <p>Нэг даралтаар нэмээд, өнөөдрөөс эхлүүл.</p>
+      <h2><span data-i18n="invite.title1">Серверээ</span> <span class="accent" data-i18n="invite.title2">амьдруулъя</span></h2>
+      <p><span data-i18n="invite.sub">Нэг даралтаар нэмээд, өнөөдрөөс эхлүүл.</span></p>
       <a href="https://discord.gg/Nu8ubdpZ2" class="btn btn-primary btn-lg" id="invite-btn" target="_blank" rel="noopener">
-        <span class="btn-icon">🚀</span>Server-т элсэх
+        <span class="btn-icon">🚀</span><span data-i18n="invite.btn">Server-т элсэх</span>
       </a>
     </div>
   </section>
@@ -461,20 +488,20 @@
 
   <!-- FOOTER -->
   <footer class="footer">
-    <div class="footer-brand">𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 <span>•</span> Монгол Discord бот</div>
+    <div class="footer-brand">𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 <span>•</span> <span data-i18n="footer.brand">Монгол Discord бот</span></div>
     <div class="footer-links">
-      <a href="#features">Онцлогууд</a>
-      <a href="#commands">Командууд</a>
+      <a href="#features" data-i18n="nav.features">Онцлогууд</a>
+      <a href="#commands" data-i18n="nav.commands">Командууд</a>
       <a href="#premium">Premium</a>
       <a href="#community">Community</a>
-      <a href="#faq">Асуулт хариулт</a>
+      <a href="#faq" data-i18n="footer.faq">Асуулт хариулт</a>
       <a href="https://github.com/ZERO1zx1/gurtendev" target="_blank" rel="noopener">GitHub</a>
     </div>
-    <div class="footer-copy">© 2026 𝓐𝓮𝓽𝓱𝓮𝓻  蒼Қ. Бүх эрх хуулиар хамгаалагдсан.</div>
+    <div class="footer-copy"><span data-i18n="footer.copy">© 2026 𝓐𝓮𝓽𝓱𝓮𝓻  蒼Қ. Бүх эрх хуулиар хамгаалагдсан.</span></div>
   </footer>
 
   <script src="js/config.js?v=6"></script>
   <script src="js/commands.js?v=7"></script>
-  <script src="js/app.js?v=7"></script>
+  <script src="js/app.js?v=8"></script>
 </body>
 </html>
