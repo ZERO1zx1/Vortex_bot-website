@@ -740,7 +740,7 @@ section {
   text-align: center;
   overflow: hidden;
 }
-.cmd-body { display: flex; flex-direction: column; gap: 0.18rem; }
+.cmd-body { display: flex; flex-direction: column; gap: 0.18rem; min-width: 0; }
 .cmd-card .cmd-name {
   color: var(--cat-color); font-weight: 700; font-family: monospace;
   min-height: 2.2em;
@@ -1268,8 +1268,13 @@ body.offline-bot .status-uptime { display: none; }
 }
 @media (max-width: 700px) {
   .navbar { padding: 0.8rem 1.2rem; }
-  #cmd-search { width: 100%; }
+  #cmd-search { width: 100%; padding: 0.8rem 1.1rem; font-size: 0.86rem; }
   section { padding: 5rem 1.2rem; }
+  /* Mobile command card polish */
+  .cmd-card .cmd-name { font-size: 0.78rem; min-height: 1.9em; }
+  .cmd-card .cmd-body { min-width: 0; }
+  .cmd-card .cmd-cat { white-space: normal; text-align: right; padding: 0.2rem 0.3rem 0.2rem 0.6rem; }
+  .cmd-card .cmd-type { right: 0.5rem; }
   .hero-visual { height: 320px; }
   .orb { width: 200px; height: 200px; }
   .orb-face { font-size: 3.6rem; }
