@@ -130,6 +130,8 @@ DICT: Dict[str, Dict[str, str]] = {
     "status.online": {"mn": "🟢 Online", "en": "🟢 Online"},
     "status.offline": {"mn": "🔴 Offline", "en": "🔴 Offline"},
     "status.title": {"mn": "Ботын төлөв", "en": "Bot status"},
+    # ============ PRESENCE ============
+    "presence.watchers": {"mn": "{count:,} гишүүд", "en": "{count:,} members"},
 }
 
 # ── API ───────────────────────────────────────────────────

@@ -68,7 +68,7 @@ class MyBot(commands.Bot):
             "help", "invite_tracker", "leveling", "mafia", "mines",
             "lang", "moderation", "pvp", "roles", "shop", "stock",
             "stick", "marriage", "announcement", "tempvoice", "trade",
-            "quests", "leaderboard", "casino", "greetings"
+            "quests", "leaderboard", "casino", "greetings", "presence"
         ]
 
         for cog in cogs_to_load:
@@ -103,12 +103,7 @@ class MyBot(commands.Bot):
     async def on_ready(self):
         logger.info("✅ %s is online!", self.user)
         logger.info("📊 Guilds: %d", len(self.guilds))
-        await self.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.playing,
-                name=f"{config.get('prefix', DEFAULT_PREFIX)}help | {BOT_NAME}"
-            )
-        )
+        # Presence is now managed by PresenceCog (rotating activities)
         # Website status heartbeat: ping Supabase every 60s
         self.add_loop(self._heartbeat_loop())
 
