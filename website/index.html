@@ -38,7 +38,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=18" />
+  <link rel="stylesheet" href="css/style.css?v=19" />
 </head>
 <body>
   <!-- Particle canvas: dark/light өнгөтэйгээр JS-д солигдоно -->
@@ -57,6 +57,7 @@
       <a href="#community">Community</a>
       <a href="#stats" data-i18n="nav.stats">Статистик</a>
       <a href="#premium">Premium</a>
+      <a href="#changelog" data-i18n="nav.changelog">Changelog</a>
       <a href="#faq" data-i18n="footer.faq">FAQ</a>
     </div>
     <div class="nav-controls">
@@ -442,6 +443,47 @@
     <p class="premium-note" data-i18n="premium.note">🚧 Premium систем одоогоор боловсруулагдаж байна. Бэлэн болоход танд Discord дамжуулан мэдэгдэнэ. Одоогоор бүх үндсэн командууд <strong>ҮНЭГҮЙ</strong>.</p>
   </section>
 
+  <!-- ================= CHANGELOG ================= -->
+  <section class="changelog" id="changelog">
+    <div class="section-head">
+      <div class="section-tag" data-i18n="cl.tag">ШИНЭЧЛЭЛ</div>
+      <h2 class="section-title"><span data-i18n="cl.title1">Хувилбарын</span> <span class="accent" data-i18n="cl.title2">тэмдэглэл</span></h2>
+    </div>
+    <div class="cl-timeline">
+      <div class="cl-item" data-reveal>
+        <div class="cl-date">2026-08-19</div>
+        <div class="cl-card">
+          <span class="cl-pill new" data-i18n="cl.new">ШИНЭ</span>
+          <h4 data-i18n="cl.v24_t">v2.4 — Reaction roles &amp; Auto-moderation</h4>
+          <p data-i18n="cl.v24_d">Emoji дарж үүрэг авах систем (`/rr setup`), анти-спам, антиссылка, анти-райд хамгаалалт (`/automod`), хэл солиход бүрэн хариу өгөх rotating presence.</p>
+        </div>
+      </div>
+      <div class="cl-item" data-reveal>
+        <div class="cl-date">2026-08-18</div>
+        <div class="cl-card">
+          <span class="cl-pill new">v2.3</span>
+          <h4 data-i18n="cl.v23_t">Бүтэн dark/light горим</h4>
+          <p data-i18n="cl.v23_d">Вэбсайт бүрэн dark/light горимтой болж, шинэ лого болон favicon, OG banner нэмэгдлээ. i18n 217 түлхүүр (MN = EN).</p>
+        </div>
+      </div>
+      <div class="cl-item" data-reveal>
+        <div class="cl-date">2026-08-17</div>
+        <div class="cl-card">
+          <span class="cl-pill fix" data-i18n="cl.fix">ЗАСВАР</span>
+          <h4 data-i18n="cl.v22_t">Mobile бүрэн засвар</h4>
+          <p data-i18n="cl.v22_d">Командын картнууд, badge-ууд, хайлтын input 390px утасны дэлгэцэд бүрэн цэгцтэй болсон. 118 команд бүгдийн MN/EN тайлбартай.</p>
+        </div>
+      </div>
+      <div class="cl-item" data-reveal>
+        <div class="cl-date">2026-08-15</div>
+        <div class="cl-card">
+          <span class="cl-pill new">v2.1</span>
+          <h4 data-i18n="cl.v21_t">Вэбсайт үндэс</h4>
+          <p data-i18n="cl.v21_d">3D хөдөлгөөнт hero, командын каталог (хайлт, filter, modal), live Online/Offline статус, staff ба дүрмийн хэсэг нээгдлээ.</p>
+        </div>
+      </div>
+    </div>
+  </section>
   <!-- ================= FAQ ================= -->
   <section class="faq" id="faq">
     <div class="section-head">
@@ -501,6 +543,7 @@
       <a href="#commands" data-i18n="nav.commands">Командууд</a>
       <a href="#community">Community</a>
       <a href="#premium">Premium</a>
+      <a href="#changelog" data-i18n="nav.changelog">Changelog</a>
       <a href="#faq" data-i18n="footer.faq">Асуулт хариулт</a>
       <a href="https://github.com/ZERO1zx1/gurtendev" target="_blank" rel="noopener">GitHub</a>
     </div>
@@ -512,6 +555,6 @@
 
   <script src="js/config.js?v=6"></script>
   <script src="js/commands.js?v=10"></script>
-  <script src="js/app.js?v=14"></script>
+  <script src="js/app.js?v=20"></script>
 </body>
 </html>

@@ -207,6 +207,41 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   const filters = document.getElementById('cmd-filters');
   let currentCat = 'all';
 
+  /* URL-ээс хайлтын query авах: #commands?q=work эсвэл #commands?cmd=marry */
+  const parseHash = () => (window.location.hash || '').match(/[?&]q=([^&#]+)/i);
+  let m = parseHash();
+  /* Async ачаалалтай үед hash ачаалагдаагүй байж болох тул hashchange-г хүлээнэ */
+  const applyHashSearch = () => {
+    m = parseHash();
+    if (m && search) {
+      const q = decodeURIComponent(m[1]);
+      if (search.value !== q) {
+        search.value = q;
+        render();
+        syncUrl();
+        search.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  };
+  if (m && search) {
+    search.value = decodeURIComponent(m[1]);
+    render();
+    syncUrl();
+    setTimeout(() => search.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+  }
+  window.addEventListener('hashchange', applyHashSearch);
+  /* Хожим hash тогтох боломжтой (async navigation) — 3 удаа шалгана */
+  [400, 1200, 3000].forEach(t => setTimeout(applyHashSearch, t));
+  /* Хайлтыг URL-д тусгах (линк хуваалцах боломжтой) */
+  const syncUrl = () => {
+    if (!search) return;
+    const q = search.value.trim();
+    const url = new URL(window.location.href);
+    if (q) url.hash = 'commands?q=' + encodeURIComponent(q);
+    else if (/^#commands[?&]/.test(window.location.hash)) url.hash = '#commands';
+    history.replaceState(null, '', url.toString());
+  };
+
   function meta(cat) {
     return window.CAT_META?.[cat] || { label: cat, color: '#89B4FA', icon: '🔧' };
   }
@@ -265,7 +300,8 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     </div>`;
   }
 
-  search?.addEventListener('input', render);
+  /* URL-ээс ирсэн query-г input-д оноох (render()-ийн өмнө) */
+  search?.addEventListener('input', () => { render(); syncUrl(); });
   filters?.addEventListener('click', (e) => {
     const btn = e.target.closest('.filter');
     if (!btn) return;
@@ -624,6 +660,21 @@ const AETHER_I18N = {
     'heartbeat.ago': 'Сүүлд онлайн байсан: {since} ({time})',
     'heartbeat.off': 'Бот одоогоор унтарсан байна',
     'heartbeat.up': 'Бот {since} асаагдсан · сүүлд: {time}',
+
+    'nav.changelog': 'Changelog',
+    'cl.tag': 'ШИНЭЧЛЭЛ',
+    'cl.title1': 'Хувилбарын',
+    'cl.title2': 'тэмдэглэл',
+    'cl.new': 'ШИНЭ',
+    'cl.fix': 'ЗАСВАР',
+    'cl.v24_t': 'v2.4 — Reaction roles &amp; Auto-moderation',
+    'cl.v24_d': 'Emoji дарж үүрэг авах систем (`/rr setup`), анти-спам, антиссылка, анти-райд хамгаалалт (`/automod`), хэл солиход бүрэн хариу өгөх rotating presence.',
+    'cl.v23_t': 'Бүтэн dark/light горим',
+    'cl.v23_d': 'Вэбсайт бүрэн dark/light горимтой болж, шинэ лого болон favicon, OG banner нэмэгдлээ. i18n 217 түлхүүр (MN = EN).',
+    'cl.v22_t': 'Mobile бүрэн засвар',
+    'cl.v22_d': 'Командын картнууд, badge-ууд, хайлтын input 390px утасны дэлгэцэд бүрэн цэгцтэй болсон. 118 команд бүгдийн MN/EN тайлбартай.',
+    'cl.v21_t': 'Вэбсайт үндэс',
+    'cl.v21_d': '3D хөдөлгөөнт hero, командын каталог (хайлт, filter, modal), live Online/Offline статус, staff ба дүрмийн хэсэг нээгдлээ.',
   },
   en: {
     'nav.features': 'Features',
@@ -847,6 +898,21 @@ const AETHER_I18N = {
     'heartbeat.ago': 'Last online: {since} ({time})',
     'heartbeat.off': 'Bot is currently offline',
     'heartbeat.up': 'Bot started {since} · last ping: {time}',
+
+    'nav.changelog': 'Changelog',
+    'cl.tag': 'CHANGELOG',
+    'cl.title1': 'Version',
+    'cl.title2': 'history',
+    'cl.new': 'NEW',
+    'cl.fix': 'FIXED',
+    'cl.v24_t': 'v2.4 — Reaction roles &amp; Auto-moderation',
+    'cl.v24_d': 'Emoji-reaction role system (`/rr setup`), anti-spam, anti-link, anti-raid protection (`/automod`), rotating presence with language-aware member count.',
+    'cl.v23_t': 'Full dark/light theme',
+    'cl.v23_d': 'Website now has complete dark/light modes, new logo and favicon set, OG banner. i18n 217 keys (MN = EN).',
+    'cl.v22_t': 'Mobile fully polished',
+    'cl.v22_d': 'Command cards, badges, and search input look clean on 390px phones. All 118 commands have MN/EN descriptions.',
+    'cl.v21_t': 'Website launch',
+    'cl.v21_d': '3D animated hero, command catalog (search, filter, modal), live Online/Offline status, staff and rules section.',
   },
 };
 
