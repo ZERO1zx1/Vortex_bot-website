@@ -106,16 +106,21 @@ class MyBot(commands.Bot):
         logger.info("📊 Guilds: %d", len(self.guilds))
         # Presence is now managed by PresenceCog (rotating activities)
         # Website status heartbeat: ping Supabase every 60s
-        self.add_loop(self._heartbeat_loop())
+        # (add_loop нь commands.Bot-д байхгүй тул create_task ашиглана)
+        asyncio.create_task(self._heartbeat_loop())
 
     async def _heartbeat_loop(self):
         """Send a heartbeat to bot_status so the website shows the real Online/Offline state."""
         try:
-            await self.db_manager.ping_bot("online")
-            logger.info("💓 Heartbeat sent (website status: Online)")
-        except Exception:  # noqa: BLE001
-            logger.warning("⚠️ Failed to send heartbeat")
-        await asyncio.sleep(60)
+            while not self.is_closed():
+                try:
+                    await self.db_manager.ping_bot("online")
+                    logger.info("💓 Heartbeat sent (website status: Online)")
+                except Exception:  # noqa: BLE001
+                    logger.warning("⚠️ Failed to send heartbeat")
+                await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            pass
 
     async def close(self):
         await self.db_manager.close()

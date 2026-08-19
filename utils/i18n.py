@@ -209,6 +209,15 @@ def t_direct(lang: str, key: str, **kwargs: Any) -> str:
     return text
 
 
+def get_guild_lang_sync(guild_id: Any) -> str:
+    """Серверийн хэлийг синхрон авах (in-memory cache; DB-ээс шууд уншихгүй).
+    Embed/listener дотор await боломжгүй үед ашиглана — хэл солигдохоос өмнө
+    хэрэглэж байсан бол cache-аас хүртэл DEFAULT_LANG буцаана."""
+    if guild_id is None:
+        return DEFAULT_LANG
+    return _guild_lang_cache.get(str(guild_id), DEFAULT_LANG)
+
+
 async def get_guild_lang(guild_id: Any) -> str:
     """Supabase-аас серверийн хэлийг авах (in-memory cache-аар түрүүчилнэ)."""
     if guild_id is None:

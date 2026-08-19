@@ -3,17 +3,18 @@
 Хадгалалт: Supabase automod_config хүснэгт (guild_id, feature, enabled)
 i18n: guild lang-аар хариу
 
-v2.4.1 сайжруулалтууд:
-- Anti-raid: crash fix (system_channel=None), автомат timeout арга хэмжээ,
-  deque-based O(N) tracker, хуучин аккаунт (7 хоног<) шүүлт
-- Anti-spam: severity levels (warn → 1m → 10m → kick), memory cleanup
-- Antilink: discord.com/invite regex, allowlist domains/categories
-- Warn embed-үүд 10 сек-ийн дараа автоматаар устгагдана
+v2.5 засварууд:
+- get_guild_lang async дуудлага засагдсан (await)
+- re import module level-д
+- RaidTracker: cooldown дуусахад deque цэвэрлэгдэнэ (memory leak засагдсан)
+- asyncio.get_running_loop() хэрэглэнэ (deprecated loop засагдсан)
+- Severity нэмэлт мөрийн цэвэрлэгээ
 """
+import re
 import time
 import asyncio
 from collections import defaultdict, deque
-from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
+from utils.constants import SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR, INFO_COLOR
 from utils.supabase_cog import SupabaseCog
 from utils.i18n import t_direct, get_guild_lang
 import discord
@@ -24,19 +25,19 @@ TABLE = "automod_config"
 FEATURES = ("antispam", "antilink", "antiraid")
 DEFAULT_ON = ("antispam", "antilink")
 
-URL_RE = r"https?://[^\s]+"
-INVITE_RE = r"discord(?:\.gg|app\.com/invite|com/invite)/[A-Za-z0-9]+"
+URL_RE = re.compile(r"https?://[^\s]+")
+INVITE_RE = re.compile(r"discord(?:\.gg|app\.com/invite|com/invite)/[A-Za-z0-9]+")
 
 # Зөвшөөрөгдсөн domain жагсаалт (antilink-д хасагдахгүй)
 ALLOWED_DOMAINS = {"github.com", "zero1zx1.github.io", "discord.gg", "discord.com"}
 
-# Link хадгагдсан category-ийн нэрс (жишээ нь "💬┊линк-зона", "link-zone")
+# Link зөвшөөрсөн category-ийн нэрний хэсгүүд (жишээ нь "💬┊линк-зона", "link-zone")
 ALLOWED_LINK_CATS = {"линк-зона", "линк", "link", "link-zone", "links"}
 
 # Spam severity: хэд дараалан зөрчсөн → timeout хугацаа (сек). 3+ → kick.
 SPAM_SEVERITY = [60, 600, None]  # 1-р зөрчил 60с, 2-р 10мин, 3-р kick
 
-NEW_ACCOUNT_HOURS = 7 * 24  # 7 хоногоос бага наснтай аккаунт raid шинж гэж үзнэ
+NEW_ACCOUNT_HOURS = 7 * 24  # 7 хоногоос бага насантай аккаунт raid шинж гэж үзнэ
 
 
 class AntiSpamTracker:
@@ -46,8 +47,6 @@ class AntiSpamTracker:
         self.window = window
         self.messages: dict[int, list[float]] = defaultdict(list)
         self.violations: dict[int, int] = defaultdict(int)
-        # Хуучин entry-үүдийг цэвэрлэх (memory leak-ээс сэргийлнэ)
-        self._cleanup_every = 300
 
     def check(self, user_id: int) -> bool:
         now = time.time()
@@ -71,7 +70,7 @@ class AntiSpamTracker:
 
 
 class RaidTracker:
-    """Join давтамж хянах — deque ашиглаж O(N) болгоно (B8 fix)."""
+    """Join давтамж хянах — deque ашиглаж O(N) болгоно."""
     def __init__(self, window=5.0, threshold=10):
         self.window = window
         self.threshold = threshold
@@ -94,9 +93,15 @@ class RaidTracker:
         return [uid for _, uid in dq]
 
     def cooldown_done(self, guild_id: int, delay=120.0):
+        """Cooldown дууссаны дараа acted-ээс хасаж, deque-г цэвэрлэнэ (leak-ээс хамгаална)."""
         def _clear():
             self.acted.discard(guild_id)
-        asyncio.get_event_loop().call_later(delay, _clear)
+            self.joins.pop(guild_id, None)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
+        loop.call_later(delay, _clear)
 
 
 class AutoModeration(SupabaseCog):
@@ -151,7 +156,7 @@ class AutoModeration(SupabaseCog):
     async def automod(self, interaction: discord.Interaction, action: app_commands.Choice[str],
                       feature: app_commands.Choice[str]):
         guild_id = interaction.guild.id
-        lang = get_guild_lang(guild_id)
+        lang = await get_guild_lang(guild_id)
         feats = self.enabled.setdefault(guild_id, set(DEFAULT_ON))
         if action.value == "toggle":
             if feature.value in feats:
@@ -189,8 +194,7 @@ class AutoModeration(SupabaseCog):
             await self._handle_spam(message)
             return
         if self.is_on(guild_id, "antilink"):
-            import re
-            if re.search(URL_RE, message.content) or re.search(INVITE_RE, message.content):
+            if URL_RE.search(message.content) or INVITE_RE.search(message.content):
                 if not self._is_link_allowed(message):
                     await self._handle_link(message)
 
@@ -199,9 +203,10 @@ class AutoModeration(SupabaseCog):
         cat = message.channel.category
         if cat and any(k in cat.name.lower() for k in ALLOWED_LINK_CATS):
             return True
-        import re
-        for url in re.finditer(r"https?://([^\s/]+)", message.content):
-            domain = url.group(1).lower()
+        for url in URL_RE.finditer(message.content):
+            domain = url.group(0)[8:].lower()  # http(s):// хасах
+            # query string-ийг хасах
+            domain = domain.split("/", 1)[0].split("?", 1)[0]
             # subdomain-ийг шалгах: x.github.com → github.com
             parts = domain.split(".")
             if len(parts) >= 3:
@@ -211,7 +216,7 @@ class AutoModeration(SupabaseCog):
         return False
 
     async def _handle_spam(self, message: discord.Message):
-        """Severity levels: warn → 60с → 10мин → kick (B8 fix)."""
+        """Severity levels: warn → 60с → 10мин → kick."""
         level = self.spam.violation(message.author.id)
         reason = "Anti-spam (давтамж зөрчил)"
         try:
@@ -259,13 +264,13 @@ class AutoModeration(SupabaseCog):
         if not self.is_on(member.guild.id, "antiraid"):
             return
         now = time.time()
-        # Хуучин аккаунт (7 хоногоос бага насантай) бол raid шинж гэж үзнэ (I12)
+        # Хуучин аккаунт (7 хоногоос бага насантай) бол raid шинж гэж үзнэ
         if member.created_at and (now - member.created_at.timestamp()) > NEW_ACCOUNT_HOURS * 3600:
             return
         joined_ids = self.raid.add(member.guild.id, member.id)
         if not joined_ids:
             return
-        # Raid илэрсэн: бүгдийг 10 минутын timeout-д оруулна (B7 fix)
+        # Raid илэрсэн: бүгдийг 10 минутын timeout-д оруулна
         try:
             for uid in joined_ids:
                 m = member.guild.get_member(uid)
@@ -273,7 +278,7 @@ class AutoModeration(SupabaseCog):
                     await m.timeout(discord.utils.utcnow(), 600, reason="Anti-raid: масс нэгдэлт")
         except discord.HTTPException:
             pass
-        # Staff-д мэдэгдэх (system_channel байхгүй үед crash-ээс хамгаална — B6 fix)
+        # Staff-д мэдэгдэх (system_channel байхгүй үед crash-ээс хамгаална)
         target = member.guild.system_channel
         if target is not None:
             try:
