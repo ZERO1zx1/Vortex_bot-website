@@ -1,32 +1,53 @@
 """Auto-moderation — анти-спам, антиссылка, анти-райд.
-Тохиргоо: /automod toggle <функц> /automod config <түвшин>
-Хадгалалт: Supabase automod_config хүснэгт (guild_id, feature, enabled, created_at)
+Тохиргоо: /automod toggle <функц> /automod status
+Хадгалалт: Supabase automod_config хүснэгт (guild_id, feature, enabled)
 i18n: guild lang-аар хариу
+
+v2.4.1 сайжруулалтууд:
+- Anti-raid: crash fix (system_channel=None), автомат timeout арга хэмжээ,
+  deque-based O(N) tracker, хуучин аккаунт (7 хоног<) шүүлт
+- Anti-spam: severity levels (warn → 1m → 10m → kick), memory cleanup
+- Antilink: discord.com/invite regex, allowlist domains/categories
+- Warn embed-үүд 10 сек-ийн дараа автоматаар устгагдана
 """
 import time
-import re
-from collections import defaultdict
+import asyncio
+from collections import defaultdict, deque
 from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
 from utils.supabase_cog import SupabaseCog
 from utils.i18n import t_direct, get_guild_lang
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 
 TABLE = "automod_config"
 FEATURES = ("antispam", "antilink", "antiraid")
 DEFAULT_ON = ("antispam", "antilink")
 
-URL_RE = re.compile(r"https?://[^\s]+")
-INVITE_RE = re.compile(r"discord(?:\.gg|app\.com/invite)/[A-Za-z0-9]+")
+URL_RE = r"https?://[^\s]+"
+INVITE_RE = r"discord(?:\.gg|app\.com/invite|com/invite)/[A-Za-z0-9]+"
+
+# Зөвшөөрөгдсөн domain жагсаалт (antilink-д хасагдахгүй)
+ALLOWED_DOMAINS = {"github.com", "zero1zx1.github.io", "discord.gg", "discord.com"}
+
+# Link хадгагдсан category-ийн нэрс (жишээ нь "💬┊линк-зона", "link-zone")
+ALLOWED_LINK_CATS = {"линк-зона", "линк", "link", "link-zone", "links"}
+
+# Spam severity: хэд дараалан зөрчсөн → timeout хугацаа (сек). 3+ → kick.
+SPAM_SEVERITY = [60, 600, None]  # 1-р зөрчил 60с, 2-р 10мин, 3-р kick
+
+NEW_ACCOUNT_HOURS = 7 * 24  # 7 хоногоос бага наснтай аккаунт raid шинж гэж үзнэ
 
 
 class AntiSpamTracker:
-    """Мессежийн давтамж хянах."""
+    """Мессежийн давтамж хянах + зөрчлийн тоо (severity)."""
     def __init__(self, limit=5, window=3.0):
         self.limit = limit
         self.window = window
         self.messages: dict[int, list[float]] = defaultdict(list)
+        self.violations: dict[int, int] = defaultdict(int)
+        # Хуучин entry-үүдийг цэвэрлэх (memory leak-ээс сэргийлнэ)
+        self._cleanup_every = 300
 
     def check(self, user_id: int) -> bool:
         now = time.time()
@@ -36,13 +57,54 @@ class AntiSpamTracker:
         self.messages[user_id] = lst
         return len(lst) > self.limit
 
+    def violation(self, user_id: int) -> int:
+        self.violations[user_id] += 1
+        return self.violations[user_id]
+
+    def cleanup(self):
+        now = time.time()
+        self.messages = {u: lst for u, lst in self.messages.items()
+                         if any(now - t < self.window for t in lst)}
+        # Window дотор мессеж илгээгээгүй хүний violation-г 0 болго
+        self.violations = {u: v for u, v in self.violations.items()
+                           if u in self.messages}
+
+
+class RaidTracker:
+    """Join давтамж хянах — deque ашиглаж O(N) болгоно (B8 fix)."""
+    def __init__(self, window=5.0, threshold=10):
+        self.window = window
+        self.threshold = threshold
+        self.joins: dict[int, deque] = defaultdict(deque)
+        self.acted: set[int] = set()  # guild_id — нэг raid-д олон удаа арга хэмжээ авахгүй
+
+    def add(self, guild_id: int, user_id: int) -> list[int]:
+        now = time.time()
+        dq = self.joins[guild_id]
+        dq.append((now, user_id))
+        # Хуучин timestamp-уудыг хасна
+        while dq and now - dq[0][0] > self.window:
+            dq.popleft()
+        if len(dq) < self.threshold:
+            return []
+        if guild_id in self.acted:
+            return []  # энэ guild-д ойрын хугацаанд арга хэмжээ авсан
+        self.acted.add(guild_id)
+        # Сүүлийн 5 сек-д нэгдсэн бүх хүний ID буцаана
+        return [uid for _, uid in dq]
+
+    def cooldown_done(self, guild_id: int, delay=120.0):
+        def _clear():
+            self.acted.discard(guild_id)
+        asyncio.get_event_loop().call_later(delay, _clear)
+
 
 class AutoModeration(SupabaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         self.spam = AntiSpamTracker()
-        self.enabled: dict[int, set[str]] = {}  # guild_id -> enabled features
-        self.raid_window = 5.0
+        self.enabled: dict[int, set[str]] = {}
+        self.raid = RaidTracker()
 
     async def cog_load(self):
         await super().cog_load()
@@ -51,6 +113,15 @@ class AutoModeration(SupabaseCog):
                 guild_id TEXT, feature TEXT, enabled BOOLEAN DEFAULT true,
                 created_at TEXT, PRIMARY KEY (guild_id, feature))"""})
         await self._load_all()
+        self._periodic_cleanup.start()
+
+    @tasks.loop(minutes=5)
+    async def _periodic_cleanup(self):
+        self.spam.cleanup()
+
+    async def cog_unload(self):
+        self._periodic_cleanup.cancel()
+        await super().cog_unload()
 
     async def _load_all(self):
         for guild in self.bot.guilds:
@@ -73,7 +144,7 @@ class AutoModeration(SupabaseCog):
     @app_commands.choices(feature=[
         app_commands.Choice(name="Анти-спам (5 мессеж/3 сек)", value="antispam"),
         app_commands.Choice(name="Антиссылка (зөвшөөрөгдөөгүй линк)", value="antilink"),
-        app_commands.Choice(name="Анти-райд (хэт олон нэг дор)", value="antiraid"),
+        app_commands.Choice(name="Анти-райд (5 сек-д 10+ гишүүн)", value="antiraid"),
     ])
     @commands.has_permissions(manage_guild=True)
     @commands.bot_has_permissions(manage_messages=True)
@@ -111,47 +182,111 @@ class AutoModeration(SupabaseCog):
     async def on_message(self, message: discord.Message):
         if not message.guild or message.author.bot:
             return
-        if not message.author.guild_permissions.manage_messages:
-            guild_id = message.guild.id
-            if self.is_on(guild_id, "antispam") and self.spam.check(message.author.id):
-                try:
-                    await message.delete()
-                    warn = await message.channel.send(
-                        embed=discord.Embed(title="🛡️ Анти-спам",
-                                            description=f"{message.author.mention} хэт олон мессеж илгээлээ.",
-                                            color=WARNING_COLOR))
-                    await message.author.timeout(discord.utils.utcnow(), 60, reason="Anti-spam")
-                except discord.HTTPException:
-                    pass
-                return
-            if self.is_on(guild_id, "antilink") and (URL_RE.search(message.content) or INVITE_RE.search(message.content)):
-                allowed = message.channel.category and "allowed" in (message.channel.category.name or "").lower()
-                if not allowed:
-                    try:
-                        await message.delete()
-                        warn = await message.channel.send(
-                            embed=discord.Embed(title="🔗 Антиссылка",
-                                                description=f"{message.author.mention} линк илгээх эрхгүй.",
-                                                color=WARNING_COLOR))
-                    except discord.HTTPException:
-                        pass
-                    return
+        if message.author.guild_permissions.manage_messages:
+            return  # staff-д exemption
+        guild_id = message.guild.id
+        if self.is_on(guild_id, "antispam") and self.spam.check(message.author.id):
+            await self._handle_spam(message)
+            return
+        if self.is_on(guild_id, "antilink"):
+            import re
+            if re.search(URL_RE, message.content) or re.search(INVITE_RE, message.content):
+                if not self._is_link_allowed(message):
+                    await self._handle_link(message)
+
+    def _is_link_allowed(self, message: discord.Message) -> bool:
+        """Category нэр эсвэл URL domain allowlist-ээр зөвшөөрөх."""
+        cat = message.channel.category
+        if cat and any(k in cat.name.lower() for k in ALLOWED_LINK_CATS):
+            return True
+        import re
+        for url in re.finditer(r"https?://([^\s/]+)", message.content):
+            domain = url.group(1).lower()
+            # subdomain-ийг шалгах: x.github.com → github.com
+            parts = domain.split(".")
+            if len(parts) >= 3:
+                domain = ".".join(parts[-2:])
+            if domain in ALLOWED_DOMAINS:
+                return True
+        return False
+
+    async def _handle_spam(self, message: discord.Message):
+        """Severity levels: warn → 60с → 10мин → kick (B8 fix)."""
+        level = self.spam.violation(message.author.id)
+        reason = "Anti-spam (давтамж зөрчил)"
+        try:
+            await message.delete()
+        except discord.HTTPException:
+            pass
+        if level <= len(SPAM_SEVERITY) and SPAM_SEVERITY[level - 1] is not None:
+            try:
+                await message.author.timeout(discord.utils.utcnow(), SPAM_SEVERITY[level - 1], reason=reason)
+            except discord.HTTPException:
+                pass
+        elif level > len(SPAM_SEVERITY):
+            try:
+                await message.author.kick(reason=reason + " (3+ зөрчил)")
+            except discord.HTTPException:
+                pass
+        try:
+            warn = await message.channel.send(
+                embed=discord.Embed(title="🛡️ Анти-спам",
+                                    description=f"{message.author.mention} хэт олон мессеж илгээлээ. "
+                                                f"({level}-р зөрчил)",
+                                    color=WARNING_COLOR))
+            await asyncio.sleep(10)
+            await warn.delete()
+        except discord.HTTPException:
+            pass
+
+    async def _handle_link(self, message: discord.Message):
+        try:
+            await message.delete()
+        except discord.HTTPException:
+            pass
+        try:
+            warn = await message.channel.send(
+                embed=discord.Embed(title="🔗 Антиссылка",
+                                    description=f"{message.author.mention} зөвшөөрөгдөөгүй линк илгээлээ.",
+                                    color=WARNING_COLOR))
+            await asyncio.sleep(10)
+            await warn.delete()
+        except discord.HTTPException:
+            pass
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         if not self.is_on(member.guild.id, "antiraid"):
             return
         now = time.time()
-        joined = [m for m in member.guild.members if m.joined_at is not None
-                  and now - m.joined_at.timestamp() < self.raid_window]
-        if len(joined) >= 10:
+        # Хуучин аккаунт (7 хоногоос бага насантай) бол raid шинж гэж үзнэ (I12)
+        if member.created_at and (now - member.created_at.timestamp()) > NEW_ACCOUNT_HOURS * 3600:
+            return
+        joined_ids = self.raid.add(member.guild.id, member.id)
+        if not joined_ids:
+            return
+        # Raid илэрсэн: бүгдийг 10 минутын timeout-д оруулна (B7 fix)
+        try:
+            for uid in joined_ids:
+                m = member.guild.get_member(uid)
+                if m and not m.is_timed_out():
+                    await m.timeout(discord.utils.utcnow(), 600, reason="Anti-raid: масс нэгдэлт")
+        except discord.HTTPException:
+            pass
+        # Staff-д мэдэгдэх (system_channel байхгүй үед crash-ээс хамгаална — B6 fix)
+        target = member.guild.system_channel
+        if target is not None:
             try:
-                await member.guild.system_channel.send(embed=discord.Embed(
-                    title="🚨 Анти-райд",
-                    description=f"{member.mention} нэгдлээ — сүүлийн 5 секундэд 10+ гишүүн нэгдсэн. Хянаарай.",
+                await target.send(embed=discord.Embed(
+                    title="🚨 Анти-райд хамгаалалт идэвхжлээ",
+                    description=f"Сүүлийн 5 секундэд 10+ гишүүн нэгдлээ. "
+                                f"Бүгдийг 10 минутын timeout-д орууллаа. "
+                                f"Шалгаж баталгаажуулаарай.",
                     color=ERROR_COLOR))
             except discord.HTTPException:
                 pass
+        # 2 минутын дараа дахин арга хэмжээ авах боломж олгоно
+        self.raid.cooldown_done(member.guild.id)
 
 
 async def setup(bot):
