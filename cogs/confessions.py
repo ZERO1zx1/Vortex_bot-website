@@ -245,7 +245,7 @@ class Confessions(commands.Cog):
             title=f"📩 Confession #{confess_id}",
             description=content,
             color=GOLD_COLOR,
-            timestamp=datetime.datetime.now()
+            timestamp=datetime.datetime.now(datetime.timezone.utc)
         )
         embed.set_footer(text=f"Илгээсэн: {author_name}")
 

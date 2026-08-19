@@ -172,6 +172,19 @@ class Moderation(SupabaseCog):
         # Tables are pre-configured in Supabase via SQL migrations
         pass
 
+    async def cog_unload(self):
+        """Docs extension-teardown best practice: cancel tasks.loop tasks."""
+        self.weekly_task.cancel()
+        self.leaderboard_task.cancel()
+        try:
+            await self.weekly_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await self.leaderboard_task
+        except asyncio.CancelledError:
+            pass
+
     async def _set_config_field(self, guild_id: int, field: str, value: str):
         """Тохиргооны талбарт утга оруулах (upsert)"""
         gid = str(guild_id)

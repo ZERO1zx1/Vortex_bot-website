@@ -39,6 +39,7 @@ class MyBot(commands.Bot):
             command_prefix=prefix,
             intents=intents,
             help_command=None,
+            case_insensitive=True,
             allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, replied_user=True),
         )
 
