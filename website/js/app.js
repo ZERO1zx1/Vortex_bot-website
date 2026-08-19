@@ -207,38 +207,71 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   const filters = document.getElementById('cmd-filters');
   let currentCat = 'all';
 
-  /* URL-ээс хайлтын query авах: #commands?q=work эсвэл #commands?cmd=marry */
+  /* URL-ээс хайлтын query авах: #commands?q=work эсвэл #commands?cmd=marry эсвэл &cat=Economy (W1 fix) */
+  const safeDecode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };  // W4 fix
   const parseHash = () => (window.location.hash || '').match(/[?&]q=([^&#]+)/i);
+  const parseHashCat = () => (window.location.hash || '').match(/[?&]cat=([^&#]+)/i);
   let m = parseHash();
+  let firstLoad = true;
   /* Async ачаалалтай үед hash ачаалагдаагүй байж болох тул hashchange-г хүлээнэ */
+  /* URL-ийн category-г тохиргоо болгон идэвхжүүлэх (WI1) */
+  const applyHashCat = () => {
+    const cm = parseHashCat();
+    if (cm && filters) {
+      const catBtn = filters.querySelector(`.filter[data-cat="${cm[1]}"]`);
+      if (catBtn && currentCat !== cm[1]) {
+        filters.querySelectorAll('.filter').forEach(b => b.classList.remove('active'));
+        catBtn.classList.add('active');
+        currentCat = cm[1];
+        render();
+        syncUrl();
+      }
+    }
+  };
   const applyHashSearch = () => {
     m = parseHash();
     if (m && search) {
-      const q = decodeURIComponent(m[1]);
+      const q = safeDecode(m[1]);
       if (search.value !== q) {
         search.value = q;
         render();
         syncUrl();
-        search.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        /* Зөвхөн анхны ачаалал дээр scroll хийнэ (W2 fix) */
+        if (firstLoad) { firstLoad = false; search.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
       }
     }
+    applyHashCat();
   };
   if (m && search) {
-    search.value = decodeURIComponent(m[1]);
+    search.value = safeDecode(m[1]);
+    /* Category-г URL-ээс авах бол товчийг идэвхжүүлнэ (WI1) */
+    const cm = parseHashCat();
+    if (cm) {
+      const catBtn = filters?.querySelector(`.filter[data-cat="${cm[1]}"]`);
+      if (catBtn) {
+        filters.querySelectorAll('.filter').forEach(b => b.classList.remove('active'));
+        catBtn.classList.add('active');
+        currentCat = cm[1];
+      }
+    }
     render();
     syncUrl();
-    setTimeout(() => search.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
-  }
+    setTimeout(() => { firstLoad = false; search.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
+  } else { firstLoad = false; }
   window.addEventListener('hashchange', applyHashSearch);
   /* Хожим hash тогтох боломжтой (async navigation) — 3 удаа шалгана */
   [400, 1200, 3000].forEach(t => setTimeout(applyHashSearch, t));
-  /* Хайлтыг URL-д тусгах (линк хуваалцах боломжтой) */
+  /* Хайлтыг URL-д тусгах (линк хуваалцах боломжтой) — category-г бас тусгана (WI1) */
   const syncUrl = () => {
     if (!search) return;
     const q = search.value.trim();
     const url = new URL(window.location.href);
-    if (q) url.hash = 'commands?q=' + encodeURIComponent(q);
-    else if (/^#commands[?&]/.test(window.location.hash)) url.hash = '#commands';
+    let h = '#commands';
+    const parts = [];
+    if (q) parts.push('q=' + encodeURIComponent(q));
+    if (currentCat !== 'all') parts.push('cat=' + encodeURIComponent(currentCat));
+    if (parts.length) h += '?' + parts.join('&');
+    url.hash = h;
     history.replaceState(null, '', url.toString());
   };
 
@@ -301,7 +334,22 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   }
 
   /* URL-ээс ирсэн query-г input-д оноох (render()-ийн өмнө) */
-  search?.addEventListener('input', () => { render(); syncUrl(); });
+  /* Sticky toolbar: хэрэглэгч доош scroll хийхэд хайлтын талбар дээд талд наалдана (WI4) */
+  const toolbar = document.querySelector('.cmd-toolbar');
+  const stickyObserver = () => {
+    if (!toolbar) return;
+    const sec = document.getElementById('commands');
+    const rect = sec.getBoundingClientRect();
+    const inputRect = search.getBoundingClientRect();
+    toolbar.classList.toggle('sticky', rect.top < 0 && inputRect.bottom > 0);
+  };
+  window.addEventListener('scroll', stickyObserver, { passive: true });
+  /* Debounce: render()-ийг 80мс-ийн дараа хийнэ — 118 карт бүр дарах бүр зурагдахгүй (WI3) */
+  let _debounceTimer = null;
+  search?.addEventListener('input', () => {
+    if (_debounceTimer) clearTimeout(_debounceTimer);
+    _debounceTimer = setTimeout(() => { render(); syncUrl(); }, 80);
+  });
   filters?.addEventListener('click', (e) => {
     const btn = e.target.closest('.filter');
     if (!btn) return;
@@ -309,6 +357,7 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     btn.classList.add('active');
     currentCat = btn.dataset.cat;
     render();
+    syncUrl();  /* Category өөрчлөлт URL-д тусна (WI1) */
   });
   render();
   /* Хэл солиход анги/картын шошгыг дахин зурахын тулд глобал болгоно */

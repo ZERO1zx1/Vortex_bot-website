@@ -2039,3 +2039,19 @@ html[data-theme="light"] .cl-card p { color: #5B6B8A; }
   .cl-card { padding: 1rem 1.1rem; }
   .cl-card h4 { font-size: 1rem; }
 }
+
+/* ---------------- Sticky commands toolbar (WI4) ---------------- */
+.commands { position: relative; }
+.cmd-toolbar { transition: box-shadow 0.25s; }
+.cmd-toolbar.sticky {
+  position: sticky; top: 64px; z-index: 50;
+  padding: 0.9rem 1.5rem; border-radius: 14px;
+  background: rgba(11, 11, 20, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+html[data-theme="light"] .cmd-toolbar.sticky {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 30px rgba(59, 94, 168, 0.18);
+}
+@media (max-width: 768px) { .cmd-toolbar.sticky { top: 56px; padding: 0.7rem 1rem; } }
