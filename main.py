@@ -5,6 +5,7 @@ import sys
 import time
 import asyncio
 import logging
+from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 
 from config_manager import load_config
@@ -20,11 +21,28 @@ if not TOKEN:
 
 config = load_config()
 
+os.makedirs("logs", exist_ok=True)
+cogs_handler = RotatingFileHandler(
+    "logs/cogs.log",
+    maxBytes=5 * 1024 * 1024,   # 5 MB per file
+    backupCount=3,              # cogs.log.1 .. cogs.log.3
+    encoding="utf-8",
+)
+cogs_handler.setLevel(logging.WARNING)  # WARNING+ бүгд файл руу
+cogs_handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+))
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(), cogs_handler],
 )
 logger = logging.getLogger("aether")
+
+# Cog-ийн command алдаа бүгдийг файл руу бүртгэх
+logging.getLogger("discord").addHandler(cogs_handler)
+logging.getLogger("discord").setLevel(logging.WARNING)
 
 
 class MyBot(commands.Bot):
@@ -107,6 +125,17 @@ class MyBot(commands.Bot):
         except Exception as e:
             logger.warning("⚠️ Slash command sync error: %s", e)
 
+    async def on_command_error(self, ctx, error):
+        """Text command алдааг ./logs/cogs.log руу бүртгэнэ."""
+        if isinstance(error, commands.CommandNotFound):
+            return  # танигдаагүй команд — файл хөглөхгүй
+        logger.exception("Command error [%s] %s: %s", ctx.command, ctx.author, error)
+
+    async def on_app_command_error(self, interaction, error):
+        """Slash command алдааг ./logs/cogs.log руу бүртгэнэ."""
+        cmd = interaction.command.qualified_name if interaction.command else "unknown"
+        logger.exception("Slash error [%s] %s: %s", cmd, interaction.user, error)
+
     async def on_ready(self):
         logger.info("✅ %s is online!", self.user)
         logger.info("📊 Guilds: %d", len(self.guilds))
@@ -136,7 +165,7 @@ class MyBot(commands.Bot):
 if __name__ == "__main__":
     bot = MyBot()
     try:
-        bot.run(TOKEN, reconnect=True, log_handler=None)
+        bot.run(TOKEN, reconnect=True)
     except Exception as e:
         logger.exception("❌ Fatal error: %s", e)
         sys.exit(1)
