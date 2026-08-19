@@ -354,7 +354,7 @@ class InviteTracker(commands.Cog):
                 logger.error(f"Failed to cache invites for guild {guild.id}: {e}")
 
     @commands.Cog.listener()
-    async def on_member_leave(self, member: discord.Member):
+    async def on_member_remove(self, member: discord.Member):
         if member.bot: return
         await self.bot.db_manager.update(
             "invite_joins",

@@ -86,6 +86,15 @@ class Economy(SupabaseCog):
         # Tables are pre-configured in Supabase
         self.role_income_task = self.bot.loop.create_task(self._role_income_loop())
 
+    async def cog_unload(self):
+        """Docs extension-teardown best practice: cancel background tasks."""
+        if self.role_income_task:
+            self.role_income_task.cancel()
+            try:
+                await self.role_income_task
+            except asyncio.CancelledError:
+                pass
+
     async def ensure_user(self, uid, gid):
         row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
         if not row:

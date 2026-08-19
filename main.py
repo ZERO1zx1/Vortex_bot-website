@@ -35,7 +35,12 @@ class MyBot(commands.Bot):
         intents.voice_states = True
 
         prefix = config.get("prefix", DEFAULT_PREFIX)
-        super().__init__(command_prefix=prefix, intents=intents, help_command=None)
+        super().__init__(
+            command_prefix=prefix,
+            intents=intents,
+            help_command=None,
+            allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, replied_user=True),
+        )
 
         self.db_manager = DatabaseManager()
         self.owner_ids = set()

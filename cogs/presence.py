@@ -67,7 +67,7 @@ class PresenceCog(commands.Cog):
         self._cycle_started = True
         await self._refresh_member_watch()
         await self._set(0)
-        self.bot.loop.create_task(self._rotate())
+        self._rotate_task = self.bot.loop.create_task(self._rotate())
         logger.info("🌐 Presence rotation started (%d activities)", len(ACTIVITIES))
 
     @commands.Cog.listener()
@@ -125,6 +125,15 @@ class PresenceCog(commands.Cog):
                 await self._set(self._current)
             except Exception:  # noqa: BLE001
                 logger.warning("⚠️ Presence rotation error", exc_info=True)
+
+    async def cog_unload(self) -> None:
+        """Docs extension-teardown best practice: cancel background tasks."""
+        if getattr(self, "_rotate_task", None):
+            self._rotate_task.cancel()
+            try:
+                await self._rotate_task
+            except asyncio.CancelledError:
+                pass
 
 
 async def setup(bot: "MyBot") -> None:
