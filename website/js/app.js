@@ -1090,3 +1090,104 @@ const AETHER_I18N = {
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 })();
+
+/* ============================================================
+   JS Error capture — алдааг localStorage-д хадгалж,
+   footer-д badge харагдаж, дэлгэрэнгүй modal-оор харна
+   ============================================================ */
+(() => {
+  'use strict';
+  const KEY = 'aether_js_errors';
+  const MAX = 50;
+
+  const loadErrors = () => {
+    try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
+  };
+  const saveErrors = (arr) => {
+    try { localStorage.setItem(KEY, JSON.stringify(arr.slice(-MAX))); } catch { /* quota */ }
+  };
+
+  const pushError = (type, msg, src, line) => {
+    const arr = loadErrors();
+    arr.push({ t: Date.now(), type, msg: String(msg), src: src || '', line: line || 0 });
+    saveErrors(arr);
+    renderBadge(arr.length);
+  };
+
+  window.addEventListener('error', (e) => {
+    if (e.filename && /vortex\.github\.io|localhost/.test(e.filename)) {
+      pushError('error', e.message, e.filename, e.lineno);
+    }
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    pushError('promise', String(e.reason), '', 0);
+  });
+
+  const renderBadge = (n) => {
+    const badge = document.getElementById('err-badge');
+    if (!badge) return;
+    badge.textContent = `⚠ ${n}`;
+    badge.classList.toggle('show', n > 0);
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const footer = document.querySelector('.footer-links') || document.querySelector('.footer');
+    if (!footer) return;
+    const badge = document.createElement('button');
+    badge.id = 'err-badge';
+    badge.type = 'button';
+    badge.setAttribute('aria-label', 'Site errors');
+    footer.appendChild(badge);
+    renderBadge(loadErrors().length);
+    badge.addEventListener('click', () => openErrModal());
+  });
+
+  const openErrModal = () => {
+    let modal = document.getElementById('err-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'err-modal';
+      modal.className = 'err-modal';
+      modal.innerHTML = `
+        <div class="err-modal-backdrop"></div>
+        <div class="err-modal-box">
+          <div class="err-modal-head">
+            <span>🛠 Site error log</span>
+            <button type="button" class="err-modal-close">✕</button>
+          </div>
+          <div class="err-modal-body"></div>
+          <div class="err-modal-foot">
+            <button type="button" class="err-clear-btn">🧹 Clear log</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+      modal.querySelector('.err-modal-close').addEventListener('click', closeErrModal);
+      modal.querySelector('.err-modal-backdrop').addEventListener('click', closeErrModal);
+      modal.querySelector('.err-clear-btn').addEventListener('click', () => {
+        try { localStorage.removeItem(KEY); } catch { /* */ }
+        closeErrModal();
+        renderBadge(0);
+      });
+    }
+    const arr = loadErrors();
+    modal.querySelector('.err-modal-body').innerHTML = arr.length
+      ? arr.slice().reverse().map(e => `
+        <div class="err-entry">
+          <span class="err-type">${e.type === 'promise' ? 'PROMISE' : 'ERR'}</span>
+          <span class="err-time">${new Date(e.t).toLocaleString()}</span>
+          <span class="err-msg">${e.msg.replace(/</g, '&lt;')}</span>
+          ${e.src ? `<span class="err-src">${e.src}:${e.line}</span>` : ''}
+        </div>`).join('')
+      : '<div class="err-empty">✅ No errors recorded.</div>';
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  };
+  const closeErrModal = () => {
+    const modal = document.getElementById('err-modal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+  };
+  window.closeErrModal = closeErrModal;
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeErrModal(); });
+})();
