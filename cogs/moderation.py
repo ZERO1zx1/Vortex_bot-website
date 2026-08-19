@@ -308,7 +308,7 @@ class Moderation(SupabaseCog):
 
         embed = discord.Embed(
             title="📊 **ДОЛОО ХОНОГИЙН STAFF ОНООНЫ ЭРЭМБЭ**",
-            description=f"Шинэчлэгдсэн: {discord.utils.format_dt(datetime.datetime.now(), style='R')}",
+            description=f"Шинэчлэгдсэн: {discord.utils.format_dt(datetime.datetime.now(datetime.timezone.utc), style='R')}",
             color=GOLD_COLOR
         )
         if scores:
@@ -502,7 +502,7 @@ class Moderation(SupabaseCog):
             description=f"**Хэрэглэгч:** {target.mention if hasattr(target, 'mention') else target}\n"
                         f"**Модератор:** {moderator.mention}\n"
                         f"**Шалтгаан:** {reason or 'Тодорхойгүй'}",
-            timestamp=datetime.datetime.now(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc),
             color=EMBED_COLOR
         )
         if hasattr(target, 'display_avatar'):

@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 import platform
 import psutil
@@ -69,7 +69,7 @@ class Admin(commands.Cog):
             title=f"📌 **{guild.name}**",
             description="*Серверийн дэлгэрэнгүй мэдээлэл*",
             color=GOLD_COLOR if guild.premium_tier > 0 else EMBED_COLOR,
-            timestamp=datetime.now()
+            timestamp=datetime.now(timezone.utc)
         )
 
         if guild.banner:

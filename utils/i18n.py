@@ -126,6 +126,17 @@ DICT: Dict[str, Dict[str, str]] = {
     "help.not_found": {"mn": '❌ Тушаал олдсонгүй', "en": '❌ Command not found'},
     "help.not_found_desc": {"mn": '`{key}` нэртэй тушаал байхгүй байна.{hint}', "en": 'No command named `{key}`.{hint}'},
 
+    # ============ MENU ============
+    "menu.title": {"mn": "📋 𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Интерактив цэс", "en": "📋 𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Interactive Menu"},
+    "menu.welcome": {"mn": "Сайн байна уу! **{name}** ботын интерактив цэс рүү тавтай морил.\n\nДоорх **Select menu**-аас ангилал сонгоод, командыг хуудсаар гүйлгэнэ үү.", "en": "Hi! Welcome to **{name}**'s interactive menu.\n\nPick a category from the **Select menu** below and page through its commands."},
+    "menu.total": {"mn": "📊 Нийт **{count}** команд · **{cats}** ангилал", "en": "📊 **{count}** commands · **{cats}** categories"},
+    "menu.cat_title": {"mn": "{emoji} {cat}", "en": "{emoji} {cat}"},
+    "menu.page": {"mn": "📖 Хуудас {p}/{t}", "en": "📖 Page {p}/{t}"},
+    "menu.no_commands": {"mn": "📭 Энэ ангилалд команд байхгүй.", "en": "📭 No commands in this category."},
+    "menu.stats": {"mn": "📊 {cat} ангилал · {n} команд · хуудас {p}/{t}", "en": "📊 {cat} · {n} cmds · page {p}/{t}"},
+    "menu.usage": {"mn": "📌 Хэрэглээ", "en": "📌 Usage"},
+    "menu.examples": {"mn": "💡 Жишээ", "en": "💡 Examples"},
+
     # ============ STATUS ============
     "status.online": {"mn": "🟢 Online", "en": "🟢 Online"},
     "status.offline": {"mn": "🔴 Offline", "en": "🔴 Offline"},

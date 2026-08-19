@@ -156,7 +156,7 @@ class InviteTracker(commands.Cog):
         channel = guild.get_channel(cfg["channel_id"])
         if channel:
             try: await channel.send(embed=embed)
-            except Exception as e: logger.error(f"log_to_channel error: {e}")
+            except Exception as e: logger.error("log_to_channel error: %s", e)
 
     async def get_invite_count(self, guild_id, user_id, exclude_fake: bool = False):
         row = await self.bot.db_manager.fetch_one(
@@ -351,7 +351,7 @@ class InviteTracker(commands.Cog):
                     invites = await guild.invites()
                     self.invite_cache[guild.id] = {inv.code: inv.uses for inv in invites}
             except Exception as e:
-                logger.error(f"Failed to cache invites for guild {guild.id}: {e}")
+                logger.error("Failed to cache invites for guild %s: %s", guild.id, e)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
@@ -460,7 +460,7 @@ class InviteTracker(commands.Cog):
                     role = member.guild.get_role(int(label_row["role_id"]))
                     if role and member.guild.me.guild_permissions.manage_roles:
                         try: await member.add_roles(role, reason=f"Урилгын шошго: {used.code}")
-                        except Exception as e: logger.error(f"Failed to assign role: {e}")
+                        except Exception as e: logger.error("Failed to assign role: %s", e)
                 today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
                 daily = await self.bot.db_manager.fetch_one(
                     "daily_stats", {"guild_id": str(member.guild.id), "date": today}
@@ -499,7 +499,7 @@ class InviteTracker(commands.Cog):
                         embed.set_thumbnail(url=member.display_avatar.url)
                         await channel.send(embed=embed)
         except Exception as e:
-            logger.error(f"on_member_join error: {e}")
+            logger.error("on_member_join error: %s", e)
 
     @commands.Cog.listener()
     async def on_invite_create(self, invite: discord.Invite):

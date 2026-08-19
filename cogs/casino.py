@@ -4,7 +4,10 @@ from discord.ui import Button, View
 import random
 import time
 import asyncio
+import logging
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 # ===== COLORS =====
 EMBED_COLOR      = 0x1e1e2f
@@ -43,7 +46,14 @@ class BlackjackView(View):
         self.message = None
         self.update_embed()
         # Товчлуурын анхны төлвийг async task-ээр тохируулна (хурдан идэвхжинэ)
-        asyncio.create_task(self._init_buttons())
+        # "Task exception was never retrieved"-с сэргийлж try/except-тэй аюулгүй wrapper ашиглана
+        async def _safe_init():
+            try:
+                await self._init_buttons()
+            except Exception as e:
+                logger.error("BlackjackView _init_buttons failed: %s", e)
+
+        asyncio.create_task(_safe_init())
 
     async def _init_buttons(self):
         # Эхний товчлуурын төлвийг тогтоох

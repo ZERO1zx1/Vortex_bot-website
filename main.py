@@ -5,6 +5,7 @@ import sys
 import time
 import asyncio
 import logging
+from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 
@@ -21,9 +22,10 @@ if not TOKEN:
 
 config = load_config()
 
-os.makedirs("logs", exist_ok=True)
+LOG_DIR = Path("logs")
+LOG_DIR.mkdir(exist_ok=True)
 cogs_handler = RotatingFileHandler(
-    "logs/cogs.log",
+    LOG_DIR / "cogs.log",
     maxBytes=5 * 1024 * 1024,   # 5 MB per file
     backupCount=3,              # cogs.log.1 .. cogs.log.3
     encoding="utf-8",
@@ -43,6 +45,9 @@ logger = logging.getLogger("aether")
 # Cog-ийн command алдаа бүгдийг файл руу бүртгэх
 logging.getLogger("discord").addHandler(cogs_handler)
 logging.getLogger("discord").setLevel(logging.WARNING)
+
+# asyncio-ийн "Task exception was never retrieved" зэрэг дотоод логоос зайлсхийх
+logging.getLogger("asyncio").setLevel(logging.WARNING)
 
 
 class MyBot(commands.Bot):
@@ -93,7 +98,7 @@ class MyBot(commands.Bot):
             "lang", "moderation", "pvp", "roles", "shop", "stock",
             "stick", "marriage", "announcement", "tempvoice", "trade",
             "quests", "leaderboard", "casino", "greetings", "presence",
-            "reaction_roles", "automod"
+            "reaction_roles", "automod", "menu"
         ]
 
         for cog in cogs_to_load:
@@ -142,7 +147,9 @@ class MyBot(commands.Bot):
         # Presence is now managed by PresenceCog (rotating activities)
         # Website status heartbeat: ping Supabase every 60s
         # (add_loop нь commands.Bot-д байхгүй тул create_task ашиглана)
-        asyncio.create_task(self._heartbeat_loop())
+        # За давхар давтагдахаас сэргийлж task handle-г хадгална (reconnect-д дахин үүсгэхгүй)
+        if getattr(self, "_heartbeat_task", None) is None:
+            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
     async def _heartbeat_loop(self):
         """Send a heartbeat to bot_status so the website shows the real Online/Offline state."""
