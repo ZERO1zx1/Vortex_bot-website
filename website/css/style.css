@@ -81,6 +81,14 @@ main, section, nav, footer { position: relative; z-index: 1; }
   font-size: 1.05rem;
   letter-spacing: 0.5px;
 }
+.brand-logo-img {
+  width: 34px; height: 34px; border-radius: 50%;
+  object-fit: cover; display: block;
+  box-shadow: 0 0 12px rgba(137, 180, 250, 0.4);
+  transition: transform 0.3s ease;
+}
+.nav-brand:hover .brand-logo-img { transform: rotate(12deg) scale(1.08); }
+.nav-brand > .brand-orb { display: none; }
 .brand-orb {
   width: 30px; height: 30px; border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, var(--accent), #3B5EA8 70%);
