@@ -132,6 +132,15 @@ DICT: Dict[str, Dict[str, str]] = {
     "status.title": {"mn": "Ботын төлөв", "en": "Bot status"},
     # ============ PRESENCE ============
     "presence.watchers": {"mn": "{count:,} гишүүд", "en": "{count:,} members"},
+    "am.on": {"mn": "✅ **{feature_mn}** идэвхжлээ!", "en": "✅ **{feature_mn}** enabled!"},
+    "am.off": {"mn": "❌ **{feature_mn}** унтарлаа.", "en": "❌ **{feature_mn}** disabled."},
+    "rr.setup_intro": {"mn": "1️⃣ 📩 Мессеж бичих товч дар (тохиргоог энэ мессеж дээр хадгална)\n2️⃣ ➕ Нэмэх → emoji + Role ID оруул\n3️⃣ Хүмүүс мессеж дээр emoji дарж үүрэг авна",
+                       "en": "1️⃣ Tap 📩 Send message (config stored in that message)\n2️⃣ Tap ➕ Add → enter emoji + Role ID\n3️⃣ Members react to get the role"},
+    "rr.saved_hint": {"mn": "Мессеж дээр дарсан emoji-оор үүрэг авна/хасна", "en": "Reacting on the message gives/removes the role"},
+    "rr.cleared": {"mn": "Энэ серверийн бүх reaction role устгагдлаа.", "en": "All reaction roles in this server were cleared."},
+    "rr.empty": {"mn": "Reaction role бүртгэл байхгүй. `/rr action: Setup` дарж тохируулаарай.",
+                  "en": "No reaction roles yet. Use `/rr` (Setup) to configure."},
+    "rr.footer_hint": {"mn": "Emoji дарж үүрэг авна, даралтыг хасвал хасагдана", "en": "React to get the role; remove the reaction to lose it"},
 }
 
 # ── API ───────────────────────────────────────────────────

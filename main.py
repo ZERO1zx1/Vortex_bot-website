@@ -68,7 +68,8 @@ class MyBot(commands.Bot):
             "help", "invite_tracker", "leveling", "mafia", "mines",
             "lang", "moderation", "pvp", "roles", "shop", "stock",
             "stick", "marriage", "announcement", "tempvoice", "trade",
-            "quests", "leaderboard", "casino", "greetings", "presence"
+            "quests", "leaderboard", "casino", "greetings", "presence",
+            "reaction_roles", "automod"
         ]
 
         for cog in cogs_to_load:
