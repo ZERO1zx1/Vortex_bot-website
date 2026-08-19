@@ -1989,6 +1989,11 @@ html[data-theme="light"] .cl-card { background: linear-gradient(150deg, #FFFFFF,
 html[data-theme="light"] .cl-card:hover { border-color: rgba(59, 94, 168, 0.45); box-shadow: 0 18px 40px rgba(59, 94, 168, 0.18); }
 html[data-theme="light"] .cl-item::before { border-color: #F7F9FC; }
 html[data-theme="light"] .cl-card p { color: #5B6B8A; }
+html[data-theme="light"] .cl-card h4 { color: #1F2A44; }
+html[data-theme="light"] .cl-date { color: #7A89A8; }
+html[data-theme="light"] .cl-pill.new { color: #1E7A3C; border-color: rgba(30, 122, 60, 0.35); }
+html[data-theme="light"] .cl-pill.fix { color: #C22A5A; border-color: rgba(194, 42, 90, 0.35); }
+html[data-theme="light"] .cl-timeline::before { opacity: 0.65; }
 
 /* Mobile nav dropdown — light mode */
 @media (max-width: 960px) {
