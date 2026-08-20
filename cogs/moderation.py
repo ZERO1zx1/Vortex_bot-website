@@ -197,7 +197,7 @@ class Moderation(SupabaseCog):
     # ================== Еженедельный победитель ==================
     @tasks.loop(seconds=30)
     async def weekly_task(self):
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         if now.weekday() == 6 and now.hour == 23 and now.minute == 59:
             for guild in self.bot.guilds:
                 try:
@@ -749,7 +749,7 @@ class Moderation(SupabaseCog):
     async def warn(self, interaction, member: discord.Member, *, reason: str):
         ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
-        now_ts = int(datetime.datetime.now().timestamp())
+        now_ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
         await self.bot.db_manager.insert("warnings", {
             "user_id": str(member.id),
             "guild_id": str(ctx.guild.id),
@@ -825,7 +825,7 @@ class Moderation(SupabaseCog):
         embed = discord.Embed(title=f"📋 **{member.display_name} -ИЙН АНХААРУУЛГУУД**", description=f"Нийт {len(rows)} анхааруулга", color=WARNING_COLOR)
         embed.set_thumbnail(url=member.display_avatar.url)
         for i, (wid, mod_id, reason, ts) in enumerate(rows[:10], 1):
-            ts_str = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+            ts_str = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             try:
                 mod = await self.bot.fetch_user(int(mod_id))
                 mod_name = mod.name
@@ -857,7 +857,7 @@ class Moderation(SupabaseCog):
             return await ctx.send("⚠️ Анхааруулга авсан хэрэглэгч байхгүй.", ephemeral=True)
         embed = discord.Embed(title="⚠️ АНХААРУУЛГА АВСАН ХЭРЭГЛЭГЧИД", color=WARNING_COLOR)
         for user_id, cnt, last_ts in rows[:20]:
-            last_str = datetime.datetime.fromtimestamp(last_ts).strftime("%Y-%m-%d %H:%M:%S")
+            last_str = datetime.datetime.fromtimestamp(last_ts, datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             try:
                 user = await self.bot.fetch_user(int(user_id))
                 name = user.name

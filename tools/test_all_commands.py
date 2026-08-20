@@ -178,7 +178,10 @@ async def run_all():
     bot.config = {"max_balance": 100_000_000}
     # The economy cog's cog_load spawns background tasks via bot.loop;
     # a non-logged-in bot raises AttributeError on .loop, so stub it.
-    bot.loop = asyncio.get_event_loop()
+    try:
+        bot.loop = asyncio.get_running_loop()
+    except RuntimeError:
+        bot.loop = asyncio.new_event_loop()
     bot.get_guild = lambda gid: None
     bot.wait_until_ready = lambda: asyncio.sleep(0)
     # Exact cog list from main.py

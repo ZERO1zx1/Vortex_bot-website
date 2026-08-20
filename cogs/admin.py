@@ -21,7 +21,7 @@ class Admin(commands.Cog):
     async def status(self, interaction):
         ctx = SlashContext(interaction)
         await ctx.defer()
-        uptime = str(datetime.fromtimestamp(self.start_time).strftime("%Y-%m-%d %H:%M:%S"))
+        uptime = str(datetime.fromtimestamp(self.start_time, timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         latency_ms = self.bot.latency * 1000
         latency = round(latency_ms) if latency_ms == latency_ms else 0  # NaN guard
         cpu_usage = psutil.cpu_percent()

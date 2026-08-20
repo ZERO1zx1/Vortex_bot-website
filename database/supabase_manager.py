@@ -8,7 +8,7 @@ Legacy ``.acquire()`` / ``.cursor()`` / raw-SQL usage is not allowed.
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from supabase import create_client, Client
@@ -308,7 +308,7 @@ class SupabaseManager:
         and the static site reads them with the anon key.
         """
         try:
-            now = datetime.utcnow().isoformat() + "Z"
+            now = datetime.now(timezone.utc).isoformat() + "Z"
             data: Dict[str, Any] = {"id": 1, "status": status, "last_ping": now}
 
             def _ping():

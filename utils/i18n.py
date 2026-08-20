@@ -237,7 +237,7 @@ async def get_guild_lang(guild_id: Any) -> str:
     if gid in _guild_lang_cache:
         return _guild_lang_cache[gid]
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         row = await loop.run_in_executor(None, lambda: _sb_get_lang(gid))
         lang = row or DEFAULT_LANG
         _guild_lang_cache[gid] = lang
@@ -253,7 +253,7 @@ async def set_guild_lang(guild_id: Any, lang: str) -> bool:
     gid = str(guild_id)
     _guild_lang_cache[gid] = lang
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, lambda: _sb_set_lang(gid, lang))
         return True
     except Exception:

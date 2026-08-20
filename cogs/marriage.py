@@ -447,7 +447,7 @@ class Marriage(SupabaseCog):
         if not marriage_date: return None
         try: marriage_date = int(marriage_date)
         except: return None
-        today = datetime.datetime.now().date()
+        today = datetime.datetime.now(datetime.timezone.utc).date()
         mar_date = datetime.datetime.fromtimestamp(marriage_date).date()
         days = (today - mar_date).days
         next_ann = datetime.datetime(today.year, mar_date.month, mar_date.day).date()

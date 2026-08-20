@@ -97,10 +97,15 @@ class RaidTracker:
         def _clear():
             self.acted.discard(guild_id)
             self.joins.pop(guild_id, None)
+        # Python 3.13 стандартын дагуу зөвхөн get_running_loop() — deprecated
+        # get_event_loop() fallback-гүй (running loop байхгүй үед call_later утгагүй)
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            loop = asyncio.get_event_loop()
+            # Синхрон контекстоос дуудагдсан бол loop-г олох боломжгүй —
+            # таймерийг алдахын оронд шууд цэвэрлэнэ (хадгалахын баталгаагүй)
+            _clear()
+            return
         loop.call_later(delay, _clear)
 
 

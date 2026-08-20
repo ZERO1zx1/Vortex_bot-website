@@ -201,7 +201,7 @@ class Confessions(commands.Cog):
                 await interaction.followup.send("❌ Систем тохируулагдаагүй. `/confess_setup`-ээр тохируулна уу.", ephemeral=True)
             return
 
-        now = int(datetime.datetime.now().timestamp())
+        now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
         # Күүдаун шалгах
         cd_row = await self.bot.db_manager.fetch_one(
             "confession_cooldown", {"user_id": str(user.id), "guild_id": str(guild.id)}

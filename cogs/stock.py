@@ -146,7 +146,7 @@ class Stock(commands.Cog):
             "guild_id": str(guild_id),
             "item_id": item_id,
             "current_stock": random_stock,
-            "last_restock": int(datetime.datetime.now().timestamp()),
+            "last_restock": int(datetime.datetime.now(datetime.timezone.utc).timestamp()),
         }, on_conflict="guild_id,item_id")
 
     async def ensure_stocks_for_guild(self, guild_id: int):
@@ -189,7 +189,7 @@ class Stock(commands.Cog):
                 "guild_id": str(guild_id),
                 "item_id": item_id,
                 "current_stock": amount,
-                "last_restock": int(datetime.datetime.now().timestamp()),
+                "last_restock": int(datetime.datetime.now(datetime.timezone.utc).timestamp()),
             },
             on_conflict="guild_id,item_id",
         )
@@ -198,7 +198,7 @@ class Stock(commands.Cog):
     @tasks.loop(hours=24)
     async def daily_restock(self):
         await self.bot.wait_until_ready()
-        now_ts = int(datetime.datetime.now().timestamp())
+        now_ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
         for guild in self.bot.guilds:
             try:
                 await self.ensure_stocks_for_guild(guild.id)
@@ -352,7 +352,7 @@ class Stock(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def stock_reset(self, ctx):
         await self.ensure_stocks_for_guild(ctx.guild.id)
-        now_ts = int(datetime.datetime.now().timestamp())
+        now_ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
         stock_rows = await self.bot.db_manager.fetch_all(
             "shop_stock", {"guild_id": str(ctx.guild.id)}
         )
