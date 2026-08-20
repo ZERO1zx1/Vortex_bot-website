@@ -37,4 +37,7 @@ Thumbs.db
 __pycache__/
 bot_output.txt
 
+# Firebase CLI local cache
+.firebase/
+
 .agents/
