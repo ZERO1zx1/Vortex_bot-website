@@ -580,34 +580,36 @@ class HelpView(ui.View):
 
     def build_embed(self, category: str):
         emoji = CATEGORY_EMOJIS.get(category, "📁")
+        icon = CATEGORY_ICONS.get(category, "📌")
         color = CATEGORY_COLORS.get(category, 0x1e1e2f)
 
         commands = [(cmd, info) for cmd, info in COMMAND_INFO.items() if info["category"] == category]
 
         embed = discord.Embed(
-            title=f"{emoji}  {category}",
-            description=f"📋 **{len(commands)} тушаал**  •  {CATEGORY_COUNT_INFO}",
+            title=f"{emoji}  {category}  {icon}",
+            description=f"┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  📋 **{len(commands)} тушаал**  •  {len(CATEGORY_EMOJIS)} ангилал  ┃\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
             color=color,
             timestamp=datetime.now(timezone.utc)
         )
         embed.add_field(
-            name="📌 Командын жагсаалт",
+            name=f"{icon}  **{category} мэдээлэл**",
             value=(
-                f"{'═' * 32}\n"
-                f"📂 **Ангилал:** {emoji} {category}\n"
-                f"🤖 **Бот:** {BOT_NAME}\n"
-                f"📊 **Нийт тушаал:** {len(COMMAND_INFO)}\n"
-                f"{'═' * 32}"
+                f"┌{'─' * 30}┐\n"
+                f"│ {emoji} **Ангилал:** {category}\n"
+                f"│ {icon} **Төрөл:** {category}\n"
+                f"│ 🤖 **Бот:** {BOT_NAME}\n"
+                f"│ 📊 **Нийт тушаал:** {len(COMMAND_INFO)}\n"
+                f"└{'─' * 30}┘"
             ),
             inline=False,
         )
         if not commands:
-            embed.add_field(name="📭 Хоосон", value="Энэ ангилалд тушаал байхгүй байна.", inline=False)
+            embed.add_field(name="📭  **Хоосон**", value="> Энэ ангилалд тушаал байхгүй байна.", inline=False)
         else:
             MAX_FIELD = 1000
             chunks, current, size = [], [], 0
             for cmd, info in commands:
-                line = f"▸ **`{cmd}`** — {info['description_mn']}\n  ↳ `{info['usage']}`\n"
+                line = f"╭ **`{cmd}`**\n╰→ {info['description_mn']}\n  ↳ `{info['usage']}`\n"
                 if size + len(line) > MAX_FIELD and current:
                     chunks.append("".join(current))
                     current, size = [], 0
@@ -616,22 +618,23 @@ class HelpView(ui.View):
             if current:
                 chunks.append("".join(current))
             for i, chunk in enumerate(chunks, start=1):
+                badge = "📑" if len(chunks) > 1 else "📋"
                 embed.add_field(
-                    name=f"{'📑' if len(chunks) > 1 else '📋'} Бүлэг {i}/{len(chunks)}",
-                    value=chunk.strip(),
+                    name=f"{badge}  **Бүлэг {i}/{len(chunks)}**  {icon}",
+                    value=f"```\n{chunk.strip()}\n```",
                     inline=False,
                 )
         embed.set_author(name=str(self.ctx.author), icon_url=self.ctx.author.display_avatar.url)
         if self.ctx.guild and self.ctx.guild.icon:
             embed.set_thumbnail(url=self.ctx.guild.icon.url)
-        embed.set_footer(text=f"{BOT_NAME} · Тусламжийн самбар · 180с дараа дуусна", icon_url=self.bot.user.display_avatar.url if self.bot.user else None)
+        embed.set_footer(text=f"{BOT_NAME} • Тусламжийн самбар • 180с дараа дуусна", icon_url=self.bot.user.display_avatar.url if self.bot.user else None)
         return embed
 
     # ── Эгнээ 0 ──
     @ui.button(label="Эдийн засаг", emoji="💰", style=discord.ButtonStyle.blurple, row=0)
     async def economy_btn(self, interaction, button): self.current_category = "Эдийн засаг"; await self.send_embed(interaction)
 
-    @ui.button(label="Тоглоом", emoji="🎲", style=discord.ButtonStyle.green, row=0)
+    @ui.button(label="Тоглоом", emoji="🎮", style=discord.ButtonStyle.green, row=0)
     async def games_btn(self, interaction, button): self.current_category = "Тоглоом"; await self.send_embed(interaction)
 
     @ui.button(label="Казино", emoji="🎰", style=discord.ButtonStyle.red, row=0)
@@ -641,10 +644,10 @@ class HelpView(ui.View):
     async def fun_btn(self, interaction, button): self.current_category = "Хөгжилтэй"; await self.send_embed(interaction)
 
     # ── Эгнээ 1 ──
-    @ui.button(label="Түвшин", emoji="⭐", style=discord.ButtonStyle.primary, row=1)
+    @ui.button(label="Түвшин", emoji="✨", style=discord.ButtonStyle.primary, row=1)
     async def levels_btn(self, interaction, button): self.current_category = "Түвшин"; await self.send_embed(interaction)
 
-    @ui.button(label="Даалгавар", emoji="🎯", style=discord.ButtonStyle.success, row=1)
+    @ui.button(label="Даалгавар", emoji="📜", style=discord.ButtonStyle.success, row=1)
     async def quests_btn(self, interaction, button): self.current_category = "Даалгавар"; await self.send_embed(interaction)
 
     @ui.button(label="Модераци", emoji="🛡️", style=discord.ButtonStyle.danger, row=1)
@@ -670,18 +673,34 @@ class HelpView(ui.View):
 # Категорийн тохиргоо
 CATEGORY_EMOJIS = {
     "Эдийн засаг": "💰",
-    "Тоглоом": "🎲",
+    "Тоглоом": "🎮",
     "Казино": "🎰",
     "Хөгжилтэй": "🎉",
     "Модераци": "🛡️",
-    "Түвшин": "⭐",
+    "Түвшин": "✨",
     "Гэр бүл": "💒",
     "Админ": "⚙️",
     "Хэрэгсэл": "🔧",
-    "Хоол": "🍔",
-    "Дэлгүүр": "🛒",
+    "Хоол": "🍜",
+    "Дэлгүүр": "🛍️",
     "Нууц": "🤫",
-    "Даалгавар": "🎯",
+    "Даалгавар": "📜",
+}
+
+CATEGORY_ICONS = {
+    "Эдийн засаг": "💵",
+    "Тоглоом": "🕹️",
+    "Казино": "🃏",
+    "Хөгжилтэй": "💖",
+    "Модераци": "⚖️",
+    "Түвшин": "📈",
+    "Гэр бүл": "💍",
+    "Админ": "🔐",
+    "Хэрэгсэл": "📋",
+    "Хоол": "🍱",
+    "Дэлгүүр": "🏪",
+    "Нууц": "📝",
+    "Даалгавар": "🗒️",
 }
 
 CATEGORY_COLORS = {

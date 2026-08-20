@@ -26,7 +26,7 @@ config_manager.load_config = lambda: {'prefix': '!', 'bonus_percent': 10}
 sys.modules["config_manager"] = config_manager
 
 utils_branding = types.ModuleType("utils.branding")
-utils_branding.BOT_NAME = '𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ'
+utils_branding.BOT_NAME = '𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹'
 utils_branding.BOT_FOOTER = 'test'
 utils_branding.footer_text = 'test'
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -101,23 +101,34 @@ except Exception as e:
     errors.append(f"Cog init failed: {e}")
 
 # 5. View-үүд Discord UI-тай нийцэж байгаа эсэх (mock ctx-ээр бүтээх)
+# discord.py >= 2.4: View.__init__ нь asyncio.get_running_loop() шаарддаг тул
+# View үүсгэх заавал ажиллаж буй event loop дотор хийгдэнэ (бот дээр async
+# команд дотор үүсдэгтэй ижил нөхцөл).
+import asyncio  # noqa: E402
 from discord.ext import commands  # noqa: E402
+
 mock_ctx = MagicMock(spec=commands.Context)
 mock_ctx.author.id = 12345
-for cls, args in [(games.GambleView, (cog, mock_ctx, 1000)),
-                  (games.CoinflipView, (cog, mock_ctx, 1000)),
-                  (games.SlotsView, (cog, mock_ctx, 1000)),
-                  (games.RouletteView, (cog, mock_ctx, 1000)),
-                  (games.DiceView, (cog, mock_ctx, 1000)),
-                  (games.RPSView, (cog, mock_ctx, 1000)),
-                  (games.NumberGuessView, (cog, mock_ctx, 1000, 5)),
-                  (games.HighCardView, (mock_ctx, cog, 1000)),
-                  (games.CrashView, (cog, mock_ctx, 1000))]:
-    try:
-        v = cls(*args)
-        print(f"  ✅ {cls.__name__} бүтээгдлээ, {len(v.children)} товчлууртай")
-    except Exception as e:
-        errors.append(f"{cls.__name__} init failed: {e}")
+
+
+async def _build_views():
+    for cls, args in [(games.GambleView, (cog, mock_ctx, 1000)),
+                      (games.CoinflipView, (cog, mock_ctx, 1000)),
+                      (games.SlotsView, (cog, mock_ctx, 1000)),
+                      (games.RouletteView, (cog, mock_ctx, 1000)),
+                      (games.DiceView, (cog, mock_ctx, 1000)),
+                      (games.RPSView, (cog, mock_ctx, 1000)),
+                      (games.NumberGuessView, (cog, mock_ctx, 1000, 5)),
+                      (games.HighCardView, (mock_ctx, cog, 1000)),
+                      (games.CrashView, (cog, mock_ctx, 1000))]:
+        try:
+            v = cls(*args)
+            print(f"  ✅ {cls.__name__} бүтээгдлээ, {len(v.children)} товчлууртай")
+        except Exception as e:
+            errors.append(f"{cls.__name__} init failed: {e}")
+
+
+asyncio.run(_build_views())
 
 if errors:
     print("\n❌ АЛДААНУУД:")

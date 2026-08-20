@@ -1,5 +1,5 @@
 /* ============================================================
-   𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ — UI engine
+   𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — UI engine
    Features: 3D particles, tilt cards, scroll reveal, counters,
    parallax hero, command search/filter, smooth nav.
    ============================================================ */
@@ -702,7 +702,7 @@ const AETHER_I18N = {
     'invite.btn': 'Server-т элсэх',
     'footer.brand': 'Монгол Discord бот',
     'footer.faq': 'Асуулт хариулт',
-    'footer.copy': '© 2026 𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ. Бүх эрх хуулиар хамгаалагдсан.',
+    'footer.copy': '© 2026 𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹. Бүх эрх хуулиар хамгаалагдсан.',
     'heartbeat.checking': 'Ботын жинхэнэ төлөвийг шалгаж байна…',
     'ui.scrolltop': 'Дээшээ',
     'heartbeat.now': 'Сүүлд онлайн байсан: саяхан',
@@ -940,7 +940,7 @@ const AETHER_I18N = {
     'invite.btn': 'Join server',
     'footer.brand': 'Mongolian Discord bot',
     'footer.faq': 'FAQ',
-    'footer.copy': '© 2026 𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ. All rights reserved.',
+    'footer.copy': '© 2026 𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹. All rights reserved.',
     'heartbeat.checking': 'Checking real bot status…',
     'ui.scrolltop': 'Scroll to top',
     'heartbeat.now': 'Last online: just now',

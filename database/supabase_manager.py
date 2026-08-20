@@ -198,7 +198,11 @@ class SupabaseManager:
         def _upsert():
             # postgrest >= 2.x: on_conflict is a kwarg of upsert() itself;
             # the returned SyncQueryRequestBuilder has NO .on_conflict() method.
-            q = self.table(table).upsert(data, on_conflict=on_conflict or "")
+            # on_conflict=None үед kwarg-гүй дуудна (хоосон string алдаа үүсгэж болзошгүй).
+            if on_conflict:
+                q = self.table(table).upsert(data, on_conflict=on_conflict)
+            else:
+                q = self.table(table).upsert(data)
             result = q.execute()
             return result.data or []
         return await self._run(_upsert)

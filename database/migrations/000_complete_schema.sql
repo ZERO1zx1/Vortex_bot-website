@@ -2,8 +2,11 @@
 -- Migration: 000_complete_schema.sql
 -- Bot: 𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹
 -- Purpose: Complete non-destructive schema for the live Supabase project.
---          This consolidated file includes all tables, indexes, and the
---          atomic increment function required by the bot.
+--          This consolidated file includes every table, index, and the
+--          atomic increment function required by the bot — it is the ONLY
+--          migration file that needs to be run in the SQL Editor.
+--          (automod_config, reaction_roles, bot_status and the
+--          guild_config.lang column are included here as well.)
 --
 -- This migration is NON-DESTRUCTIVE: every statement uses
 --   CREATE TABLE IF NOT EXISTS,
@@ -178,8 +181,13 @@ CREATE TABLE IF NOT EXISTS guild_config (
     create_channel_id BIGINT,
     max_channels_per_user INT DEFAULT 3,
     category_id BIGINT,
-    control_channel_id BIGINT
+    control_channel_id BIGINT,
+    lang TEXT DEFAULT 'mn'
 );
+
+-- Existing databases may already have guild_config without the lang column
+-- (CREATE TABLE IF NOT EXISTS will not add columns). Backfill it here.
+ALTER TABLE guild_config ADD COLUMN IF NOT EXISTS lang TEXT DEFAULT 'mn';
 
 -- ── Lottery ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS lottery (
@@ -549,6 +557,37 @@ CREATE TABLE IF NOT EXISTS custom_replies (
     text TEXT NOT NULL
 );
 
+-- ── Auto-moderation ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS automod_config (
+    guild_id TEXT,
+    feature TEXT,
+    enabled BOOLEAN DEFAULT true,
+    created_at TEXT,
+    PRIMARY KEY (guild_id, feature)
+);
+
+-- ── Reaction roles ───────────────────────────────────────
+CREATE TABLE IF NOT EXISTS reaction_roles (
+    guild_id TEXT,
+    message_id TEXT,
+    emoji TEXT,
+    role_id TEXT,
+    created_at TEXT,
+    PRIMARY KEY (guild_id, message_id, emoji)
+);
+
+-- ── Bot heartbeat (website status page) ──────────────────
+-- supabase_manager.ping_bot() upserts id=1 with status/last_ping/uptime_since;
+-- website/js/config.js reads it via HEARTBEAT_URL (anon key).
+CREATE TABLE IF NOT EXISTS bot_status (
+    id INT PRIMARY KEY DEFAULT 1,
+    status TEXT DEFAULT 'offline',
+    last_ping TIMESTAMPTZ,
+    uptime_since TIMESTAMPTZ
+);
+INSERT INTO bot_status (id, status) VALUES (1, 'offline')
+ON CONFLICT (id) DO NOTHING;
+
 -- ── RPC: atomic increment helper ─────────────────────────
 CREATE OR REPLACE FUNCTION increment(
     table_name TEXT,
@@ -589,7 +628,9 @@ CREATE INDEX IF NOT EXISTS idx_shop_stock_guild ON shop_stock (guild_id);
 -- does not expose these tables to end users, so disabling RLS is the
 -- correct and safe configuration. This fragment is idempotent.
 ALTER TABLE adoptions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE automod_config DISABLE ROW LEVEL SECURITY;
 ALTER TABLE avatar_log_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE bot_status DISABLE ROW LEVEL SECURITY;
 ALTER TABLE confession_blacklist DISABLE ROW LEVEL SECURITY;
 ALTER TABLE confession_config DISABLE ROW LEVEL SECURITY;
 ALTER TABLE confession_cooldown DISABLE ROW LEVEL SECURITY;
@@ -629,6 +670,7 @@ ALTER TABLE marriage_user_settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE marriages DISABLE ROW LEVEL SECURITY;
 ALTER TABLE pvp_cooldowns DISABLE ROW LEVEL SECURITY;
 ALTER TABLE quest_history DISABLE ROW LEVEL SECURITY;
+ALTER TABLE reaction_roles DISABLE ROW LEVEL SECURITY;
 ALTER TABLE role_income DISABLE ROW LEVEL SECURITY;
 ALTER TABLE shop_stock DISABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_activity DISABLE ROW LEVEL SECURITY;

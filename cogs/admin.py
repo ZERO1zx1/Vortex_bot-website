@@ -8,6 +8,7 @@ import psutil
 
 from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
 from utils.slash_context import SlashContext
+from utils.embed_style import style_embed, add_box_field, error_embed, gold_embed
 
 class Admin(commands.Cog):
     def __init__(self, bot):
@@ -23,19 +24,20 @@ class Admin(commands.Cog):
         await ctx.defer()
         uptime = str(datetime.fromtimestamp(self.start_time, timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         latency_ms = self.bot.latency * 1000
-        latency = round(latency_ms) if latency_ms == latency_ms else 0  # NaN guard
+        latency = round(latency_ms) if latency_ms == latency_ms else 0
         cpu_usage = psutil.cpu_percent()
         ram_usage = psutil.virtual_memory().percent
-        
-        embed = discord.Embed(title="🤖 Бот-ын төлөв", color=INFO_COLOR)
-        embed.add_field(name="⏳ Ажилласан хугацаа", value=f"`{uptime}`", inline=True)
-        embed.add_field(name="📡 Хоцролт", value=f"`{latency}ms`", inline=True)
-        embed.add_field(name="💻 CPU", value=f"`{cpu_usage}%`", inline=True)
-        embed.add_field(name="🧠 RAM", value=f"`{ram_usage}%`", inline=True)
-        embed.add_field(name="⚙️ Систем", value=f"`{platform.system()}`", inline=True)
-        embed.add_field(name="🐍 Python", value=f"`{platform.python_version()}`", inline=True)
-        
-        embed.set_footer(text=f"Хүсэлт гаргасан: {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
+
+        embed = style_embed("Бот-ын төлөв", "Системын мэдээлэл", INFO_COLOR, "info")
+        add_box_field(embed, "СЭЙТЭРХҮҮ", [
+            f"╭ Ажилласан хугацаа\n╰→ {uptime}",
+            f"╭ Хоцролт\n╰→ {latency}ms",
+            f"╭ CPU ашиглалт\n╰→ {cpu_usage}%",
+            f"╭ RAM ашиглалт\n╰→ {ram_usage}%",
+            f"╭ Операцион систем\n╰→ {platform.system()}",
+            f"╭ Python хувилбар\n╰→ {platform.python_version()}",
+        ])
+        embed.set_author(name=ctx.author.name, icon_url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
     @app_commands.command(name='info', description='Серверийн мэдээлэл харах')
@@ -43,8 +45,7 @@ class Admin(commands.Cog):
         ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         if ctx.guild is None:
-            embed = discord.Embed(title="❌ АЛДАА", description="Зөвхөн сервер дотор ашиглах боломжтой.", color=ERROR_COLOR)
-            return await ctx.send(embed=embed)
+            return await ctx.send(embed=error_embed("АЛДАА", "Зөвхөн сервер дотор ашиглах боломжтой."))
 
         guild = ctx.guild
         total_members = guild.member_count
@@ -65,28 +66,36 @@ class Admin(commands.Cog):
         }
         verif_level = verif_levels.get(guild.verification_level, "Тодорхойгүй")
 
-        embed = discord.Embed(
-            title=f"📌 **{guild.name}**",
-            description="*Серверийн дэлгэрэнгүй мэдээлэл*",
-            color=GOLD_COLOR if guild.premium_tier > 0 else EMBED_COLOR,
-            timestamp=datetime.now(timezone.utc)
-        )
-
+        color = GOLD_COLOR if guild.premium_tier > 0 else EMBED_COLOR
+        embed = style_embed(guild.name, "Серверийн дэлгэрэнгүй мэдээлэл", color, "info")
+        
         if guild.banner:
             embed.set_image(url=guild.banner.url)
         elif guild.icon:
             embed.set_image(url=guild.icon.url)
 
-        embed.add_field(name="👑 **Эзэмшигч**", value=f"{guild.owner.mention}\n`{guild.owner.name}`", inline=True)
-        embed.add_field(name="📅 **Үүсгэсэн**", value=f"`{guild.created_at.strftime('%Y-%m-%d %H:%M:%S')}`", inline=True)
-        embed.add_field(name="🆔 **Серверийн ID**", value=f"`{guild.id}`", inline=True)
-        embed.add_field(name="👥 **Гишүүд**", value=f"👨 Жинхэнэ: `{humans}`\n🤖 Бот: `{bots}`\n📊 Нийт: `{total_members}`", inline=True)
-        embed.add_field(name="💬 **Сувгууд**", value=f"📝 Текст: `{text_channels}`\n🎙️ Дууны: `{voice_channels}`\n📁 Категори: `{categories}`", inline=True)
-        embed.add_field(name="🎭 **Роль**", value=f"`{roles}` роль", inline=True)
-        boost_emoji = "⭐" if boost_level == 1 else "🌟🌟" if boost_level == 2 else "🌟🌟🌟" if boost_level == 3 else "💨"
-        embed.add_field(name="🚀 **Boost**", value=f"{boost_emoji} Түвшин: `{boost_level}`\n⚡ Boost: `{boost_count}`", inline=True)
-        embed.add_field(name="🔐 **Баталгаажуулалт**", value=verif_level, inline=True)
-        embed.set_footer(text=f"Хүсэлт гаргасан: {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
+        add_box_field(embed, "НЭГЖҮҮЛЭЛ", [
+            f"╭ Эзэмшигч\n╰→ {guild.owner.mention} (`{guild.owner.name}`)",
+            f"╭ Үүсгэсэн огноо\n╰→ {guild.created_at.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"╭ Серверийн ID\n╰→ {guild.id}",
+        ])
+        add_box_field(embed, "ГИШҮҮД", [
+            f"╭ Жинхэнэ хүн\n╰→ {humans}",
+            f"╭ Ботууд\n╰→ {bots}",
+            f"╭ Нийт\n╰→ {total_members}",
+        ])
+        add_box_field(embed, "СУВГУУД", [
+            f"╭ Текст сувгууд\n╰→ {text_channels}",
+            f"╭ Дууны сувгууд\n╰→ {voice_channels}",
+            f"╭ Категори\n╰→ {categories}",
+        ])
+        add_box_field(embed, "ҮҮРЭГ БА БУСТ", [
+            f"╭ Роль\n╰→ {roles}",
+            f"╭ Boost түвшин\n╰→ {boost_level} {'⭐' * boost_level if boost_level else '💨'}",
+            f"╭ Boost тоо\n╰→ {boost_count}",
+            f"╭ Баталгаажуулалт\n╰→ {verif_level}",
+        ])
+        embed.set_author(name=ctx.author.name, icon_url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
     @app_commands.command(name='rolelist', description='Role жагсаалт харах')

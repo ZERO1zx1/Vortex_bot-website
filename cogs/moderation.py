@@ -1,5 +1,6 @@
 from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
 from utils.slash_context import SlashContext
+from utils.embed_style import style_embed, success_embed, error_embed, warning_embed, info_embed, add_box_field
 import logging
 
 logger = logging.getLogger(__name__)

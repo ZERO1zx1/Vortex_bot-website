@@ -1,5 +1,5 @@
 /* ============================================================
-   𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ — Site config
+   𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Site config
    ТОХИРУУЛГА: зөвхөн энэ файлаас өөрчилнө.
 
    SERVER_INVITE_URL — AETHER Discord серверийн join холбоос (бүх товчин дээр).
@@ -8,7 +8,7 @@
    аваарай.
    ============================================================ */
 window.AETHER_CONFIG = {
-  BOT_NAME: '𝓐𝓮𝓽𝓱𝓮𝓻  蒼Қ',
+  BOT_NAME: '𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹',
   SERVER_INVITE_URL: 'https://discord.gg/Nu8ubdpZ2',
   BOT_INVITE_URL: 'https://discord.com/oauth2/authorize?client_id=1493212321231802408&permissions=8&scope=bot%20applications.commands',
   INVITE_URL: 'https://discord.gg/Nu8ubdpZ2',

@@ -66,12 +66,11 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[stream, cogs_handler],
 )
+logger = logging.getLogger("aether")
 logger.info("📟 Terminal log level: %s", _term_level_name)
 # Файл хандлерыг ROOT logger-тэй холбох — бүх cog, discord,
 # discord.ext-ийн WARNING+ алдаа бүгд ./logs/cogs.log руу бичигдэнэ.
 cogs_handler.setLevel(logging.WARNING)
-
-logger = logging.getLogger("aether")
 
 # Discord сангийн log-ыг WARNING+ болгох (INFO spam-аас зайлсхийх)
 logging.getLogger("discord").setLevel(logging.WARNING)

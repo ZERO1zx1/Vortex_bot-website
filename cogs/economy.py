@@ -1,5 +1,6 @@
 from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-from utils.branding import footer_text
+from utils.branding import footer_text, BOT_NAME
+from utils.embed_style import style_embed, success_embed, error_embed, warning_embed, info_embed, gold_embed, add_box_field, format_command
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -250,15 +251,19 @@ class Economy(SupabaseCog):
         total = cash + bank
         disc_level = await self.get_discord_level(target.id, ctx.guild.id)
         job_level, job = self.get_job_for_level(disc_level)
-        embed = discord.Embed(title=f"🏦 {target.display_name} - САНХҮҮ",
-                              color=0xffd700 if total >= 50000 else 0x2b2d31)
+        color = 0xffd700 if total >= 50000 else EMBED_COLOR
+        embed = style_embed(f"{target.display_name} - САНХҮҮ", "", color, "bank")
         embed.set_thumbnail(url=target.display_avatar.url)
-        embed.add_field(name="💰 Гар дээр", value=f"**{cash:,}** ₮", inline=True)
-        embed.add_field(name="🏦 Банканд", value=f"**{bank:,}** ₮", inline=True)
-        embed.add_field(name="💎 Нийт хөрөнгө", value=f"**{total:,}** ₮", inline=False)
-        embed.add_field(name="💼 Ажил", value=f"{job['emoji']} **{job['name']}** (Түв.{job_level})", inline=True)
-        embed.add_field(name="⭐ Discord Түвшин", value=f"**{disc_level}**", inline=True)
-        embed.set_footer(text=footer_text(ctx.author.name), icon_url=ctx.author.display_avatar.url)
+        add_box_field(embed, "ҮЛДЭГДЭЛ", [
+            f"╭ Гар дээр\n╰→ {cash:,} ₮",
+            f"╭ Банканд\n╰→ {bank:,} ₮",
+            f"╭ Нийт хөрөнгө\n╰→ {total:,} ₮",
+        ])
+        add_box_field(embed, "АЖИЛ БА ТҮВШИН", [
+            f"╭ Ажил\n╰→ {job['emoji']} {job['name']} (Түв.{job_level})",
+            f"╭ Discord түвшин\n╰→ {disc_level}",
+        ])
+        embed.set_footer(text=f"{BOT_NAME} • {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
     @commands.command(name='work')

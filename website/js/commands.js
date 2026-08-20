@@ -1,5 +1,5 @@
 /* ============================================================
-   𝓐𝓮𝓽𝓱𝓮𝓻 蒼Қ — Command catalog (from bot source code, 2026-08-16)
+   𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Command catalog (from bot source code, 2026-08-16)
    Categories mirror the real cog grouping of the bot.
    ============================================================ */
 const COMMANDS = [

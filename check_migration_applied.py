@@ -27,18 +27,27 @@ EXPECTED_TABLES = [
     "staff_activity", "leveling_config", "shop_stock",
 ]
 
-# Бүрэн schema-д байх ёстой бүх хүснэгтүүд (000_complete_schema.sql-аас)
+# Бүрэн schema-д байх ёстой бүх хүснэгтүүд (000_complete_schema.sql-аас).
+# Энэ жагсаалтыг ботын кодын бодит хэрэглээнээс (tools/scan_tables.py) гаргасан:
+# db_manager-ийн бүх insert/update/upsert/delete/fetch дуудлага + TABLE тогтмолууд
+# (automod_config, reaction_roles) + website heartbeat (bot_status).
 ALL_TABLES = [
-    "economy", "levels", "leveling_config", "user_inventory", "shop_items",
-    "shop_stock", "shop_orders", "giveaways", "temproles", "role_income",
-    "tempvoice_setup_msg", "tempvoice_blacklist", "staff_config",
-    "staff_members", "staff_activity", "warnings", "mod_logs",
-    "confessions", "confession_votes", "invites", "guild_stats",
-    "greetings_config", "guild_roles", "marriages", "marriage_blocked",
-    "marriage_gifts", "mafia_games", "mafia_players", "quests", "quest_progress",
-    "pvp_stats", "trade_offers", "trade_items", "carts", "cart_items",
-    "game_stats", "casino_stats", "guild_settings", "afk_records",
-    "counting_scores", "mines_games", "games_scores", "buffs", "shop_categories",
+    "adoptions", "automod_config", "avatar_log_config", "bot_status",
+    "confession_blacklist", "confession_config", "confession_cooldown",
+    "confession_messages", "counting_config", "counting_progress",
+    "counting_stats", "custom_replies", "daily_stats", "economy",
+    "economy_cooldowns_config", "economy_fail_rates", "economy_fines_config",
+    "economy_payouts_config", "game_stats", "giveaway_entries", "giveaways",
+    "greeting_config", "greeting_templates", "guild_config", "invite_joins",
+    "invite_labels", "invite_log_config", "invite_stats", "level_rewards",
+    "level_roles", "leveling_config", "leveling_exceptions", "levels",
+    "marketplace_listings", "marriage_gifts", "marriage_guild_config",
+    "marriage_proposals", "marriage_user_settings", "marriages",
+    "pvp_cooldowns", "quest_history", "reaction_roles", "role_income",
+    "shop_stock", "staff_activity", "staff_config", "staff_members",
+    "staff_weekly_winners", "sticky_messages", "temp_channels",
+    "temprole_config", "temproles", "tempvoice_setup_msg", "user_drunk",
+    "user_inventory", "user_quests", "warnings", "work_phrases",
 ]
 
 # Хүснэгтийн дэлгэрэнгүй мэдээллийг PostgREST-ээр шалгах
