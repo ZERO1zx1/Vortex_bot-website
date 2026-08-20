@@ -35,16 +35,26 @@ cogs_handler.setFormatter(logging.Formatter(
     "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 ))
 
+# Терминал хандлер: зөвхөн INFO мессеж үзүүлнэ,
+# WARNING/ERROR/CRITICAL алдаануудыг терминалд ХАРАГДАХГҮЙ болгох фильтр.
+# Алдаанууд зөвхөн ./logs/cogs.log файл руу бичигдэнэ.
+class TerminalFilter(logging.Filter):
+    def filter(self, record):
+        return record.levelno < logging.WARNING
+
+stream = logging.StreamHandler()
+stream.setLevel(logging.INFO)
+stream.addFilter(TerminalFilter())
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[logging.StreamHandler(), cogs_handler],
+    handlers=[stream, cogs_handler],
 )
-# Файл хандлерыг ROOT logger-тэй холбох — ингэснээр бүх cog, discord,
+# Файл хандлерыг ROOT logger-тэй холбох — бүх cog, discord,
 # discord.ext-ийн WARNING+ алдаа бүгд ./logs/cogs.log руу бичигдэнэ.
-# (Өмнө нь зөвхөн "discord" logger-тэй холбогдсон байсан тул aether болон
-# discord.ext-ийн алдаа файл руу орохгүй, зөвхөн терминал дээр харагддаг байсан.)
-logging.getLogger().addHandler(cogs_handler)
+cogs_handler.setLevel(logging.WARNING)
+
 logger = logging.getLogger("aether")
 
 # Discord сангийн log-ыг WARNING+ болгох (INFO spam-аас зайлсхийх)
