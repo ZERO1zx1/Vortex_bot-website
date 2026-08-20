@@ -11,7 +11,24 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import httpx
 from supabase import create_client, Client
+from supabase.lib.client_options import SyncClientOptions
+
+# Network errors that are transient (Windows/Python 3.13 socket flakiness,
+# temporary timeouts) and are safe to retry with backoff.
+_NETWORK_EXCEPTIONS = (
+    ConnectionError,
+    TimeoutError,
+    OSError,
+)
+try:
+    from httpx import TransportError
+    _NETWORK_EXCEPTIONS = _NETWORK_EXCEPTIONS + (TransportError,)
+except ImportError:
+    pass
+
+_NETWORK_EXCEPTIONS = tuple({t for t in _NETWORK_EXCEPTIONS})
 
 
 class SupabaseManager:
@@ -28,7 +45,19 @@ class SupabaseManager:
     def connect(self) -> Client:
         if not self.url or not self.key:
             raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables.")
-        self.client = create_client(self.url, self.key)
+        # Force HTTP/1.1: the httpcore HTTP/2 sync transport is unstable on
+        # Windows with Python 3.13 (sporadic [WinError 10035]
+        # WSAEWOULDBLOCK socket errors during framing). HTTP/1.1 is reliable.
+        http_client = httpx.Client(
+            http1=True,
+            http2=False,
+            timeout=30.0,
+        )
+        self.client = create_client(
+            self.url,
+            self.key,
+            options=SyncClientOptions(httpx_client=http_client),
+        )
         return self.client
 
     def is_connected(self) -> bool:
@@ -75,7 +104,21 @@ class SupabaseManager:
     async def _run(self, fn, *args, **kwargs):
         if self.client is None:
             raise RuntimeError("Supabase client is not connected.")
-        return await asyncio.to_thread(fn, *args, **kwargs)
+        # Retry wrapper: transient network errors (e.g. [WinError 10035])
+        # are retried with exponential backoff instead of failing outright.
+        attempt = 0
+        last_exc = None
+        while attempt <= 3:
+            try:
+                return await asyncio.to_thread(fn, *args, **kwargs)
+            except _NETWORK_EXCEPTIONS as exc:
+                last_exc = exc
+                attempt += 1
+                if attempt <= 3:
+                    await asyncio.sleep(0.5 * (2 ** (attempt - 1)))
+                else:
+                    break
+        raise last_exc
 
     def table(self, name: str) -> Any:
         if self.client is None:
