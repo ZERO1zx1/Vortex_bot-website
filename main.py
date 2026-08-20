@@ -40,10 +40,14 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[logging.StreamHandler(), cogs_handler],
 )
+# Файл хандлерыг ROOT logger-тэй холбох — ингэснээр бүх cog, discord,
+# discord.ext-ийн WARNING+ алдаа бүгд ./logs/cogs.log руу бичигдэнэ.
+# (Өмнө нь зөвхөн "discord" logger-тэй холбогдсон байсан тул aether болон
+# discord.ext-ийн алдаа файл руу орохгүй, зөвхөн терминал дээр харагддаг байсан.)
+logging.getLogger().addHandler(cogs_handler)
 logger = logging.getLogger("aether")
 
-# Cog-ийн command алдаа бүгдийг файл руу бүртгэх
-logging.getLogger("discord").addHandler(cogs_handler)
+# Discord сангийн log-ыг WARNING+ болгох (INFO spam-аас зайлсхийх)
 logging.getLogger("discord").setLevel(logging.WARNING)
 
 # asyncio-ийн "Task exception was never retrieved" зэрэг дотоод логоос зайлсхийх
