@@ -35,22 +35,38 @@ cogs_handler.setFormatter(logging.Formatter(
     "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 ))
 
-# Терминал хандлер: зөвхөн INFO мессеж үзүүлнэ,
-# WARNING/ERROR/CRITICAL алдаануудыг терминалд ХАРАГДАХГҮЙ болгох фильтр.
-# Алдаанууд зөвхөн ./logs/cogs.log файл руу бичигдэнэ.
+# TERMINAL LOG ТҮВШИН: config.json-ийн terminal_log_level-аар удирдагдана.
+# "INFO"   → терминалд мэдээлэл л харагдана (алдаа файл руу)
+# "WARNING"→ WARNING+ терминалд харагдана
+# "ERROR"  → зөвхөн ERROR/CRITICAL
+# "OFF"/"NONE" → терминалд огт лог бичигдэхгүй
+LEVELS = {"DEBUG": logging.DEBUG, "INFO": logging.INFO,
+          "WARNING": logging.WARNING, "ERROR": logging.ERROR,
+          "CRITICAL": logging.CRITICAL}
+
 class TerminalFilter(logging.Filter):
     def filter(self, record):
         return record.levelno < logging.WARNING
 
-stream = logging.StreamHandler()
-stream.setLevel(logging.INFO)
-stream.addFilter(TerminalFilter())
+_term_level_name = str(config.get("terminal_log_level", "INFO")).strip().upper()
+if _term_level_name in ("OFF", "NONE"):
+    stream = logging.StreamHandler()
+    stream.setLevel(logging.CRITICAL + 1)  # терминалд огт бичигдэхгүй
+else:
+    _term_level = LEVELS.get(_term_level_name, logging.INFO)
+    stream = logging.StreamHandler()
+    stream.setLevel(_term_level)
+    # Алдаануудыг терминалд харуулахгүй файл руу л оруулах горимтой үед
+    # WARNING-аас доош түвшнийг шүүх фильтрийг нэмнэ.
+    if _term_level < logging.WARNING:
+        stream.addFilter(TerminalFilter())
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[stream, cogs_handler],
 )
+logger.info("📟 Terminal log level: %s", _term_level_name)
 # Файл хандлерыг ROOT logger-тэй холбох — бүх cog, discord,
 # discord.ext-ийн WARNING+ алдаа бүгд ./logs/cogs.log руу бичигдэнэ.
 cogs_handler.setLevel(logging.WARNING)
