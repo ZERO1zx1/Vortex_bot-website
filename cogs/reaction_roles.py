@@ -152,10 +152,13 @@ class ReactionRoles(SupabaseCog):
 
     async def cog_load(self):
         await super().cog_load()
-        await self.db.execute("sql", {"query": f"""
-            CREATE TABLE IF NOT EXISTS {TABLE} (
-                guild_id TEXT, message_id TEXT, emoji TEXT, role_id TEXT,
-                created_at TEXT, PRIMARY KEY (guild_id, message_id, emoji))"""})
+        try:
+            # NOTE: PostgREST has no raw-SQL endpoint; table creation is done
+            # via migrations (database/migrations/20260813_runtime_missing_tables.sql).
+            await self.bot.db_manager.fetchall(TABLE, {"guild_id": "__probe__"})
+        except Exception as exc:
+            logger = logging.getLogger("cogs.reaction_roles")
+            logger.warning("reaction_roles хүснэгт олдсонгүй: %s — migration ажиллуул: 20260813_runtime_missing_tables.sql", exc)
         for g in self.bot.guilds:
             await self.rebuild_cache(g.id)
         self._cache_refresh.start()
@@ -266,7 +269,7 @@ class ReactionRoles(SupabaseCog):
             pass
 
     @commands.Cog.listener()
-    async def on_raw_reaction_remove(self, payload: discord.RawReactionRemoveEvent):
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
         # Ботын reaction устгах үйлдлийг шүүх
         if payload.user_id == self.bot.user.id:
             return

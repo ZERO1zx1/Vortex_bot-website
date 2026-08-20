@@ -118,10 +118,13 @@ class AutoModeration(SupabaseCog):
 
     async def cog_load(self):
         await super().cog_load()
-        await self.db.execute("sql", {"query": f"""
-            CREATE TABLE IF NOT EXISTS {TABLE} (
-                guild_id TEXT, feature TEXT, enabled BOOLEAN DEFAULT true,
-                created_at TEXT, PRIMARY KEY (guild_id, feature))"""})
+        try:
+            # NOTE: PostgREST has no raw-SQL endpoint; table creation is done
+            # via migrations (database/migrations/20260813_runtime_missing_tables.sql).
+            # Ensure the table exists at least once by checking read access.
+            await self.get_all_data(TABLE, {"guild_id": "__probe__"})
+        except Exception as exc:
+            logger.warning("automod_config хүснэгт олдсонгүй: %s — migration ажиллуул: 20260813_runtime_missing_tables.sql", exc)
         await self._load_all()
         self._periodic_cleanup.start()
 

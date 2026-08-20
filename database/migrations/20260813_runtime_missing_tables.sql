@@ -549,6 +549,25 @@ CREATE TABLE IF NOT EXISTS custom_replies (
     text TEXT NOT NULL
 );
 
+-- ── Auto-moderation ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS automod_config (
+    guild_id TEXT,
+    feature TEXT,
+    enabled BOOLEAN DEFAULT true,
+    created_at TEXT,
+    PRIMARY KEY (guild_id, feature)
+);
+
+-- ── Reaction roles ───────────────────────────────────────
+CREATE TABLE IF NOT EXISTS reaction_roles (
+    guild_id TEXT,
+    message_id TEXT,
+    emoji TEXT,
+    role_id TEXT,
+    created_at TEXT,
+    PRIMARY KEY (guild_id, message_id, emoji)
+);
+
 -- ── RPC: atomic increment helper ─────────────────────────
 CREATE OR REPLACE FUNCTION increment(
     table_name TEXT,

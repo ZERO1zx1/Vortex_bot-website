@@ -82,8 +82,13 @@ class MenuView(ui.View):
         start_category: Optional[str] = None,
         page: int = 0,
         timeout: float = MENU_TIMEOUT,
+        persistent: bool = False,
     ) -> None:
-        super().__init__(timeout=timeout)
+        # Persistent (bootstrap) view: timeout=None бөгөөд бүх item нь custom_id-тэй
+        # байх ёстой (discord.py add_view() шаардлага). Хэрэглэгчийн самбарын
+        # timeout нь эцсийн embed/interaction-д хэрэглэгдэхгүй — view-г дахин
+        # илгээх бүрд шинэ MenuView үүсгэгднэ.
+        super().__init__(timeout=None if persistent else timeout)
         self.original = original
         self.guild_id = guild_id
         self.lang = lang
@@ -94,6 +99,12 @@ class MenuView(ui.View):
     # ── interaction check ─────────────────────────────────────────────
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # Persistent bootstrap view нь хэн ч "дарж" чадахгүй — энэ нь зөвхөн
+        # reconnection үед Discord-оос ирэх үлдэгдэл даралтыг дамжуулах
+        # handler болгон add_view() руу бүсэлэгдсэн view юм.
+        if self.original is None:
+            await interaction.response.defer()
+            return False
         if interaction.user.id != self.original.id:
             await interaction.response.send_message(
                 await t_async(self.guild_id, "", mn="⚠️ Энэ самбар зөвхөн танд зориулагдсан.",
@@ -104,7 +115,7 @@ class MenuView(ui.View):
         return True
 
     async def on_timeout(self) -> None:
-        """Timeout дуусахад бүх button-ыг идэвхгүй болгох."""
+        """Timeout дуусахад бүх button-ыг идэвхгүй болгох (persistent view-д хэрэглэгдэхгүй)."""
         try:
             for child in self.children:
                 if isinstance(child, (ui.Button, ui.Select)):
@@ -206,7 +217,7 @@ class MenuView(ui.View):
         min_values=1,
         max_values=1,
     )
-    async def category_select(self, interaction: discord.Interaction, sel: ui.StringSelect) -> None:
+    async def category_select(self, interaction: discord.Interaction, sel: ui.Select) -> None:
         chosen_mn = _mn_category(sel.values[0])
         self.category = chosen_mn
         self.page = 0
@@ -308,13 +319,17 @@ class Menu(commands.Cog):
         self.bot = bot
 
     async def cog_load(self) -> None:
-        """Persistent view — бот restart/reconnect-д ч view handler сэргэнэ."""
-        self.bot.add_view(MenuView(original=None, guild_id=0))  # type: ignore[arg-type]
+        """Persistent view — бот restart/reconnect-д ч view handler сэргэнэ.
+
+        add_view() шаардлага: view timeout=None байх бөгөөд бүх item нь
+        custom_id-тэй байх ёстой (MenuView-ийн бүх button/select custom_id-тэй).
+        """
+        self.bot.add_view(MenuView(original=None, guild_id=0, persistent=True))
         log.info("menu: persistent view registered")
 
     async def cog_unload(self) -> None:
         """Cog унтрахад view-г зогсоох (docs: extension teardown)."""
-        self.bot.remove_view(MenuView(original=None, guild_id=0))  # type: ignore[arg-type]
+        self.bot.remove_view(MenuView(original=None, guild_id=0, persistent=True))
         log.info("menu: persistent view unregistered")
 
     @commands.hybrid_command(name="menu", description="Интерактив цэс нээх")
@@ -335,7 +350,7 @@ class Menu(commands.Cog):
                 )
                 return
         view = MenuView(original=ctx.author, guild_id=guild_id,
-                        start_category=category)
+                        start_category=category, timeout=MENU_TIMEOUT)
         embed = await view._build_embed()
         await ctx.send(embed=embed, view=view)
 

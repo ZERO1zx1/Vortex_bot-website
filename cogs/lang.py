@@ -49,7 +49,7 @@ class LangCog(SupabaseCog, name="Хэл / Language"):
         app_commands.Choice(name="Монгол (mn)", value="mn"),
         app_commands.Choice(name="English (en)", value="en"),
     ])
-    @app_commands.checks.has_guild_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def lang_slash(self, interaction: discord.Interaction, lang: app_commands.Choice[str]) -> None:
         value = lang.value
         await i18n.set_guild_lang(interaction.guild_id, value)
