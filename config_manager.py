@@ -35,6 +35,7 @@ def load_config():
             "bonus_percent": 10,
             "transfer_tax_percent": 10,
             "max_balance": 100000000,
+            "terminal_log_level": "INFO",
         }
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(default, f, indent=4)
@@ -52,6 +53,12 @@ def load_config():
     if env_co_owners:
         config["co_owner_ids"] = _parse_int_list(env_co_owners)
 
+    # Түвшнийг normalize хийх: терминал дээр харуулах лог түвшин.
+    allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NONE", "OFF"}
+    lvl = str(config.get("terminal_log_level", "INFO")).strip().upper()
+    if lvl not in allowed:
+        lvl = "INFO"
+    config["terminal_log_level"] = lvl
     return config
 
 
