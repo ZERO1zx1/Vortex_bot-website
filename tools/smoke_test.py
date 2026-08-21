@@ -45,7 +45,19 @@ utils_constants.GOLD_COLOR = 0xfab387
 utils_constants.INFO_COLOR = 0x3498db
 sys.modules["utils.constants"] = utils_constants
 
-base = os.path.dirname(os.path.abspath(__file__))
+def find_root(start: str):
+    """Tools/ хавтасаас ажиллахэд ч project root-г олох: cogs/ байгаа хүртэл дээшээ өөрнө."""
+    d = os.path.abspath(start)
+    while True:
+        if os.path.isdir(os.path.join(d, "cogs")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            return os.path.dirname(os.path.abspath(__file__))
+        d = parent
+
+
+base = find_root(__file__)
 for util_name, filename in [("fonts", "utils/fonts.py"), ("supabase_cog", "utils/supabase_cog.py")]:
     path = os.path.join(base, filename)
     if os.path.exists(path):

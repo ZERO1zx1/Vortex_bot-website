@@ -1,4 +1,16 @@
+import os
 import sys, types, importlib
+
+# Tools/ хявтасаас ажиллахэд ч project root-г sys.path-д нэмэх (cogs/ импортлогдоно).
+def _root():
+    d = os.path.dirname(os.path.abspath(__file__))
+    while not os.path.isdir(os.path.join(d, "cogs")):
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return d
+sys.path.insert(0, _root())
 
 # Pre-mock external packages before any discord import.
 mocks = ("supabase", "psutil", "motor", "asyncpg", "psycopg2",
