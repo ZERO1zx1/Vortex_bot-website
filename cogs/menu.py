@@ -99,11 +99,11 @@ class MenuView(ui.View):
 
     # ── interaction check ─────────────────────────────────────────────
 
-    def _build_select_options(self) -> List[ui.SelectOption]:
+    def _build_select_options(self) -> List[discord.SelectOption]:
         options = []
         for cat in _get_categories(self.lang):
             emoji = CATEGORY_EMOJIS.get(cat, "📁")
-            options.append(ui.SelectOption(label=cat, emoji=emoji, value=cat))
+            options.append(discord.SelectOption(label=cat, emoji=emoji, value=cat))
         return options
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
