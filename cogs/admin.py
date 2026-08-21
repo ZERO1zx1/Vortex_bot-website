@@ -4,7 +4,10 @@ from discord import app_commands
 from datetime import datetime, timezone
 import time
 import platform
-import psutil
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
 from utils.slash_context import SlashContext
@@ -25,8 +28,12 @@ class Admin(commands.Cog):
         uptime = str(datetime.fromtimestamp(self.start_time, timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         latency_ms = self.bot.latency * 1000
         latency = round(latency_ms) if latency_ms == latency_ms else 0
-        cpu_usage = psutil.cpu_percent()
-        ram_usage = psutil.virtual_memory().percent
+        if psutil:
+            cpu_usage = psutil.cpu_percent()
+            ram_usage = psutil.virtual_memory().percent
+        else:
+            cpu_usage = "N/A"
+            ram_usage = "N/A"
 
         embed = style_embed("Бот-ын төлөв", "Системын мэдээлэл", INFO_COLOR, "info")
         add_box_field(embed, "СЭЙТЭРХҮҮ", [

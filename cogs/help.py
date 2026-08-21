@@ -627,7 +627,7 @@ class HelpView(ui.View):
         embed.set_author(name=str(self.ctx.author), icon_url=self.ctx.author.display_avatar.url)
         if self.ctx.guild and self.ctx.guild.icon:
             embed.set_thumbnail(url=self.ctx.guild.icon.url)
-        embed.set_footer(text=f"{BOT_NAME} • Тусламжийн самбар • 180с дараа дуусна", icon_url=self.bot.user.display_avatar.url if self.bot.user else None)
+        embed.set_footer(text=f"{BOT_NAME} • Тусламжийн самбар • 180с дараа дуусна", icon_url=self.ctx.bot.user.display_avatar.url if self.ctx.bot.user else None)
         return embed
 
     # ── Эгнээ 0 ──

@@ -870,7 +870,7 @@ class Leveling(SupabaseCog):
     async def before_xp_drop_loop(self): await self.bot.wait_until_ready()
 
     # ========== COMMANDS ==========
-    @commands.hybrid_command(name="grank", aliases=["rank","lvl"])
+    @commands.hybrid_command(name="grank", aliases=["rank","lvl"], description="Хэрэглэгчийн түвшин, XP болон эрэмбийг харах")
     async def grank(self, ctx, user: discord.Member = None):
         target = user or ctx.author
         await ctx.defer()
@@ -895,7 +895,7 @@ class Leveling(SupabaseCog):
         except Exception as e: await ctx.send(f"❌ Rank карт үүсгэхэд алдаа гарлаа: {e}", ephemeral=True)
 
     # ========== NEW: Server Activity Command ==========
-    @commands.hybrid_command(name="serveractivity", aliases=["activity"])
+    @commands.hybrid_command(name="serveractivity", aliases=["activity"], description="Серверийн идэвхтэй байдлын статистик")
     async def server_activity(self, ctx):
         """Серверийн идэвхтэй байдлыг харах"""
         guild = ctx.guild

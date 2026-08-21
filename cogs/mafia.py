@@ -204,7 +204,7 @@ class Mafia(commands.Cog):
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     # ────── Тоглоом үүсгэх ──────
-    @commands.hybrid_command(name="mafiacreate")
+    @commands.hybrid_command(name="mafiacreate", description="Мафи тоглоом үүсгэх")
     @commands.has_permissions(administrator=True)
     async def mafia_create(self, ctx):
         if ctx.channel.id in self.games:
@@ -216,7 +216,7 @@ class Mafia(commands.Cog):
         view.message = msg
 
     # ────── Тоглоом эхлүүлэх ──────
-    @commands.hybrid_command(name="mafiastart")
+    @commands.hybrid_command(name="mafiastart", description="Мафи тоглоомыг эхлүүлэх")
     @commands.has_permissions(administrator=True)
     async def mafia_start(self, ctx):
         game = self.get_game(ctx.channel.id)
@@ -283,7 +283,7 @@ class Mafia(commands.Cog):
         game.night_task = self.bot.loop.create_task(self.night_phase_timer(game))
 
     # ────── Тоглоом зогсоох ──────
-    @commands.hybrid_command(name="mafiaend")
+    @commands.hybrid_command(name="mafiaend", description="Мафи тоглоомыг зогсоох")
     @commands.has_permissions(administrator=True)
     async def mafia_end(self, ctx):
         game = self.get_game(ctx.channel.id)

@@ -50,7 +50,7 @@ class AntiSpamTracker:
 
     def check(self, user_id: int) -> bool:
         now = time.time()
-        lst = self.messages[user_id]
+        lst = self.messages.get(user_id, [])
         lst = [t for t in lst if now - t < self.window]
         lst.append(now)
         self.messages[user_id] = lst
