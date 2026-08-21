@@ -552,44 +552,44 @@ class Marriage(SupabaseCog):
         await self._familysize(interaction, is_slash=True)
 
     # ═════════ HYBRID COMMANDS ═════════
-    @commands.hybrid_command(name='propose')
+    @commands.hybrid_command(name='propose', description="Гэрлэх санал тавих")
     @app_commands.describe(user="Гэрлэх санал тавих хэрэглэгч")
     async def propose(self, ctx, user: discord.Member):
         await self._propose(ctx, user)
 
-    @commands.hybrid_command(name='divorce')
+    @commands.hybrid_command(name='divorce', description="Гэрлэлтийг цуцлах")
     @app_commands.describe(user="Цуцлах хэрэглэгч (хоосон бол бүх гэрлэлтийг цуцална)")
     async def divorce(self, ctx, user: discord.Member = None):
         await self._divorce(ctx, user)
 
-    @commands.hybrid_command(name='adopt')
+    @commands.hybrid_command(name='adopt', description="Хүүхэд үрчлэх")
     @app_commands.describe(child="Хүүхэд")
     async def adopt(self, ctx, child: discord.Member):
         await self._adopt(ctx, child)
 
-    @commands.hybrid_command(name='disown')
+    @commands.hybrid_command(name='disown', description="Хүүхдээ хаях")
     @app_commands.describe(child="Хүүхэд")
     async def disown(self, ctx, child: discord.Member):
         await self._disown(ctx, child)
 
-    @commands.hybrid_command(name='spouse')
+    @commands.hybrid_command(name='spouse', description="Ханьтайгаа холбоотой мэдээлэл харах")
     async def spouse(self, ctx):
         await self._spouse(ctx)
 
-    @commands.hybrid_command(name='love')
+    @commands.hybrid_command(name='love', description="Хэрэглэгчтэйгээ хайрын хувь харах")
     async def love(self, ctx, target: discord.Member):
         await self._love(ctx, target)
 
-    @commands.hybrid_command(name='gift')
+    @commands.hybrid_command(name='gift', description="Хэрэглэгчдээ бэлэг өгөх")
     @app_commands.choices(gift_type=[app_commands.Choice(name=v["name"], value=k) for k, v in GIFTS.items()])
     async def gift(self, ctx, gift_type: str):
         await self._gift(ctx, gift_type)
 
-    @commands.hybrid_command(name='familytree')
+    @commands.hybrid_command(name='familytree', description="Гэр бүлийн модыг харах")
     async def family_tree(self, ctx, member: Optional[discord.Member] = None):
         await self._family_tree(ctx, member)
 
-    @commands.hybrid_command(name='marriagepro')
+    @commands.hybrid_command(name='marriagepro', description="Гэрлэлтийн карт үүсгэх")
     async def marriage_card(self, ctx, member: Optional[discord.Member] = None):
         await self._marriage_card(ctx, member)
 
@@ -612,19 +612,19 @@ class Marriage(SupabaseCog):
         author = ctx_or_inter.author if hasattr(ctx_or_inter, 'author') else ctx_or_inter.user
         guild = ctx_or_inter.guild
         if user.bot or user.id == author.id:
-            return await self._reply(ctx_or_inter, "❌ Өөртөө эсвэл ботод санал тавьж болохгүй.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Өөртөө эсвэл ботод санал тавьж болохгүй.", is_slash=is_slash)
         cfg = await self.get_guild_config(guild.id)
         if not cfg["enabled"]:
-            return await self._reply(ctx_or_inter, "❌ Гэрлэлтийн систем идэвхгүй.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Гэрлэлтийн систем идэвхгүй.", is_slash=is_slash)
         if await self.marriage_exists(guild.id, author.id, user.id):
-            return await self._reply(ctx_or_inter, "❌ Та аль хэдийн энэ хүнтэй гэрлэсэн.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Та аль хэдийн энэ хүнтэй гэрлэсэн.", is_slash=is_slash)
         spouses = await self.get_spouses(guild.id, author.id)
         if not cfg["polygamy"] and len(spouses) >= 1:
-            return await self._reply(ctx_or_inter, "❌ Полигами зөвшөөрөгдөөгүй.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Полигами зөвшөөрөгдөөгүй.", is_slash=is_slash)
         if len(spouses) >= cfg["max_spouses"]:
-            return await self._reply(ctx_or_inter, f"❌ Хамгийн ихдээ {cfg['max_spouses']} хүнтэй гэрлэх боломжтой.", is_slash)
+            return await self._reply(ctx_or_inter, f"❌ Хамгийн ихдээ {cfg['max_spouses']} хүнтэй гэрлэх боломжтой.", is_slash=is_slash)
         if await self.is_blocked(guild.id, user.id):
-            return await self._reply(ctx_or_inter, f"🚫 {user.mention} гэрлэх санал авахаас татгалзсан.", is_slash)
+            return await self._reply(ctx_or_inter, f"🚫 {user.mention} гэрлэх санал авахаас татгалзсан.", is_slash=is_slash)
         shop = self.bot.get_cog("ShopCog")
         ring_item_id, ring_name, ring_emoji = None, None, None
         if shop:
@@ -636,9 +636,9 @@ class Marriage(SupabaseCog):
                         ring_item_id, ring_name, ring_emoji = item_id, item.get("name", "Энгийн бөгж"), item.get("emoji", "💍")
                         break
             if not ring_item_id:
-                return await self._reply(ctx_or_inter, "❌ Инвентарт гэрлэх бөгж байхгүй.", is_slash)
+                return await self._reply(ctx_or_inter, "❌ Инвентарт гэрлэх бөгж байхгүй.", is_slash=is_slash)
         else:
-            return await self._reply(ctx_or_inter, "❌ Дэлгүүрийн систем ачаалагдаагүй.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Дэлгүүрийн систем ачаалагдаагүй.", is_slash=is_slash)
         expires = int(time.time()) + PROPOSAL_TIMEOUT
         await self.bot.db_manager.upsert(
             "marriage_proposals",
@@ -662,29 +662,29 @@ class Marriage(SupabaseCog):
         if user is None:
             marriages = await self.get_marriages(guild.id, author.id)
             if not marriages:
-                return await self._reply(ctx_or_inter, "❌ Танд гэрлэлт байхгүй.", is_slash)
+                return await self._reply(ctx_or_inter, "❌ Танд гэрлэлт байхгүй.", is_slash=is_slash)
             for m in marriages:
                 partner = guild.get_member(m["partner"])
                 await self.remove_marriage(guild.id, author.id, m["partner"])
                 await self.remove_marriage_role(guild, author)
                 if partner: await self.remove_marriage_role(guild, partner)
-            return await self._reply(ctx_or_inter, "💔 Бүх гэрлэлтийг цуцаллаа.", is_slash)
+            return await self._reply(ctx_or_inter, "💔 Бүх гэрлэлтийг цуцаллаа.", is_slash=is_slash)
         else:
             if not await self.marriage_exists(guild.id, author.id, user.id):
-                return await self._reply(ctx_or_inter, f"❌ Та {user.mention}-тэй гэрлээгүй байна.", is_slash)
+                return await self._reply(ctx_or_inter, f"❌ Та {user.mention}-тэй гэрлээгүй байна.", is_slash=is_slash)
             await self.remove_marriage(guild.id, author.id, user.id)
             await self.remove_marriage_role(guild, author)
             await self.remove_marriage_role(guild, user)
             await self.announce_divorce(guild, author, user)
-            return await self._reply(ctx_or_inter, f"💔 {author.mention} болон {user.mention} саллаа.", is_slash)
+            return await self._reply(ctx_or_inter, f"💔 {author.mention} болон {user.mention} саллаа.", is_slash=is_slash)
 
     async def _adopt(self, ctx_or_inter, child, is_slash=False):
         author = ctx_or_inter.author if hasattr(ctx_or_inter, 'author') else ctx_or_inter.user
         guild = ctx_or_inter.guild
         if child.bot or child.id == author.id:
-            return await self._reply(ctx_or_inter, "❌ Бот эсвэл өөрийгөө өргөмжлөх боломжгүй.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Бот эсвэл өөрийгөө өргөмжлөх боломжгүй.", is_slash=is_slash)
         if await self.is_parent_child(guild.id, author.id, child.id):
-            return await self._reply(ctx_or_inter, f"❌ {child.mention} аль хэдийн таны хүүхэд.", is_slash)
+            return await self._reply(ctx_or_inter, f"❌ {child.mention} аль хэдийн таны хүүхэд.", is_slash=is_slash)
         expires = int(time.time()) + PROPOSAL_TIMEOUT
         await self.bot.db_manager.upsert(
             "marriage_proposals",
@@ -706,17 +706,17 @@ class Marriage(SupabaseCog):
         author = ctx_or_inter.author if hasattr(ctx_or_inter, 'author') else ctx_or_inter.user
         guild = ctx_or_inter.guild
         if not await self.is_parent_child(guild.id, author.id, child.id):
-            return await self._reply(ctx_or_inter, f"❌ {child.mention} таны хүүхэд биш.", is_slash)
+            return await self._reply(ctx_or_inter, f"❌ {child.mention} таны хүүхэд биш.", is_slash=is_slash)
         await self.remove_parent_child(guild.id, author.id, child.id)
-        return await self._reply(ctx_or_inter, f"💔 {author.mention} {child.mention} -аас татгалзлаа.", is_slash)
+        return await self._reply(ctx_or_inter, f"💔 {author.mention} {child.mention} -аас татгалзлаа.", is_slash=is_slash)
 
     async def _makeparent(self, ctx_or_inter, parent, is_slash=False):
         author = ctx_or_inter.author if hasattr(ctx_or_inter, 'author') else ctx_or_inter.user
         guild = ctx_or_inter.guild
         if parent.bot or parent.id == author.id:
-            return await self._reply(ctx_or_inter, "❌ Бот эсвэл өөрийгөө эцэг эх болгох боломжгүй.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Бот эсвэл өөрийгөө эцэг эх болгох боломжгүй.", is_slash=is_slash)
         if await self.is_parent_child(guild.id, parent.id, author.id):
-            return await self._reply(ctx_or_inter, f"❌ {parent.mention} аль хэдийн таны эцэг эх.", is_slash)
+            return await self._reply(ctx_or_inter, f"❌ {parent.mention} аль хэдийн таны эцэг эх.", is_slash=is_slash)
         expires = int(time.time()) + PROPOSAL_TIMEOUT
         await self.bot.db_manager.upsert(
             "marriage_proposals",
@@ -739,17 +739,17 @@ class Marriage(SupabaseCog):
         guild = ctx_or_inter.guild
         parents = await self.get_parents(guild.id, author.id)
         if not parents:
-            return await self._reply(ctx_or_inter, "❌ Танд эцэг эх байхгүй.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Танд эцэг эх байхгүй.", is_slash=is_slash)
         for parent_id in parents:
             await self.remove_parent_child(guild.id, parent_id, author.id)
-        return await self._reply(ctx_or_inter, "🏃 Зугтлаа! Эцэг эхийн харилцаа цуцлагдлаа.", is_slash)
+        return await self._reply(ctx_or_inter, "🏃 Зугтлаа! Эцэг эхийн харилцаа цуцлагдлаа.", is_slash=is_slash)
 
     async def _spouse(self, ctx_or_inter, is_slash=False):
         author = ctx_or_inter.author if hasattr(ctx_or_inter, 'author') else ctx_or_inter.user
         guild = ctx_or_inter.guild
         spouses = await self.get_spouses(guild.id, author.id)
         if not spouses:
-            return await self._reply(ctx_or_inter, "❌ Та гэрлээгүй байна.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Та гэрлээгүй байна.", is_slash=is_slash)
         partners = [guild.get_member(sid).mention if guild.get_member(sid) else f"<@{sid}>" for sid in spouses]
         # ЗАСВАР: embed аргументын дараа is_slash-г нэртэй дамжуулах
         await self._reply(ctx_or_inter, embed=discord.Embed(title="💑 ХАМТРАГЧ(ИД)", description=", ".join(partners), color=LOVE_COLOR), is_slash=is_slash)
@@ -759,7 +759,7 @@ class Marriage(SupabaseCog):
         guild = ctx_or_inter.guild
         parents = await self.get_parents(guild.id, author.id)
         if not parents:
-            return await self._reply(ctx_or_inter, "❌ Танд эцэг эх байхгүй.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Танд эцэг эх байхгүй.", is_slash=is_slash)
         parts = [guild.get_member(pid).mention if guild.get_member(pid) else f"<@{pid}>" for pid in parents]
         # ЗАСВАР
         await self._reply(ctx_or_inter, embed=discord.Embed(title="👪 ЭЦЭГ ЭХ", description=", ".join(parts), color=INFO_COLOR), is_slash=is_slash)
@@ -769,7 +769,7 @@ class Marriage(SupabaseCog):
         guild = ctx_or_inter.guild
         children = await self.get_children(guild.id, author.id)
         if not children:
-            return await self._reply(ctx_or_inter, "❌ Танд хүүхэд байхгүй.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Танд хүүхэд байхгүй.", is_slash=is_slash)
         parts = [guild.get_member(cid).mention if guild.get_member(cid) else f"<@{cid}>" for cid in children]
         # ЗАСВАР
         await self._reply(ctx_or_inter, embed=discord.Embed(title="👶 ХҮҮХДҮҮД", description=", ".join(parts), color=INFO_COLOR), is_slash=is_slash)
@@ -778,12 +778,12 @@ class Marriage(SupabaseCog):
         author = ctx_or_inter.author if hasattr(ctx_or_inter, 'author') else ctx_or_inter.user
         guild = ctx_or_inter.guild
         if not await self.marriage_exists(guild.id, author.id, target.id):
-            return await self._reply(ctx_or_inter, f"❌ {target.mention} -тай гэрлээгүй байна.", is_slash)
+            return await self._reply(ctx_or_inter, f"❌ {target.mention} -тай гэрлээгүй байна.", is_slash=is_slash)
         last = await self.get_last_love_time(guild.id, author.id)
         if last and int(time.time()) - last < 86400:
             remaining = int(86400 - (time.time() - last))
             hours, minutes = divmod(remaining // 60, 60)
-            return await self._reply(ctx_or_inter, f"⏰ Өдөрт 1 удаа love бэлэглэх боломжтой. Үлдсэн: {hours}ц {minutes}м", is_slash)
+            return await self._reply(ctx_or_inter, f"⏰ Өдөрт 1 удаа love бэлэглэх боломжтой. Үлдсэн: {hours}ц {minutes}м", is_slash=is_slash)
         marriage = await self.bot.db_manager.fetch_one(
             "marriages", {"guild_id": str(guild.id), "user_id": str(author.id), "partner_id": str(target.id)}
         )
@@ -798,24 +798,24 @@ class Marriage(SupabaseCog):
                 {"love_points": (marriage.get("love_points", 0) or 0) + 10},
             )
         await self.update_last_love_time(guild.id, author.id)
-        await self._reply(ctx_or_inter, f"💖 {author.mention} {target.mention} -д 10 love оноо бэлэглэлээ!", is_slash)
+        await self._reply(ctx_or_inter, f"💖 {author.mention} {target.mention} -д 10 love оноо бэлэглэлээ!", is_slash=is_slash)
 
     async def _gift(self, ctx_or_inter, gift_type, is_slash=False):
         author = ctx_or_inter.author if hasattr(ctx_or_inter, 'author') else ctx_or_inter.user
         guild = ctx_or_inter.guild
         gift = GIFTS.get(gift_type)
         if not gift:
-            return await self._reply(ctx_or_inter, "❌ Бэлэг олдсонгүй.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Бэлэг олдсонгүй.", is_slash=is_slash)
         spouses = await self.get_spouses(guild.id, author.id)
         if not spouses:
-            return await self._reply(ctx_or_inter, "❌ Танд хань байхгүй.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Танд хань байхгүй.", is_slash=is_slash)
         last = await self.get_last_gift_time(guild.id, author.id)
         if last and int(time.time()) - last < 86400:
-            return await self._reply(ctx_or_inter, "❌ Өнөөдөр аль хэдийн бэлэг өгсөн. 24 цаг хүлээнэ үү.", is_slash)
+            return await self._reply(ctx_or_inter, "❌ Өнөөдөр аль хэдийн бэлэг өгсөн. 24 цаг хүлээнэ үү.", is_slash=is_slash)
         partner_id = spouses[0]
         await self.add_gift(guild.id, author.id, partner_id, gift_type, gift["love"])
         await self.update_last_gift_time(guild.id, author.id)
-        await self._reply(ctx_or_inter, f"🎁 {author.mention} ханьдаа {gift['emoji']} **{gift['name']}** бэлэглэж, +{gift['love']}❤️ хайрын оноо нэмлээ!", is_slash)
+        await self._reply(ctx_or_inter, f"🎁 {author.mention} ханьдаа {gift['emoji']} **{gift['name']}** бэлэглэж, +{gift['love']}❤️ хайрын оноо нэмлээ!", is_slash=is_slash)
 
     async def _family_tree(self, ctx_or_inter, member=None, full=False, is_slash=False):
         if is_slash:
@@ -925,7 +925,12 @@ class Marriage(SupabaseCog):
             else:
                 await ctx_or_inter.followup.send(content=content, embed=embed, ephemeral=True)
         else:
-            if content:
+            if hasattr(ctx_or_inter, 'response') and isinstance(ctx_or_inter, discord.Interaction):
+                if not ctx_or_inter.response.is_done():
+                    await ctx_or_inter.response.send_message(content=content, embed=embed)
+                else:
+                    await ctx_or_inter.followup.send(content=content, embed=embed)
+            elif content:
                 await ctx_or_inter.send(content=content, embed=embed)
             else:
                 await ctx_or_inter.send(embed=embed)

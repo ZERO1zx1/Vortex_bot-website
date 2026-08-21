@@ -95,8 +95,16 @@ class MenuView(ui.View):
         self.category = start_category  # MN нэр (COMMAND_INFO-той ижил)
         self.page = page
         self._embed: Optional[discord.Embed] = None
+        self.category_select.options = self._build_select_options()
 
     # ── interaction check ─────────────────────────────────────────────
+
+    def _build_select_options(self) -> List[ui.SelectOption]:
+        options = []
+        for cat in _get_categories(self.lang):
+            emoji = CATEGORY_EMOJIS.get(cat, "📁")
+            options.append(ui.SelectOption(label=cat, emoji=emoji, value=cat))
+        return options
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         # Persistent bootstrap view нь хэн ч "дарж" чадахгүй — энэ нь зөвхөн

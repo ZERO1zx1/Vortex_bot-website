@@ -358,7 +358,7 @@ class InviteTracker(commands.Cog):
         if member.bot: return
         await self.bot.db_manager.update(
             "invite_joins",
-            {"guild_id": str(member.guild.id), "user_id": str(member.id), "left_at": None},
+            {"guild_id": str(member.guild.id), "user_id": str(member.id)},
             {"left_at": int(time.time())},
         )
         row = await self.bot.db_manager.fetch_one(

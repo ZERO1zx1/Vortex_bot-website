@@ -224,7 +224,7 @@ class Leaderboard(commands.Cog):
         )
         return [(r["user_id"], r.get("reaction_count", 0) or 0) for r in rows]
 
-    @commands.hybrid_command(name="leaderboard", aliases=["lb"])
+    @commands.hybrid_command(name="leaderboard", aliases=["lb"], description="Серверийн эрэмбийн самбар")
     async def leaderboard_cmd(self, ctx):
         view = LeaderboardView(self, ctx, ctx.guild.id)
         embed = await view.build_embed()

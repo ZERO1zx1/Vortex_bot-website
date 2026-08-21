@@ -182,7 +182,10 @@ class SupabaseManager:
     async def insert(self, table: str, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         def _insert():
             result = self.table(table).insert(data).execute()
-            return result.data or []
+            d = result.data
+            if isinstance(d, bool) or not isinstance(d, list):
+                return []
+            return d or []
         return await self._run(_insert)
 
     async def update(self, table: str, filters: Dict[str, Any], data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -191,7 +194,10 @@ class SupabaseManager:
             for k, v in filters.items():
                 q = q.eq(k, v)
             result = q.execute()
-            return result.data or []
+            d = result.data
+            if isinstance(d, bool) or not isinstance(d, list):
+                return []
+            return d or []
         return await self._run(_update)
 
     async def upsert(self, table: str, data: Dict[str, Any], on_conflict: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -204,7 +210,10 @@ class SupabaseManager:
             else:
                 q = self.table(table).upsert(data)
             result = q.execute()
-            return result.data or []
+            d = result.data
+            if isinstance(d, bool) or not isinstance(d, list):
+                return []
+            return d or []
         return await self._run(_upsert)
 
     async def delete(self, table: str, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
