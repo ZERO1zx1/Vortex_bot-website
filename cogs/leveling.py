@@ -140,11 +140,6 @@ async def _load_overlay(overlay_name: str, width: int, height: int):
 
 def _load_asset_font(size: int, bold: bool = True):
     try:
-        if os.path.exists(DEFAULT_ASSET_FONT):
-            return ImageFont.truetype(DEFAULT_ASSET_FONT, size)
-    except:
-        pass
-    try:
         return _load_font(size, bold)
     except:
         return ImageFont.load_default()

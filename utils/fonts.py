@@ -222,6 +222,16 @@ class FontManager:
         if key in self._font_cache:
             return self._font_cache[key]
 
+        # Always try levelfont.otf first for consistent branding across all cards
+        lf = os.path.join(ASSETS_DIR, "levelfont.otf")
+        if os.path.isfile(lf):
+            try:
+                font = ImageFont.truetype(lf, size)
+                self._font_cache[key] = font
+                return font
+            except Exception as e:
+                log.debug("Failed to load levelfont.otf: %s", e)
+
         fonts = self._discover_fonts()
         for path, is_bold in fonts:
             if is_bold == bold:

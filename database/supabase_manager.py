@@ -370,13 +370,15 @@ class SupabaseManager:
             def _ping():
                 # postgrest 2.x upsert() defaults to merge-duplicates;
                 # only write uptime_since on the first ping (when row absent)
-                existing = self.table("bot_status").select("uptime_since").eq("id", 1).execute().data or []
+                raw = self.table("bot_status").select("uptime_since").eq("id", 1).execute().data
+                existing = raw if isinstance(raw, list) else []
                 payload = dict(data)
                 if not existing or not existing[0].get("uptime_since"):
                     payload["uptime_since"] = now
                 try:
                     result = self.table("bot_status").upsert(payload, on_conflict="id").execute()
-                    return result.data or []
+                    d = result.data
+                    return d if isinstance(d, list) else []
                 except Exception:
                     # Fallback: row already exists with uptime_since — update status/last_ping only
                     result = (
@@ -385,7 +387,8 @@ class SupabaseManager:
                         .eq("id", 1)
                         .execute()
                     )
-                    return result.data or []
+                    d = result.data
+                    return d if isinstance(d, list) else []
 
             return bool(await self._run(_ping))
         except Exception:  # noqa: BLE001
