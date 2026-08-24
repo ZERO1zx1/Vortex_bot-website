@@ -25,7 +25,12 @@ class Admin(commands.Cog):
     async def status(self, interaction):
         ctx = SlashContext(interaction)
         await ctx.defer()
-        uptime = str(datetime.fromtimestamp(self.start_time, timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+        delta = datetime.now(timezone.utc) - datetime.fromtimestamp(self.start_time, timezone.utc)
+        total = int(delta.total_seconds())
+        days, rem = divmod(total, 86400)
+        h, rem = divmod(rem, 3600)
+        m, s = divmod(rem, 60)
+        uptime = f"{days} хоног {h:02d}:{m:02d}:{s:02d}" if days else f"{h:02d}:{m:02d}:{s:02d}"
         latency_ms = self.bot.latency * 1000
         latency = round(latency_ms) if latency_ms == latency_ms else 0
         if psutil:

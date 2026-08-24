@@ -400,8 +400,10 @@ class InviteTracker(commands.Cog):
         cfg = await self.get_config(member.guild.id)
         if not member.guild.me.guild_permissions.manage_guild:
             if cfg and cfg["enabled"]:
-                embed = discord.Embed(title="⚠️ Эрх дутагдал", description="Ботод **Manage Server** эрх хэрэгтэй.", color=WARNING_COLOR)
-                await member.guild.get_channel(cfg["channel_id"]).send(embed=embed)
+                log_channel = member.guild.get_channel(cfg.get("channel_id") or 0)
+                if log_channel:
+                    embed = discord.Embed(title="⚠️ Эрх дутагдал", description="Ботод **Manage Server** эрх хэрэгтэй.", color=WARNING_COLOR)
+                    await log_channel.send(embed=embed)
             return
         try:
             current = await member.guild.invites()

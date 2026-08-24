@@ -19,16 +19,17 @@ class TitleModal(ui.Modal):
     def __init__(self, view):
         super().__init__(title="Гарчиг оруулах")
         self.view = view
-        self.add_item(ui.TextInput(
+        self.title_input = ui.TextInput(
             label="Зарлалын гарчиг",
             placeholder="Жишээ: Чухал мэдэгдэл!",
             max_length=256,
             required=True,
             custom_id="title_input",
-        ))
+        )
+        self.add_item(self.title_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        self.view.title = self.get_item("title_input").value
+        self.view.title = self.title_input.value
         await interaction.response.send_message(f"✅ Гарчиг тохируулагдлаа.", ephemeral=True)
         await self.view.refresh(interaction)
 
@@ -37,17 +38,18 @@ class DescriptionModal(ui.Modal):
     def __init__(self, view):
         super().__init__(title="Тайлбар оруулах")
         self.view = view
-        self.add_item(ui.TextInput(
+        self.description_input = ui.TextInput(
             label="Зарлалын тайлбар",
             style=discord.TextStyle.paragraph,
             placeholder="Дэлгэрэнгүй мэдээлэл...",
             max_length=4000,
             required=True,
             custom_id="description_input",
-        ))
+        )
+        self.add_item(self.description_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        self.view.description = self.get_item("description_input").value
+        self.view.description = self.description_input.value
         await interaction.response.send_message(f"✅ Тайлбар тохируулагдлаа.", ephemeral=True)
         await self.view.refresh(interaction)
 
@@ -56,15 +58,16 @@ class ImageModal(ui.Modal):
     def __init__(self, view):
         super().__init__(title="Зураг оруулах")
         self.view = view
-        self.add_item(ui.TextInput(
+        self.image_input = ui.TextInput(
             label="Зургийн URL (хоосон орхивол зураггүй)",
             placeholder="https://i.imgur.com/...",
             required=False,
             custom_id="image_input",
-        ))
+        )
+        self.add_item(self.image_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        self.view.image_url = self.get_item("image_input").value.strip() or None
+        self.view.image_url = self.image_input.value.strip() or None
         await interaction.response.send_message(f"✅ Зураг тохируулагдлаа.", ephemeral=True)
         await self.view.refresh(interaction)
 
@@ -73,15 +76,16 @@ class FooterModal(ui.Modal):
     def __init__(self, view):
         super().__init__(title="Footer текст оруулах")
         self.view = view
-        self.add_item(ui.TextInput(
+        self.footer_input = ui.TextInput(
             label="Footer текст (хоосон орхивол footer-гүй)",
             placeholder="Зарлалын төгсгөлд харагдах текст",
             required=False,
             custom_id="footer_input",
-        ))
+        )
+        self.add_item(self.footer_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        self.view.footer = self.get_item("footer_input").value.strip() or None
+        self.view.footer = self.footer_input.value.strip() or None
         await interaction.response.send_message(f"✅ Footer тохируулагдлаа.", ephemeral=True)
         await self.view.refresh(interaction)
 
@@ -90,15 +94,16 @@ class MentionModal(ui.Modal):
     def __init__(self, view):
         super().__init__(title="Хэрэглэгч/Роль дуудах")
         self.view = view
-        self.add_item(ui.TextInput(
+        self.mention_input = ui.TextInput(
             label="ID (хоосон орхивол дуудахгүй)",
             placeholder="Роль эсвэл хэрэглэгчийн ID",
             required=False,
             custom_id="mention_input",
-        ))
+        )
+        self.add_item(self.mention_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        self.view.mention = self.get_item("mention_input").value.strip() or None
+        self.view.mention = self.mention_input.value.strip() or None
         await interaction.response.send_message(f"✅ Дуудах тохируулагдлаа.", ephemeral=True)
         await self.view.refresh(interaction)
 
@@ -128,9 +133,19 @@ class AnnouncementView(ui.View):
             return False
         return True
 
-    async def refresh(self, interaction: discord.Interaction):
+    async def refresh(self, interaction: Optional[discord.Interaction] = None):
         embed = self.build_preview_embed()
-        await interaction.edit_original_response(embed=embed, view=self)
+        if interaction is not None:
+            try:
+                await interaction.edit_original_response(embed=embed, view=self)
+                return
+            except discord.HTTPException:
+                pass
+        if self.message:
+            try:
+                await self.message.edit(embed=embed, view=self)
+            except discord.HTTPException:
+                pass
 
     def build_preview_embed(self):
         color_name = next((k for k, v in COLOR_CHOICES.items() if v == self.embed_color), "Тодорхойгүй")
@@ -191,7 +206,7 @@ class AnnouncementView(ui.View):
         async def color_callback(select_interaction: discord.Interaction):
             self.embed_color = int(select.values[0])
             await select_interaction.response.send_message(f"✅ Өнгө сонгогдлоо.", ephemeral=True)
-            await self.refresh(interaction)
+            await self.refresh()
 
         select.callback = color_callback
         view = ui.View(timeout=60)

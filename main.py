@@ -85,6 +85,7 @@ class MyBot(commands.Bot):
         intents.message_content = True
         intents.members = True
         intents.voice_states = True
+        intents.presences = True  # online/offline статус харахад шаардлагатай (Dev Portal-оос мөн асаана)
 
         prefix = config.get("prefix", DEFAULT_PREFIX)
         super().__init__(
@@ -162,12 +163,81 @@ class MyBot(commands.Bot):
     async def on_command_error(self, ctx, error):
         """Text command алдааг ./logs/cogs.log руу бүртгэнэ."""
         if isinstance(error, commands.CommandNotFound):
-            return  # танигдаагүй команд — файл хөглөхгүй
+            return  # танигдаагүй команд — файл хөлдөөхгүй
+
+        # Hybrid командын дотоод алдааг задлах
+        original = getattr(error, "original", None)
+        if isinstance(error, commands.HybridCommandError) and original is not None:
+            error = original
+
+        # ---------- Хэрэглэгчийн оруулсан буруу өгөгдөл — эелдэг мессеж илгээж дуусгана ----------
+        if isinstance(error, commands.MissingRequiredArgument):
+            param = error.param.name
+            await ctx.send(
+                f"❌ Дутуу аргумент: `{param}` байхгүй байна.\n"
+                f"💡 Зөв хэлбэр: `{ctx.prefix or ''}{ctx.command.qualified_name} <{param}>`",
+                ephemeral=True,
+            )
+            return
+        if isinstance(error, (commands.MemberNotFound, commands.UserNotFound)):
+            await ctx.send(
+                f"❌ Хэрэглэгч олдсонгүй: `{error.argument}`.\n"
+                f"💡 Хэрэглэгчийг @mention эсвэл зөв ID-гаар дурдана уу.",
+                ephemeral=True,
+            )
+            return
+        if isinstance(error, commands.BadArgument):
+            await ctx.send("❌ Аргументын формат буруу байна. Тусламжийг дахин шалгана уу.", ephemeral=True)
+            return
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(f"⏳ Хэтрүүлэн ашигласан тул {error.retry_after:.1f}с хүлээнэ үү.", ephemeral=True)
+            return
+        if isinstance(error, commands.MissingPermissions):
+            perms = ", ".join(error.missing_permissions)
+            await ctx.send(f"⛔ Танд энэ командын эрх байхгүй: {perms}", ephemeral=True)
+            return
+        if isinstance(error, commands.BotMissingPermissions):
+            perms = ", ".join(error.missing_permissions)
+            await ctx.send(f"⛔ Надад энэ командын эрх байхгүй: {perms}", ephemeral=True)
+            return
+        if isinstance(error, commands.NoPrivateMessage):
+            await ctx.send("❌ Энэ командыг зөвхөн серверт ашиглаж болно.", ephemeral=True)
+            return
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send("⛔ Та энэ командыг ашиглах эрхгүй байна.", ephemeral=True)
+            return
+
+        # Interaction хугацаа нь дууссан (Unknown interaction) — WARNING л болгох
+        if isinstance(error, discord.NotFound) and "10062" in str(error):
+            logger.warning("Interaction expired [%s] %s: %s", ctx.command, getattr(ctx.author, "id", "?"), error)
+            return
+
         logger.exception("Command error [%s] %s: %s", ctx.command, ctx.author, error)
 
     async def on_app_command_error(self, interaction, error):
         """Slash command алдааг ./logs/cogs.log руу бүртгэнэ."""
+        from discord import app_commands as _app
+
         cmd = interaction.command.qualified_name if interaction.command else "unknown"
+
+        if isinstance(error, _app.CommandOnCooldown):
+            await interaction.response.send_message(
+                f"⏳ Хэтрүүлэн ашигласан тул {error.retry_after:.1f}с хүлээнэ үү.", ephemeral=True
+            )
+            return
+        if isinstance(error, _app.MissingPermissions):
+            perms = ", ".join(error.missing_permissions)
+            await interaction.response.send_message(f"⛔ Танд энэ командын эрх байхгүй: {perms}", ephemeral=True)
+            return
+        if isinstance(error, _app.CheckFailure):
+            await interaction.response.send_message("⛔ Та энэ командыг ашиглах эрхгүй байна.", ephemeral=True)
+            return
+        if isinstance(error, (_app.TransformerError, _app.CommandInvokeError)):
+            inner = getattr(error, "original", None)
+            if isinstance(inner, discord.NotFound) and "10062" in str(inner):
+                logger.warning("Interaction expired [%s] %s: %s", cmd, interaction.user, inner)
+                return
+
         logger.exception("Slash error [%s] %s: %s", cmd, interaction.user, error)
 
     async def on_ready(self):

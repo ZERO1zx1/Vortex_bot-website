@@ -23,6 +23,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PIL import ImageDraw, ImageFont
 
+try:
+    from fontTools.ttLib import TTFont as _TTFont
+except Exception:  # pragma: no cover - fontTools нь matplotlib-ийн хамаарал
+    _TTFont = None
+
 log = logging.getLogger("aether.fonts")
 
 # ---------------------------------------------------------------------------
@@ -99,6 +104,7 @@ class FontManager:
     def __init__(self) -> None:
         self._font_cache: Dict[Any, Any] = {}
         self._glyph_cache: Dict[Tuple[int, str], bool] = {}
+        self._cmap_cache: Dict[str, Optional[set]] = {}
         self._available_fonts: Optional[List[Tuple[str, bool]]] = None
         self._available_emoji_fonts: Optional[List[str]] = None
 
@@ -135,6 +141,7 @@ class FontManager:
 
         # 3. Check candidate system paths
         for path, is_bold in _FONT_CANDIDATES:
+            path = os.path.normpath(path)
             if path in seen_paths:
                 continue
             if os.path.isfile(path):
@@ -155,7 +162,7 @@ class FontManager:
                 continue
             try:
                 for fname in os.listdir(sdir):
-                    fpath = os.path.join(sdir, fname)
+                    fpath = os.path.normpath(os.path.join(sdir, fname))
                     if fpath in seen_paths:
                         continue
                     if not fname.lower().endswith((".ttf", ".otf", ".ttc")):
@@ -323,27 +330,81 @@ class FontManager:
     # ------------------------------------------------------------------
     # Glyph detection
     # ------------------------------------------------------------------
+    def _get_cmap(self, font_path: str) -> Optional[set]:
+        """Font файлын cmap кодын цэгүүдийг буцаана (кештэй). None = тодорхойгүй."""
+        if font_path in self._cmap_cache:
+            return self._cmap_cache[font_path]
+        cmap = None
+        if _TTFont is not None:
+            try:
+                tt = _TTFont(font_path, fontNumber=0, lazy=True)
+                cmap = set(tt.getBestCmap().keys())
+                tt.close()
+            except Exception as e:
+                log.debug("cmap read failed for %s: %s", font_path, e)
+                cmap = None
+        self._cmap_cache[font_path] = cmap
+        return cmap
+
     def _font_has_glyph(self, font: ImageFont.FreeTypeFont, char: str) -> bool:
-        """Check if a font contains a specific character/glyph."""
+        """Шалгах нь font тухайн тэмдэгтийн жинхэнэ glyph-тэй эсэх.
+
+        PIL-ийн getbbox нь .notdef (tofu) glyph-ийн хэмжээг эерэгээр буцаадаг
+        тул тэр нь шалгалт болохгүй.  Иймд font файлын cmap-ийг уншиж
+        шийднэ; cmap уншигдахгүй бол notdef-mask харьцуулалт ашиглана.
+
+        КАШ: id(font) хэрэглэхийг хориглоно — GC хаяг дахин ашиглах тул
+        өөр font-ийн кеш буруу таарч эхэлнэ.  Glyph байдал хэмжээгээс
+        хамаарахгүй тул (font.path, char) ключ ашиглана.
+        """
         if not char:
             return True
-        cache_key = (id(font), char)
+        if char in ("\n", "\t", " "):
+            return True
+
+        font_path = str(getattr(font, "path", "__default__") or "__default__")
+        cache_key = (font_path, char)
         if cache_key in self._glyph_cache:
             return self._glyph_cache[cache_key]
 
-        try:
-            # Pillow 10+ uses getbbox; older uses getmask
-            if hasattr(font, "getbbox"):
-                bbox = font.getbbox(char)
-                result = bbox is not None and bbox[2] > 0 and bbox[3] > 0
-            else:
-                mask = font.getmask(char)
-                result = mask is not None and mask.size > 0
-        except Exception:
-            result = False
+        result = False
+        if font_path != "__default__" and os.path.isfile(font_path):
+            cmap = self._get_cmap(font_path)
+            if cmap is not None:
+                result = ord(char) in cmap
+
+        if not result and font_path != "__default__":
+            # Fallback: тухайн тэмдэгтийн mask-ийг notdef mask-тай харьцуулна
+            try:
+                mask = font.getmask(char, mode="1")
+                notdef = font.getmask("\u0378", mode="1")  # unassigned → notdef
+                same = (mask.size == notdef.size)
+                if same:
+                    same = bytes(mask) == bytes(notdef)
+                result = not same
+            except Exception:
+                result = False
 
         self._glyph_cache[cache_key] = result
         return result
+
+    def any_font_has_glyph(self, char: str) -> bool:
+        """Аль нэг илрүүлсэн font энэ тэмдэгтийг зурж чадах эсэх."""
+        if not char or char.isspace() or char.isascii():
+            return True
+        cache_key = ("__any__", char)
+        if cache_key in self._glyph_cache:
+            return self._glyph_cache[cache_key]
+
+        found = False
+        for path, _bold in self._discover_fonts():
+            cmap = self._get_cmap(path)
+            if cmap is not None:
+                if ord(char) in cmap:
+                    found = True
+                    break
+        self._glyph_cache[cache_key] = found
+        return found
 
     def _font_has_glyphs(self, font: ImageFont.FreeTypeFont, text: str) -> bool:
         """Check if a font contains all characters in text."""

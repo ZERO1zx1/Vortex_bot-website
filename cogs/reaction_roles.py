@@ -264,7 +264,9 @@ class ReactionRoles(SupabaseCog):
             return
         try:
             if guild.me.top_role.position > role.position or guild.me.guild_permissions.administrator:
-                await guild.get_member(payload.user_id).add_roles(role, reason="Reaction role")
+                member = guild.get_member(payload.user_id)
+                if member:
+                    await member.add_roles(role, reason="Reaction role")
         except discord.HTTPException:
             pass
 

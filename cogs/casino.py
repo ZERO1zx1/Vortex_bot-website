@@ -350,21 +350,30 @@ class HighLowView(View):
         for child in self.children: child.disabled = True
         if self.message: await self.message.edit(view=self)
 
+    async def _ack_and_play(self, interaction, choice):
+        # Interaction-ийг эхэлж хурдан ack хийх (DB ажил 3с-аас хэтэрч 404 болохоос сэргийлнэ)
+        try:
+            await interaction.response.defer()
+        except discord.InteractionResponded:
+            pass
+        self.stop()
+        for child in self.children: child.disabled = True
+        if self.message:
+            try: await self.message.edit(view=self)
+            except discord.HTTPException: pass
+        await self.cog.highlow_game(self.ctx, self.amount, choice)
+
     @discord.ui.button(label="📈 HIGHER", style=discord.ButtonStyle.success)
     async def higher_button(self, interaction, button):
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message("Таных биш!", ephemeral=True)
-        await self.cog.highlow_game(self.ctx, self.amount, "higher")
-        await interaction.response.defer()
-        self.stop()
+        await self._ack_and_play(interaction, "higher")
 
     @discord.ui.button(label="📉 LOWER", style=discord.ButtonStyle.danger)
     async def lower_button(self, interaction, button):
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message("Таных биш!", ephemeral=True)
-        await self.cog.highlow_game(self.ctx, self.amount, "lower")
-        await interaction.response.defer()
-        self.stop()
+        await self._ack_and_play(interaction, "lower")
 
     @discord.ui.button(label="❓ Тусламж", style=discord.ButtonStyle.secondary, disabled=True)
     async def help_button(self, interaction, button):

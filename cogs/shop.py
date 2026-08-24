@@ -133,6 +133,36 @@ SHOP_ITEMS = [
     {"id":135,"name":"Piercing accessory","price":60000,"emoji":"💉","desc":"Piercing хэв маягийн гоёл.","strength":0,"category":"accessory","subcat":"y2k","rarity":"common"},
 ]
 
+# ---------- ҮНИЙН БОДЛОГО ----------
+# Хэрэглээний (уух/тамхи) үнийг бууруулж, тансаг хэрэглээний
+# (Vape / бөгж / аксессуар) үнийг өсгөнө.
+for _item in SHOP_ITEMS:
+    _cat = _item.get("category")
+    if _cat == "drink":
+        _item["price"] = max(1000, int(_item["price"] * 0.5 // 500 * 500))
+    elif _cat == "intoxicant":
+        _item["price"] = max(1000, int(_item["price"] * 0.6 // 500 * 500))
+    elif _cat == "ring":
+        _item["price"] = int(_item["price"] * 1.8 // 5000 * 5000)
+    elif _cat == "accessory":
+        _item["price"] = int(_item["price"] * 1.5 // 5000 * 5000)
+
+for _brand_data in VAPE_BRANDS.values():
+    for _model in _brand_data["models"].values():
+        _model["price"] = int(_model["price"] * 2)
+
+# ---------- ШИНЭ БАРААНУУД (үнийн бодлогын дараа — үнэ нь тогтмол) ----------
+SHOP_ITEMS.extend([
+    # Амралт (Relax) сэргээгч — Vape нь тамхинаас илүү хувиар сэргээнэ
+    {"id":61,"name":"Relax Tobacco","price":4000,"emoji":"🚬","desc":"Сэтгэл тайвшруулж, уур бухимдлыг 30% хасна.","strength":0,"relax_amount":30,"category":"relax","rarity":"common"},
+    {"id":62,"name":"Relax Vape","price":7500,"emoji":"💨","desc":"Гүн амралт — уур бухимдлыг 45% хасна.","strength":0,"relax_amount":45,"category":"relax","rarity":"rare"},
+    # Тансаг зэрэглэлийн шинэ бөгжнүүд (цуглуулгын орой)
+    {"id":143,"name":"Dragon Gold Ring","price":4500000,"emoji":"🐲","desc":"Алтан луутай, эзэнт гүрний өв.","strength":0,"category":"ring","subcat":"luxury","rarity":"legendary"},
+    {"id":144,"name":"Eternity Diamond Ring","price":5000000,"emoji":"💎","desc":"Вечность чулуу — мөнхийн хайрын бэлгэдэл.","strength":0,"category":"ring","subcat":"luxury","rarity":"legendary"},
+    {"id":145,"name":"Celestial Sapphire Ring","price":5500000,"emoji":"🔵","desc":"Тэнгэрийн сапфир — ододтой хослосон.","strength":0,"category":"ring","subcat":"luxury","rarity":"legendary"},
+    {"id":146,"name":"Royal Emperor Ring","price":6000000,"emoji":"👑","desc":"Эзэн хааны бөгж — цуглуулгын хамгийн үнэтэй орой.","strength":0,"category":"ring","subcat":"luxury","rarity":"mythic"},
+])
+
 BASE_VAPE_ITEMS = []
 for brand, data in VAPE_BRANDS.items():
     for model, mdata in data["models"].items():
@@ -259,11 +289,15 @@ class ShopCog(commands.Cog):
         for row in rows: inv[row["item_id"]] = row.get("quantity", 1)
         return inv
 
-    async def get_item(self, item_id):
+    def get_item_sync(self, item_id):
+        """Sync lookup — sync контекст (embed үүсгэгч г.м.)-д зориулсан."""
         if item_id in ALL_VAPE_COMBOS: return ALL_VAPE_COMBOS[item_id]
         for item in SHOP_ITEMS:
             if item["id"] == item_id: return item
         return None
+
+    async def get_item(self, item_id):
+        return self.get_item_sync(item_id)
 
     async def add_item(self, uid, guild_id, iid, qty=1):
         existing = await self.bot.db_manager.fetch_one(
@@ -550,22 +584,132 @@ class ShopCog(commands.Cog):
         if prison: embed.add_field(name="🚔 ШОРОН", value="Мансуурал 100% хүрсэн тул 2 цаг шоронд. 5% торгууль.", inline=False)
         await ctx.send(embed=embed)
 
+    def _resolve_item_input(self, item_input: str):
+        """ID эсвэл нэрээр бараа олох."""
+        try:
+            return self.get_item_sync(int(item_input))
+        except ValueError:
+            pass
+        low = item_input.strip().lower()
+        for item in SHOP_ITEMS:
+            if item["name"].lower() == low:
+                return item
+        for item in SHOP_ITEMS:
+            if low in item["name"].lower():
+                return item
+        for combo in ALL_VAPE_COMBOS.values():
+            if low in combo["name"].lower():
+                return combo
+        return None
+
+    async def _use_relax_item(self, ctx, economy, item):
+        guild_id = ctx.guild.id
+        await self.remove_item(ctx.author.id, guild_id, item["id"], 1)
+        _, mood = await economy.get_hunger_mood(ctx.author.id, guild_id)
+        amount = item.get("relax_amount", 25)
+        new_mood = max(0, mood - amount)
+        await economy.set_hunger_mood(ctx.author.id, guild_id, mood=new_mood)
+        quests_cog = self.bot.get_cog("Quests")
+        if quests_cog:
+            await quests_cog.trigger_event(ctx.author.id, guild_id, "inventory_use", 1)
+        embed = discord.Embed(
+            title="😌 АМРАЛТ",
+            description=f"{ctx.author.mention} **{item['emoji']} {item['name']}** хэрэглэлээ.\n"
+                        f"😡 Уур бухимдал: **{mood}** → **{new_mood}** (-{amount}%)",
+            color=SUCCESS_COLOR,
+        )
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
+
+    async def _use_food_item(self, ctx, economy, item):
+        guild_id = ctx.guild.id
+        inv = await self.get_user_inventory(ctx.author.id, guild_id)
+        if inv.get(item["id"], 0) == 0:
+            return await ctx.send(embed=discord.Embed(title="❌ ТАНД ЭНЭ ХООЛ БАЙХГҮЙ", color=ERROR_COLOR))
+        await self.remove_item(ctx.author.id, guild_id, item["id"], 1)
+        hunger, _mood = await economy.get_hunger_mood(ctx.author.id, guild_id)
+        new_hunger = max(0, hunger - 35)
+        await economy.set_hunger_mood(ctx.author.id, guild_id, hunger=new_hunger)
+        buff_msg = ""
+        try:
+            cafe = self.bot.get_cog("Cafe")
+            if cafe and hasattr(cafe, "menu") and hasattr(cafe, "active_buffs"):
+                idx = item["id"] - 6000
+                if 0 <= idx < len(cafe.menu):
+                    food = cafe.menu[idx]
+                    key = f"{ctx.author.id}_{guild_id}"
+                    cafe.active_buffs[key] = {
+                        "type": food.get("buff", "xp_boost"),
+                        "end_time": time.time() + food.get("duration", 600),
+                        "xp_mult": food.get("xp_mult", 1),
+                        "money_mult": food.get("money_mult", 1),
+                    }
+                    buff_msg = f"\n✨ Buff: **{food.get('buff', 'xp_boost')}** ({food.get('duration', 600)}с)"
+        except Exception:
+            pass
+        quests_cog = self.bot.get_cog("Quests")
+        if quests_cog:
+            await quests_cog.trigger_event(ctx.author.id, guild_id, "inventory_use", 1)
+        embed = discord.Embed(
+            title="🍽️ ХООЛ ИДЛЭЭ",
+            description=f"{ctx.author.mention} **{item['emoji']} {item['name']}** идлээ.\n"
+                        f"🍔 Өлсгөлөн: **{hunger}** → **{new_hunger}**{buff_msg}",
+            color=SUCCESS_COLOR,
+        )
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
+
     @commands.command(name='use', aliases=['хэрэглэх'])
-    async def use_item_command(self, ctx, item_id: int):
-        item = ALL_VAPE_COMBOS.get(item_id)
-        if not item: item = next((i for i in SHOP_ITEMS if i["id"] == item_id and i["category"] == "intoxicant"), None)
-        if not item or item.get("strength", 0) == 0:
-            return await ctx.send(embed=discord.Embed(title="❌ АЛДАА", description="Энэ барааг хэрэглэх боломжгүй.", color=ERROR_COLOR))
+    async def use_item_command(self, ctx, *, item_input: str):
+        item = self._resolve_item_input(item_input)
+        if not item:
+            return await ctx.send(embed=discord.Embed(
+                title="❌ БАРАА ОЛДСОНГҮЙ",
+                description="Барааны ID эсвэл нэрээр хэрэглэнэ үү. Жишээ: `use 61`, `use Relax Vape`",
+                color=ERROR_COLOR,
+            ))
+        item_id = item["id"]
+        category = item.get("category", "")
         economy = self.bot.get_cog("Economy")
         if not economy: return await ctx.send("❌ Системийн алдаа.")
         guild_id = ctx.guild.id
         if await economy.is_in_prison(ctx.author.id, guild_id):
             return await ctx.send("🚔 Шоронд байхдаа хэрэглэх боломжгүй.")
+
+        # --- Амралт (Relax) сэргээгч ---
+        if category == "relax":
+            inv = await self.get_user_inventory(ctx.author.id, guild_id)
+            if inv.get(item_id, 0) == 0:
+                return await ctx.send(embed=discord.Embed(title="❌ ТАНД ЭНЭ БАРАА БАЙХГҮЙ", color=ERROR_COLOR))
+            return await self._use_relax_item(ctx, economy, item)
+
+        # --- Кафийн хоол (6000-6999) ---
+        if 6000 <= item_id < 7000:
+            return await self._use_food_item(ctx, economy, item)
+
+        # --- Бөгж / аксессуар → equip санал болгох ---
+        if category in ("ring", "accessory"):
+            return await ctx.send(embed=discord.Embed(
+                title="💍 ГОЁЛЫН ЗҮЙЛ",
+                description=f"Энэ зүйлийг хэрэглэхгүй **зүүдэг**: `equip {item_id}` командаар биедээ зүүнэ үү.",
+                color=INFO_COLOR,
+            ))
+
+        # --- Уух / тамхи / вайп (мансуурал) ---
+        if item.get("strength", 0) <= 0:
+            return await ctx.send(embed=discord.Embed(title="❌ АЛДАА", description="Энэ барааг хэрэглэх боломжгүй.", color=ERROR_COLOR))
         inv = await self.get_user_inventory(ctx.author.id, guild_id)
         if inv.get(item_id, 0) == 0:
             return await ctx.send(embed=discord.Embed(title="❌ ТАНД ЭНЭ БАРАА БАЙХГҮЙ", color=ERROR_COLOR))
         await self.remove_item(ctx.author.id, guild_id, item_id, 1)
         new_level = await self.add_drunk(ctx.author.id, guild_id, item["strength"])
+        # Хөнгөн амралтын нөлөө (тамхи/вайп мөн сэтгэл тайвшруулна)
+        relax_msg = ""
+        if category in ("intoxicant", "vape"):
+            _, mood = await economy.get_hunger_mood(ctx.author.id, guild_id)
+            relax_amt = 15 if category == "vape" else 10
+            await economy.set_hunger_mood(ctx.author.id, guild_id, mood=max(0, mood - relax_amt))
+            relax_msg = f"\n😌 Амралт: -{relax_amt}%"
         bonus_msg = ""
         if random.random() < 0.05:
             bonus_type = random.choice(["money", "xp", "ring"])
@@ -592,10 +736,147 @@ class ShopCog(commands.Cog):
             prison = True
         status_name, status_color = self.get_drunk_status(new_level)
         bar = self.get_intoxication_bar(new_level)
-        embed = discord.Embed(title="💨 ХЭРЭГЛЭЛЭЭ", description=f"{ctx.author.mention} **{item['emoji']} {item['name']}** хэрэглэлээ.{bonus_msg}", color=status_color)
+        embed = discord.Embed(title="💨 ХЭРЭГЛЭЛЭЭ", description=f"{ctx.author.mention} **{item['emoji']} {item['name']}** хэрэглэлээ. (+{item['strength']}%){relax_msg}{bonus_msg}", color=status_color)
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
         embed.add_field(name="🧠 МАНСУУРАЛ", value=f"{status_name}\n{bar}", inline=False)
         if prison: embed.add_field(name="🚔 ШОРОН", value="Мансуурал 100% хүрсэн тул 2 цаг шоронд. 5% торгууль.", inline=False)
+        await ctx.send(embed=embed)
+
+    # ==================== ЗҮҮХ СИСТЕМ (EQUIP) ====================
+    EQUIP_SLOTS = {
+        "ring": "💍 Бөгж",
+        "necklace": "📿 Гинж/зүүлт",
+        "bracelet": "⛓️ Бугуйвч",
+        "charm": "✨ Бусад гоёл",
+    }
+
+    @staticmethod
+    def get_equip_slot(item):
+        cat = item.get("category")
+        if cat == "ring":
+            return "ring"
+        if cat == "accessory":
+            sub = item.get("subcat", "")
+            if sub.startswith("necklace"):
+                return "necklace"
+            if sub.startswith("bracelet"):
+                return "bracelet"
+            return "charm"
+        return None
+
+    async def get_equips(self, uid, guild_id):
+        """Зүүсэн бараанууд: {slot: item_dict}"""
+        rows = await self.bot.db_manager.fetch_safe(
+            "user_equips", {"user_id": str(uid), "guild_id": str(guild_id)}
+        )
+        result = {}
+        for r in rows or []:
+            item = self.get_item_sync(r.get("item_id"))
+            if item:
+                result[r.get("slot")] = item
+        return result
+
+    @commands.command(name='equip', aliases=['зүүх'])
+    async def equip(self, ctx, *, item_input: str):
+        item = self._resolve_item_input(item_input)
+        if not item:
+            return await ctx.send(embed=discord.Embed(title="❌ БАРАА ОЛДСОНГҮЙ", description="ID эсвэл нэрээр өгнө үү.", color=ERROR_COLOR))
+        slot = self.get_equip_slot(item)
+        if not slot:
+            return await ctx.send(embed=discord.Embed(title="❌ ЗҮҮЖ БОЛОХГҮЙ", description="Зөвхөн бөгж болон гоёлын зүйлс зүүж болно.", color=ERROR_COLOR))
+        guild_id = ctx.guild.id
+        inv = await self.get_user_inventory(ctx.author.id, guild_id)
+        if inv.get(item["id"], 0) == 0:
+            return await ctx.send(embed=discord.Embed(title="❌ ТАНД ЭНЭ БАРАА БАЙХГҮЙ", description=f"`shop`-с худалдаж авна уу.", color=ERROR_COLOR))
+        try:
+            await self.bot.db_manager.upsert(
+                "user_equips",
+                {
+                    "guild_id": str(guild_id),
+                    "user_id": str(ctx.author.id),
+                    "slot": slot,
+                    "item_id": item["id"],
+                    "updated_at": int(time.time()),
+                },
+                on_conflict="guild_id,user_id,slot",
+            )
+        except Exception as e:
+            return await ctx.send(embed=discord.Embed(
+                title="❌ ДАТАБАЗЫН АЛДАА",
+                description="`user_equips` хүснэгт байхгүй байна. Админд: `database/migrations/20260824_equip_system.sql` ажиллуулна уу.",
+                color=ERROR_COLOR,
+            ))
+        slot_name = self.EQUIP_SLOTS.get(slot, slot)
+        embed = discord.Embed(
+            title="✅ ЗҮҮЛЭЭ",
+            description=f"{ctx.author.mention} **{item['emoji']} {item['name']}** -г зүүлээ.\n📂 Слот: {slot_name}",
+            color=SUCCESS_COLOR,
+        )
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        equips = await self.get_equips(ctx.author.id, guild_id)
+        if equips:
+            embed.add_field(
+                name="👔 Одоогийн хэрэглэл",
+                value="\n".join(f"{self.EQUIP_SLOTS.get(s, s)}: {i['emoji']} {i['name']}" for s, i in equips.items()),
+                inline=False,
+            )
+        await ctx.send(embed=embed)
+
+    @commands.command(name='unequip', aliases=['тайлах'])
+    async def unequip(self, ctx, *, slot_input: str = None):
+        guild_id = ctx.guild.id
+        equips = await self.get_equips(ctx.author.id, guild_id)
+        if not equips:
+            return await ctx.send(embed=discord.Embed(title="❌ ХООСОН", description="Та одоогоор юу ч зүүээгүй байна.", color=WARNING_COLOR))
+        slot = None
+        if slot_input:
+            low = slot_input.strip().lower()
+            for s, sname in self.EQUIP_SLOTS.items():
+                if low == s or low in sname.lower():
+                    slot = s
+                    break
+            if slot is None:
+                item = self._resolve_item_input(slot_input)
+                if item:
+                    slot = self.get_equip_slot(item)
+        else:
+            slot = next(iter(equips))
+        if slot is None or slot not in equips:
+            return await ctx.send(embed=discord.Embed(
+                title="❌ ОЛДСОНГҮЙ",
+                description=f"Слотууд: {', '.join(f'`{s}`' for s in self.EQUIP_SLOTS)}",
+                color=ERROR_COLOR,
+            ))
+        try:
+            await self.bot.db_manager.delete(
+                "user_equips",
+                {"guild_id": str(guild_id), "user_id": str(ctx.author.id), "slot": slot},
+            )
+        except Exception:
+            return await ctx.send("❌ Датабазын алдаа гарлаа.")
+        item = equips[slot]
+        embed = discord.Embed(
+            title="🔓 ТАЙЛАА",
+            description=f"{ctx.author.mention} **{item['emoji']} {item['name']}** тайллаа.",
+            color=SUCCESS_COLOR,
+        )
+        await ctx.send(embed=embed)
+
+    @commands.command(name='equipped', aliases=['myequips', 'зүүсэн'])
+    async def equipped(self, ctx, member: discord.Member = None):
+        target = member or ctx.author
+        equips = await self.get_equips(target.id, ctx.guild.id)
+        embed = discord.Embed(title=f"👔 {target.display_name} - ЗҮҮСЭН ХЭРЭГСЭЛ", color=GOLD_COLOR)
+        embed.set_thumbnail(url=target.display_avatar.url)
+        if not equips:
+            embed.description = "Юу ч зүүээгүй байна. `equip <ID|нэр>` командаар зүүнэ үү."
+        else:
+            for slot, item in equips.items():
+                embed.add_field(
+                    name=self.EQUIP_SLOTS.get(slot, slot),
+                    value=f"{item['emoji']} **{item['name']}**",
+                    inline=True,
+                )
         await ctx.send(embed=embed)
 
     # ==================== АКСЕССУАРУУД ====================

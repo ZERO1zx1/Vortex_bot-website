@@ -773,10 +773,105 @@ class Moderation(SupabaseCog):
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "mod_action", 1)
 
-    @app_commands.command(name='unwarn', description="Анхааруулгыг устгах")
+    @app_commands.command(name='unwarn', description="Хэрэглэгчийн анхааруулгыг хасах")
+    @app_commands.checks.has_permissions(kick_members=True)
+    @app_commands.describe(
+        member="Анхааруулга хасах хэрэглэгч",
+        amount="Хасах тоо (хоосон бол жагсаалтаас сонгоно)"
+    )
+    async def unwarn(self, interaction, member: discord.Member, amount: Optional[int] = None):
+        ctx = SlashContext(interaction)
+        await ctx.defer(ephemeral=False)
+        warning_rows = await self.bot.db_manager.fetch_all(
+            "warnings",
+            {"user_id": str(member.id), "guild_id": str(ctx.guild.id)},
+            order_by="timestamp",
+            desc=True,
+        )
+        if not warning_rows:
+            return await ctx.send(embed=discord.Embed(
+                title="ℹ️ АНХААРУУЛГА БАЙХГҮЙ",
+                description=f"{member.mention} -д хасах анхааруулга байхгүй байна.",
+                color=WARNING_COLOR,
+            ))
+
+        # --- Тодорхой тоог нь хасах (сүүлийн N) ---
+        if amount is not None:
+            if amount <= 0:
+                return await ctx.send("❌ Тоо эерэг байх ёстой.", ephemeral=True)
+            to_remove = warning_rows[:amount]
+            removed = []
+            for w in to_remove:
+                await self.bot.db_manager.delete("warnings", {"id": w["id"]})
+                removed.append(w)
+            remaining = await self.get_warn_count(member.id, ctx.guild.id)
+            lines = "\n".join(
+                f"`#{w['id']}` — {str(w.get('reason', ''))[:60]}" for w in removed[:10]
+            )
+            embed = discord.Embed(
+                title="✅ АНХААРУУЛГА ХАСАГДЛАА",
+                description=f"{member.mention} -ийн **{len(removed)}** анхааруулга хасагдлаа.",
+                color=SUCCESS_COLOR,
+            )
+            embed.add_field(name="🗑️ Хасагдсан", value=lines or "\u200b", inline=False)
+            embed.add_field(name="⚠️ Үлдсэн анхааруулга", value=f"```yaml\n{remaining}```", inline=True)
+            embed.add_field(name="👮 Гүйцэтгэсэн", value=ctx.author.mention, inline=True)
+            embed.set_thumbnail(url=member.display_avatar.url)
+            await ctx.send(embed=embed)
+            await self.log_to_mod_channel(
+                ctx.guild, "Unwarn", member.mention, ctx.author,
+                f"{len(removed)} анхааруулга хассан (үлдсэн: {remaining})"
+            )
+            return
+
+        # --- Тоо өгөөгүй бол жагсаалтаас сонгоно ---
+        options = []
+        for w in warning_rows[:25]:
+            reason = str(w.get("reason", ""))[:80] or "Шалтгаангүй"
+            options.append(discord.SelectOption(
+                label=f"#{w['id']} — {reason}"[:100],
+                value=str(w["id"]),
+                description=datetime.datetime.fromtimestamp(
+                    w.get("timestamp", 0), datetime.timezone.utc
+                ).strftime("%Y-%m-%d %H:%M"),
+            ))
+        view = ui.View(timeout=120)
+        select = ui.Select(placeholder=f"🗑️ {member.display_name}-ийн анхааруулга сонгох...", options=options)
+        view.add_item(select)
+
+        async def unwarn_select(cb_interaction: discord.Interaction):
+            if cb_interaction.user.id != ctx.author.id:
+                return await cb_interaction.response.send_message("❌ Энэ цэс танд зориулагдаагүй!", ephemeral=True)
+            warning_id = int(select.values[0])
+            warn_row = next((w for w in warning_rows if w["id"] == warning_id), None)
+            await self.bot.db_manager.delete("warnings", {"id": warning_id})
+            remaining = await self.get_warn_count(member.id, ctx.guild.id)
+            reason = str(warn_row.get("reason", "")) if warn_row else "?"
+            embed = discord.Embed(
+                title="✅ АНХААРУУЛГА ХАСАГДЛАА",
+                description=f"{member.mention} -ийн `#{warning_id}` анхааруулга хасагдлаа.\n"
+                            f"📝 Шалтгаан: {reason}\n⚠️ Үлдсэн: **{remaining}**",
+                color=SUCCESS_COLOR,
+            )
+            embed.set_thumbnail(url=member.display_avatar.url)
+            for child in view.children:
+                child.disabled = True
+            await cb_interaction.response.edit_message(embed=embed, view=view)
+            await self.log_to_mod_channel(ctx.guild, "Unwarn", member.mention, ctx.author, f"Анхааруулга #{warning_id} устгасан")
+
+        select.callback = unwarn_select
+        embed = discord.Embed(
+            title=f"📋 {member.display_name} -ийн анхааруулгууд",
+            description=f"Нийт **{len(warning_rows)}** — хасахыг нь доорх цэснээс сонгоно уу.",
+            color=WARNING_COLOR,
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        await ctx.send(embed=embed, view=view)
+
+    @app_commands.command(name='unwarnid', description="ID-гаар анхааруулга устгах")
     @app_commands.checks.has_permissions(kick_members=True)
     @app_commands.describe(warning_id="Устгах анхааруулгын ID")
-    async def unwarn(self, interaction, warning_id: int):
+    async def unwarn_id(self, interaction, warning_id: int):
         ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         warn_row = await self.bot.db_manager.fetch_one(
@@ -804,6 +899,37 @@ class Moderation(SupabaseCog):
         quests_cog = self.bot.get_cog("Quests")
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "mod_action", 1)
+
+    @app_commands.command(name='warned', description="Анхааруулгатай хэрэглэгчдийн жагсаалт")
+    @app_commands.checks.has_permissions(kick_members=True)
+    async def warned_list(self, interaction):
+        ctx = SlashContext(interaction)
+        await ctx.defer(ephemeral=False)
+        warning_rows = await self.bot.db_manager.fetch_all(
+            "warnings", {"guild_id": str(ctx.guild.id)}
+        )
+        if not warning_rows:
+            return await ctx.send(embed=discord.Embed(
+                title="📋 АНХААРУУЛГАТАЙ ХЭРЭГЛЭГЧИД",
+                description="Серверт анхааруулгатай хэрэглэгч байхгүй байна.",
+                color=SUCCESS_COLOR,
+            ))
+        counts = {}
+        for w in warning_rows:
+            counts[str(w["user_id"])] = counts.get(str(w["user_id"]), 0) + 1
+        sorted_users = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
+        lines = []
+        for uid, cnt in sorted_users[:15]:
+            member = ctx.guild.get_member(int(uid))
+            mention = member.mention if member else f"<@{uid}>"
+            lines.append(f"{mention} — ⚠️ **{cnt}**")
+        embed = discord.Embed(
+            title=f"📋 АНХААРУУЛГАТАЙ ХЭРЭГЛЭГЧИД ({len(sorted_users)})",
+            description="\n".join(lines),
+            color=WARNING_COLOR,
+        )
+        embed.set_footer(text=f"Нийт анхааруулга: {len(warning_rows)}")
+        await ctx.send(embed=embed)
 
     @app_commands.command(name='warnings', description="Хэрэглэгчийн анхааруулгыг харах")
     @app_commands.checks.has_permissions(kick_members=True)
