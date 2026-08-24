@@ -1,0 +1,10 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+.env
+.venv
+website/
+public/
+*.md
+.DS_Store
