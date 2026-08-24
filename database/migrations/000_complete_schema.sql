@@ -305,6 +305,14 @@ CREATE TABLE IF NOT EXISTS user_drunk (
     PRIMARY KEY (user_id, guild_id)
 );
 
+CREATE TABLE IF NOT EXISTS user_equips (
+    user_id TEXT,
+    guild_id TEXT,
+    item_id INT,
+    equipped_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())),
+    PRIMARY KEY (user_id, guild_id, item_id)
+);
+
 CREATE TABLE IF NOT EXISTS marketplace_listings (
     id SERIAL PRIMARY KEY,
     guild_id TEXT,

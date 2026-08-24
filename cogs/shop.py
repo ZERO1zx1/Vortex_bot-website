@@ -409,14 +409,14 @@ class ShopCog(commands.Cog):
             item_options = []
             if selected_cat == "vape":
                 for base in BASE_VAPE_ITEMS:
-                    label = f"{base['emoji']} {base['name']} - {base['price']:,}💰"
-                    desc = f"{base['desc'][:40]} | ⚡{base['strength']}%"
+                    label = f"{base['emoji']} {base['name']} (ID:{base['id']}) - {base['price']:,}💰"
+                    desc = f"ID:{base['id']} | {base['desc'][:30]} | ⚡{base['strength']}%"
                     item_options.append(discord.SelectOption(label=label[:100], value=f"vape_{base['id']}", description=desc, emoji=base['emoji']))
             else:
                 for item in SHOP_ITEMS:
                     if item["category"] == selected_cat:
-                        label = f"{item['emoji']} {item['name']} - {item['price']:,}💰"
-                        desc = item["desc"][:50]
+                        label = f"{item['emoji']} {item['name']} (ID:{item['id']}) - {item['price']:,}💰"
+                        desc = f"ID:{item['id']} | {item['desc'][:35]}"
                         if item.get("strength", 0) > 0: desc += f" | ⚡{item['strength']}%"
                         item_options.append(discord.SelectOption(label=label[:100], value=str(item["id"]), description=desc, emoji=item['emoji']))
             if not item_options: return await interaction.response.edit_message(embed=discord.Embed(description="❌ Энэ категорид бараа байхгүй.", color=ERROR_COLOR), view=None)
@@ -529,6 +529,7 @@ class ShopCog(commands.Cog):
         if not item: return await ctx.send(embed=discord.Embed(title="❌ Бараа олдсонгүй", description=f"`{item_id}` ID-тай бараа байхгүй.", color=ERROR_COLOR))
         embed = discord.Embed(title=f"{item['emoji']} {item['name']}", color=GOLD_COLOR)
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
+        embed.add_field(name="🆔 ID", value=f"`{item['id']}`", inline=True)
         embed.add_field(name="💰 Үнэ", value=f"`{item['price']:,}` ₮", inline=True)
         embed.add_field(name="📂 Төрөл", value=item.get("category", "unknown"), inline=True)
         if item.get("strength", 0) > 0: embed.add_field(name="⚡ Хүч", value=f"`{item['strength']}%`", inline=True)

@@ -30,11 +30,11 @@ INFO_COLOR = 0x89b4fa
 PROPOSAL_TIMEOUT = 120
 
 GIFTS = {
-    "flower":    {"name": "🌹 Цэцэг",        "emoji": "🌹", "love": 5},
-    "chocolate": {"name": "🍫 Шоколад",     "emoji": "🍫", "love": 10},
-    "ring":      {"name": "💍 Бөгж",        "emoji": "💍", "love": 50},
-    "necklace":  {"name": "📿 Зүүлт",       "emoji": "📿", "love": 30},
-    "teddy":     {"name": "🧸 Тедди",       "emoji": "🧸", "love": 15},
+    "flower":    {"name": "🌹 Цэцэг",        "emoji": "🌹", "love": 5, "item_id": 11},
+    "chocolate": {"name": "🍫 Шоколад",     "emoji": "🍫", "love": 10, "item_id": 60},
+    "ring":      {"name": "💍 Бөгж",        "emoji": "💍", "love": 50, "item_id": 12},
+    "necklace":  {"name": "📿 Зүүлт",       "emoji": "📿", "love": 30, "item_id": 80},
+    "teddy":     {"name": "🧸 Тедди",       "emoji": "🧸", "love": 15, "item_id": 70},
 }
 
 # ══════════════ VIEWS ══════════════
@@ -813,6 +813,9 @@ class Marriage(SupabaseCog):
         if last and int(time.time()) - last < 86400:
             return await self._reply(ctx_or_inter, "❌ Өнөөдөр аль хэдийн бэлэг өгсөн. 24 цаг хүлээнэ үү.", is_slash=is_slash)
         partner_id = spouses[0]
+        shop = self.bot.get_cog("ShopCog")
+        if shop:
+            await shop.add_item(partner_id, guild.id, gift.get("item_id", 0), 1)
         await self.add_gift(guild.id, author.id, partner_id, gift_type, gift["love"])
         await self.update_last_gift_time(guild.id, author.id)
         await self._reply(ctx_or_inter, f"🎁 {author.mention} ханьдаа {gift['emoji']} **{gift['name']}** бэлэглэж, +{gift['love']}❤️ хайрын оноо нэмлээ!", is_slash=is_slash)
@@ -858,7 +861,7 @@ class Marriage(SupabaseCog):
         embed.set_footer(text=f"{guild.name} • Гэр бүлийн мод")
         file = discord.File(buf, filename="family_tree.png")
         if is_slash:
-            await ctx_or_inter.edit_original_response(embed=embed, attachment=file)
+            await ctx_or_inter.edit_original_response(embed=embed, attachments=[file])
         else:
             await ctx_or_inter.send(embed=embed, file=file)
 
@@ -883,7 +886,7 @@ class Marriage(SupabaseCog):
         embed.set_image(url="attachment://marriage_card.png")
         file = discord.File(buf, filename="marriage_card.png")
         if is_slash:
-            await ctx_or_inter.edit_original_response(embed=embed, attachment=file)
+            await ctx_or_inter.edit_original_response(embed=embed, attachments=[file])
         else:
             await ctx_or_inter.send(embed=embed, file=file)
 

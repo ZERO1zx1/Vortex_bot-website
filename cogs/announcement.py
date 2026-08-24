@@ -257,8 +257,17 @@ class AnnouncementView(ui.View):
             except ValueError:
                 content = self.mention  # Түүхий текст
 
-        await self.channel.send(content=content, embed=embed)
-        await interaction.followup.send(f"✅ Зарлал {self.channel.mention} сувагт амжилттай илгээгдлээ!", ephemeral=True)
+        # self.channel may be a ChannelSelect value without a .send method
+        target = self.channel
+        if not hasattr(target, "send"):
+            cid = target if isinstance(target, (int, str)) else getattr(target, "id", None)
+            target = interaction.guild.get_channel(int(cid)) if (interaction.guild and cid is not None) else None
+            if target is None and cid is not None:
+                target = interaction.client.get_channel(int(cid))
+        if target is None or not hasattr(target, "send"):
+            return await interaction.followup.send("❌ Сувгийг олсонгүй.", ephemeral=True)
+        await target.send(content=content, embed=embed)
+        await interaction.followup.send(f"✅ Зарлал {target.mention} сувагт амжилттай илгээгдлээ!", ephemeral=True)
 
     @ui.button(label="🔄 Шинэчлэх", style=discord.ButtonStyle.gray, row=3)
     async def refresh_button(self, interaction: discord.Interaction, button: ui.Button):

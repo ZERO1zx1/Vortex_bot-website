@@ -341,6 +341,8 @@ class Economy(SupabaseCog):
 
     @commands.command(aliases=['bal','money','wallet','bank'])
     async def balance(self, ctx, member: discord.Member = None):
+        if ctx.guild is None:
+            return await ctx.send("❌ Энэ командыг зөвхөн серверт ашиглаж болно.")
         if not await self.check_registration(ctx): return
         target = member or ctx.author
         cash = await self.get_balance(target.id, ctx.guild.id)

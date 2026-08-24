@@ -388,14 +388,14 @@ class LeaderboardView(ui.View):
             )
             return
         if file:
-            await interaction.edit_original_response(embed=embed, attachments=[], attachment=file, view=self)
+            await interaction.edit_original_response(embed=embed, attachments=[file], view=self)
             return
         # Хоосон хуудас руу орсон бол эхний хуудас руу нэг удаа буцаж зурна
         if state == "empty" and self.page > 0:
             self.page = 0
             await self._refresh_panel(interaction)
             return
-        await interaction.edit_original_response(embed=embed, attachments=[], view=self)
+        await interaction.edit_original_response(embed=embed, view=self)
 
     # ---------- Интерактууд ----------
     @ui.select(placeholder="Лидербордын төрөл сонгох", options=[

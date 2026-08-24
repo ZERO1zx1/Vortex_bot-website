@@ -1,27 +1,34 @@
-from utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-from utils.branding import BOT_NAME
-import asyncio, io, json, logging, os, time, random
+import asyncio
+import io
+import json
+import logging
+import os
+import time
+import random
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
-import aiohttp, discord
+
+import aiohttp
+import discord
 from discord.ext import commands, tasks
 from discord import ui
+
 from utils.supabase_cog import SupabaseCog
 from PIL import Image, ImageDraw, ImageFont
 from PIL.Image import Resampling
 
-# ---------- Logger ----------
+from utils.fonts import load_font as _load_font, draw_text_with_fallback
+from utils.branding import BOT_NAME
+
+# ── Logger ──
 log = logging.getLogger(__name__)
 
-# ---------- Asset paths ----------
-ASSETS_DIR = os.path.abspath(os.path.abspath("./assets"))
+# ── Asset paths ──
+ASSETS_DIR = os.path.abspath("./assets")
 DEFAULT_ASSET_FONT = os.path.join(ASSETS_DIR, "levelfont.otf")
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
-# ---------- Centralized Unicode-aware font management ----------
-from utils.fonts import load_font as _load_font, draw_text_with_fallback
-
-# ---------- Color constants ----------
+# ── Color constants (single source) ──
 EMBED_COLOR   = 0x1e1e2f
 SUCCESS_COLOR = 0xa6e3a1
 GOLD_COLOR    = 0xfab387
@@ -29,7 +36,7 @@ WARNING_COLOR = 0xf9e2af
 ERROR_COLOR   = 0xf38ba8
 INFO_COLOR    = 0x89b4fa
 
-# ---------- Defaults ----------
+# ── Defaults ──
 DEFAULT_XP_TIERS = [{"max_words":10,"xp":5},{"max_words":30,"xp":10},{"max_words":999,"xp":20}]
 DEFAULT_XP_MEDIA = 15
 DEFAULT_XP_REACTION = 1
@@ -42,7 +49,12 @@ DEFAULT_PROG_BASE = 100
 DEFAULT_PROG_STEP = 150
 VOICE_INTERVAL_SECS = 180
 
-# ---------- Safe converters ----------
+# ── In-memory TTL caches (perf) ──
+_CFG_CACHE: Dict[int, tuple] = {}      # guild_id -> (expires_at, cfg)
+_EXC_CACHE: Dict[int, tuple] = {}      # guild_id -> (expires_at, {"channels":[],"users":[]})
+_CACHE_TTL = 20.0
+
+# ── Safe converters ──
 def _safe_int(value, default=0):
     try: return int(value)
     except: return default
@@ -57,7 +69,7 @@ def _safe_bool(value, default=False):
     if isinstance(value, str): return value.lower() in ('1','true','yes','on')
     return default
 
-# ---------- XP progression math ----------
+# ── XP progression math ──
 def xp_for_level(level: int, cfg: Dict[str, Any]) -> int:
     if cfg.get("prog_type") == "geometric":
         mult = float(cfg.get("prog_step", 1.5))
@@ -74,7 +86,7 @@ def xp_for_message(content: str, cfg: Dict[str, Any]) -> int:
         if words <= int(tier["max_words"]): return int(tier["xp"])
     return int(tiers[-1]["xp"]) if tiers else 5
 
-# ---------- Avatar helper (unused in DLC, kept for other purposes) ----------
+# ── Avatar / image helpers (used by DLC card) ──
 async def fetch_avatar(url, size=128):
     try:
         async with aiohttp.ClientSession() as session:
@@ -91,7 +103,6 @@ async def fetch_avatar(url, size=128):
 async def _load_background_image(url: Optional[str]):
     if not url:
         return None
-
     if isinstance(url, str) and url.startswith(("http://", "https://")):
         try:
             async with aiohttp.ClientSession() as session:
@@ -101,7 +112,6 @@ async def _load_background_image(url: Optional[str]):
                         return Image.open(io.BytesIO(data)).convert("RGBA")
         except:
             return None
-
     if isinstance(url, str):
         candidate_paths = []
         if os.path.isabs(url):
@@ -137,15 +147,19 @@ async def _load_overlay(overlay_name: str, width: int, height: int):
                 pass
     return None
 
-
 def _load_asset_font(size: int, bold: bool = True):
     try:
         return _load_font(size, bold)
     except:
         return ImageFont.load_default()
 
-# ---------- Config load/save ----------
+# ── Config load/save (with TTL cache) ──
 async def get_config(db_manager, guild_id: int) -> Dict[str, Any]:
+    gid = int(guild_id)
+    now = time.monotonic()
+    hit = _CFG_CACHE.get(gid)
+    if hit and hit[0] > now:
+        return hit[1]
     try:
         row = await db_manager.fetchone("leveling_config", {"guild_id": str(guild_id)})
     except Exception as e:
@@ -153,7 +167,7 @@ async def get_config(db_manager, guild_id: int) -> Dict[str, Any]:
             raise
         row = None
     if not row:
-        return {
+        cfg = {
             "enabled": True, "announce_channel": None, "voice_xp_enabled": True,
             "prog_type": "arithmetic", "prog_base": 100, "prog_step": 150,
             "xp_tiers": DEFAULT_XP_TIERS, "xp_media": 15, "xp_reaction": 1,
@@ -163,32 +177,35 @@ async def get_config(db_manager, guild_id: int) -> Dict[str, Any]:
             "xp_drop_interval": 3600, "cafe_buff_enabled": True, "invite_xp": 0,
             "marriage_bonus": 0.1,
         }
-    cols = ["guild_id","enabled","announce_channel","voice_xp_enabled","prog_type","prog_base","prog_step","xp_tiers","xp_media","xp_reaction","xp_voice_silent","xp_voice_talking","msg_cooldown","react_cooldown","background_url","xp_drop_enabled","xp_drop_channel","xp_drop_min","xp_drop_max","xp_drop_interval","cafe_buff_enabled","invite_xp","marriage_bonus"]
-    data = {key: row.get(key) for key in cols}
-    return {
-        "enabled": _safe_bool(data.get("enabled"), True),
-        "announce_channel": data.get("announce_channel"),
-        "voice_xp_enabled": _safe_bool(data.get("voice_xp_enabled"), True),
-        "prog_type": data.get("prog_type") or "arithmetic",
-        "prog_base": _safe_int(data.get("prog_base"), 100),
-        "prog_step": _safe_float(data.get("prog_step"), 150.0),
-        "xp_tiers": json.loads(data["xp_tiers"]) if data.get("xp_tiers") and data["xp_tiers"].startswith('[') else DEFAULT_XP_TIERS,
-        "xp_media": _safe_int(data.get("xp_media"), 15),
-        "xp_reaction": _safe_int(data.get("xp_reaction"), 1),
-        "xp_voice_silent": _safe_int(data.get("xp_voice_silent"), 5),
-        "xp_voice_talking": _safe_int(data.get("xp_voice_talking"), 15),
-        "msg_cooldown": _safe_int(data.get("msg_cooldown"), 60),
-        "react_cooldown": _safe_int(data.get("react_cooldown"), 10),
-        "background_url": data.get("background_url"),
-        "xp_drop_enabled": _safe_bool(data.get("xp_drop_enabled"), False),
-        "xp_drop_channel": data.get("xp_drop_channel"),
-        "xp_drop_min": _safe_int(data.get("xp_drop_min"), 100),
-        "xp_drop_max": _safe_int(data.get("xp_drop_max"), 500),
-        "xp_drop_interval": _safe_int(data.get("xp_drop_interval"), 3600),
-        "cafe_buff_enabled": _safe_bool(data.get("cafe_buff_enabled"), True),
-        "invite_xp": _safe_int(data.get("invite_xp"), 0),
-        "marriage_bonus": _safe_float(data.get("marriage_bonus"), 0.1),
-    }
+    else:
+        cols = ["guild_id","enabled","announce_channel","voice_xp_enabled","prog_type","prog_base","prog_step","xp_tiers","xp_media","xp_reaction","xp_voice_silent","xp_voice_talking","msg_cooldown","react_cooldown","background_url","xp_drop_enabled","xp_drop_channel","xp_drop_min","xp_drop_max","xp_drop_interval","cafe_buff_enabled","invite_xp","marriage_bonus"]
+        data = {key: row.get(key) for key in cols}
+        cfg = {
+            "enabled": _safe_bool(data.get("enabled"), True),
+            "announce_channel": data.get("announce_channel"),
+            "voice_xp_enabled": _safe_bool(data.get("voice_xp_enabled"), True),
+            "prog_type": data.get("prog_type") or "arithmetic",
+            "prog_base": _safe_int(data.get("prog_base"), 100),
+            "prog_step": _safe_float(data.get("prog_step"), 150.0),
+            "xp_tiers": json.loads(data["xp_tiers"]) if data.get("xp_tiers") and data["xp_tiers"].startswith('[') else DEFAULT_XP_TIERS,
+            "xp_media": _safe_int(data.get("xp_media"), 15),
+            "xp_reaction": _safe_int(data.get("xp_reaction"), 1),
+            "xp_voice_silent": _safe_int(data.get("xp_voice_silent"), 5),
+            "xp_voice_talking": _safe_int(data.get("xp_voice_talking"), 15),
+            "msg_cooldown": _safe_int(data.get("msg_cooldown"), 60),
+            "react_cooldown": _safe_int(data.get("react_cooldown"), 10),
+            "background_url": data.get("background_url"),
+            "xp_drop_enabled": _safe_bool(data.get("xp_drop_enabled"), False),
+            "xp_drop_channel": data.get("xp_drop_channel"),
+            "xp_drop_min": _safe_int(data.get("xp_drop_min"), 100),
+            "xp_drop_max": _safe_int(data.get("xp_drop_max"), 500),
+            "xp_drop_interval": _safe_int(data.get("xp_drop_interval"), 3600),
+            "cafe_buff_enabled": _safe_bool(data.get("cafe_buff_enabled"), True),
+            "invite_xp": _safe_int(data.get("invite_xp"), 0),
+            "marriage_bonus": _safe_float(data.get("marriage_bonus"), 0.1),
+        }
+    _CFG_CACHE[gid] = (now + _CACHE_TTL, cfg)
+    return cfg
 
 async def set_config(db_manager, guild_id: int, cfg: Dict[str, Any]):
     data = {
@@ -217,8 +234,9 @@ async def set_config(db_manager, guild_id: int, cfg: Dict[str, Any]):
         "marriage_bonus": float(cfg.get("marriage_bonus", 0.1))
     }
     await db_manager.execute("leveling_config", data)
+    _CFG_CACHE.pop(int(guild_id), None)
 
-# ---------- Rank card renderer (DiscordLevelingCard) ----------
+# ── Rank card renderer (DiscordLevelingCard) ──
 async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, background_url=None):
     try:
         width, height = 900, 360
@@ -297,7 +315,7 @@ async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, backgr
         log.error(f"Rank card render failed: {e}")
         return None
 
-# ---------- UI Views (same as before) ----------
+# ── UI Views (shared by level_admin cog) ──
 class XPDropView(ui.View):
     def __init__(self, xp_amount, cog):
         super().__init__(timeout=300)
@@ -308,183 +326,8 @@ class XPDropView(ui.View):
             return await interaction.response.send_message("❌ Та аль хэдийн авсан.", ephemeral=True)
         self.claimed.add(interaction.user.id)
         await self.cog.add_xp(interaction.user.id, interaction.guild.id, self.xp_amount,
-                             member=interaction.guild.get_member(interaction.user.id))
+                              member=interaction.guild.get_member(interaction.user.id))
         await interaction.response.send_message(f"✅ +{self.xp_amount} XP авлаа!", ephemeral=True)
-
-class LevelRewardManagerView(ui.View):
-    def __init__(self, cog, ctx):
-        super().__init__(timeout=600)
-        self.cog = cog; self.ctx = ctx; self.selected_level = None
-    async def build_embed(self):
-        entries = await self.cog.get_level_rewards(self.ctx.guild.id)
-        embed = discord.Embed(title="🎁 Түвшний мөнгөн шагнал", color=GOLD_COLOR)
-        if not entries: embed.description = "Одоогоор ямар ч шагнал тохируулаагүй байна."
-        else:
-            lines = []
-            for e in entries: lines.append(f"**Level {e['level']}** → {e['money']:,} ₮")
-            embed.description = "\n".join(lines)
-        embed.set_footer(text="Доорх цэсээр түвшин сонгоод 'Шагнал тохируулах' эсвэл 'Устгах' дарна уу.")
-        return embed
-    async def refresh_message(self, interaction):
-        embed = await self.build_embed()
-        await interaction.edit_original_response(embed=embed, view=self)
-    @ui.select(placeholder="Түвшин сонгох", row=0, min_values=1, max_values=1)
-    async def level_select(self, interaction, select):
-        self.selected_level = int(select.values[0])
-        await interaction.response.defer(ephemeral=True)
-        await interaction.followup.send(f"Түвшин {self.selected_level} сонгогдлоо.", ephemeral=True)
-    @ui.button(label="💰 Шагнал тохируулах", style=discord.ButtonStyle.green, row=1)
-    async def set_reward_btn(self, interaction, button):
-        if self.selected_level is None: return await interaction.response.send_message("❌ Эхлээд түвшин сонгоно уу.", ephemeral=True)
-        modal = ui.Modal(title="Шагнал тохируулах")
-        money_input = ui.TextInput(label="Мөнгөн дүн (₮)", placeholder="5000", required=True)
-        modal.add_item(money_input)
-        async def on_submit(inter):
-            try:
-                money = int(money_input.value)
-                if money <= 0: raise ValueError
-            except: return await inter.response.send_message("❌ Эерэг бүхэл тоо оруулна уу.", ephemeral=True)
-            await self.cog.set_level_reward(self.ctx.guild.id, self.selected_level, money)
-            await inter.response.send_message(f"✅ Level {self.selected_level} → {money:,} ₮ тохируулагдлаа.", ephemeral=True)
-            await self.refresh_message(inter)
-        modal.on_submit = on_submit
-        await interaction.response.send_modal(modal)
-    @ui.button(label="🗑️ Устгах", style=discord.ButtonStyle.red, row=1)
-    async def remove_reward_btn(self, interaction, button):
-        if self.selected_level is None: return await interaction.response.send_message("❌ Эхлээд түвшин сонгоно уу.", ephemeral=True)
-        await self.cog.delete_level_reward(self.ctx.guild.id, self.selected_level)
-        await interaction.response.send_message(f"🗑️ Level {self.selected_level} шагнал устгагдлаа.", ephemeral=True)
-        await self.refresh_message(interaction)
-
-class LevelRoleManagerView(ui.View):
-    def __init__(self, cog, ctx):
-        super().__init__(timeout=600)
-        self.cog = cog; self.ctx = ctx
-        self.selected_level = None; self.selected_role = None
-    async def build_embed(self):
-        entries = await self.cog.get_level_roles(self.ctx.guild.id)
-        embed = discord.Embed(title="🛠️ Түвшний ролиудыг тохируулах", color=INFO_COLOR)
-        if not entries: embed.description = "Одоогоор ямар ч түвшний роль тохируулаагүй байна."
-        else:
-            lines = []
-            for e in entries:
-                role = self.ctx.guild.get_role(e["role_id"])
-                role_text = role.mention if role else f"<@&{e['role_id']}>"
-                lines.append(f"**Level {e['level']}** → {role_text}")
-            embed.description = "\n".join(lines)
-        embed.set_footer(text="Доорх цэсээр түвшин/роль сонгоод 'Тохируулах' эсвэл 'Устгах' дарна уу.")
-        return embed
-    async def refresh_message(self, interaction):
-        embed = await self.build_embed()
-        await interaction.edit_original_response(embed=embed, view=self)
-    @ui.select(placeholder="1️⃣ Түвшин сонгох", row=0, min_values=1, max_values=1)
-    async def level_select(self, interaction, select):
-        self.selected_level = int(select.values[0])
-        await interaction.response.defer(ephemeral=True)
-        await interaction.followup.send(f"Түвшин {self.selected_level} сонгогдлоо.", ephemeral=True)
-    @ui.select(cls=ui.RoleSelect, placeholder="2️⃣ Роль сонгох", row=1, min_values=1, max_values=1)
-    async def role_select(self, interaction, select):
-        self.selected_role = select.values[0]
-        await interaction.response.defer(ephemeral=True)
-        await interaction.followup.send(f"Роль {self.selected_role.mention} сонгогдлоо.", ephemeral=True)
-    @ui.button(label="✅ Тохируулах", style=discord.ButtonStyle.green, row=2)
-    async def set_btn(self, interaction, button):
-        if self.selected_level is None or self.selected_role is None:
-            return await interaction.response.send_message("❌ Түвшин болон роль сонгоно уу.", ephemeral=True)
-        await self.cog.set_level_role(self.ctx.guild.id, self.selected_level, self.selected_role.id)
-        await interaction.response.send_message(f"✅ Level {self.selected_level} → {self.selected_role.mention}", ephemeral=True)
-        await self.refresh_message(interaction)
-    @ui.button(label="🗑️ Устгах", style=discord.ButtonStyle.red, row=2)
-    async def remove_btn(self, interaction, button):
-        if self.selected_level is None: return await interaction.response.send_message("❌ Түвшин сонгоно уу.", ephemeral=True)
-        await self.cog.delete_level_role(self.ctx.guild.id, self.selected_level)
-        await interaction.response.send_message(f"🗑️ Level {self.selected_level} устгагдлаа.", ephemeral=True)
-        await self.refresh_message(interaction)
-    @ui.button(label="🎁 Шагнал", style=discord.ButtonStyle.blurple, row=3)
-    async def reward_btn(self, interaction, button):
-        view = LevelRewardManagerView(self.cog, self.ctx)
-        embed = await view.build_embed()
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
-
-class LevelingSetupView(ui.View):
-    def __init__(self, cog, ctx):
-        super().__init__(timeout=600)
-        self.cog = cog; self.ctx = ctx; self.message = None
-    async def interaction_check(self, interaction):
-        if interaction.user.id == interaction.guild.owner_id or interaction.user.id in self.cog.bot.config.get("co_owner_ids",[]): return True
-        await interaction.response.send_message("⛔ Сервер эзэмшигч эсвэл ботын co-owner эрх шаардлагатай.", ephemeral=True)
-        return False
-    async def refresh(self):
-        cfg = await get_config(self.cog.bot.db_manager, self.ctx.guild.id)
-        embed = discord.Embed(title="🔧 Түвшний систем тохиргоо", color=INFO_COLOR)
-        ch = self.ctx.guild.get_channel(cfg["announce_channel"]) if cfg["announce_channel"] else None
-        embed.add_field(name="📢 Мэдэгдэл суваг", value=ch.mention if ch else "Тохируулаагүй", inline=False)
-        embed.add_field(name="Систем идэвхтэй", value="✅" if cfg["enabled"] else "❌", inline=True)
-        embed.add_field(name="Дуут XP", value="✅" if cfg["voice_xp_enabled"] else "❌", inline=True)
-        embed.add_field(name="Cooldown (msg/react)", value=f"{cfg['msg_cooldown']}с / {cfg['react_cooldown']}с", inline=True)
-        embed.add_field(name="Прогресс", value=f"{cfg['prog_type']} (base={cfg['prog_base']}, step={cfg['prog_step']})", inline=True)
-        embed.add_field(name="Урилгын XP", value=str(cfg.get("invite_xp",0)), inline=True)
-        embed.add_field(name="Гэрлэлтийн урамшуулал", value=f"{cfg.get('marriage_bonus',0.1)*100}%", inline=True)
-        await self.message.edit(embed=embed, view=self)
-    @ui.button(label="📢 Суваг сонгох", style=discord.ButtonStyle.secondary, row=0)
-    async def channel_btn(self, interaction, button):
-        opts = []
-        for ch in interaction.guild.text_channels[:25]:
-            opts.append(discord.SelectOption(label=f"#{ch.name}", value=str(ch.id)))
-        if not opts: return await interaction.response.send_message("Сонгох суваг байхгүй.", ephemeral=True)
-        class ChannelSelect(ui.Select):
-            def __init__(self): super().__init__(placeholder="Мэдэгдэл сувгаа сонго...", options=opts)
-            async def callback(self, inter):
-                cfg = await get_config(self.view.cog.bot.db_manager, self.view.ctx.guild.id)
-                cfg["announce_channel"] = int(self.values[0])
-                await set_config(self.view.cog.bot.db_manager, self.view.ctx.guild.id, cfg)
-                await inter.response.send_message("✅ Суваг тохируулагдлаа.", ephemeral=True)
-                await self.view.refresh()
-        view = ui.View(timeout=60); view.add_item(ChannelSelect())
-        await interaction.response.send_message("Сувгаа сонгоно уу:", view=view, ephemeral=True)
-    @ui.button(label="🔄 Систем унтраах/асаах", style=discord.ButtonStyle.primary, row=0)
-    async def toggle_btn(self, interaction, button):
-        cfg = await get_config(self.cog.bot.db_manager, self.ctx.guild.id)
-        cfg["enabled"] = not cfg["enabled"]
-        await set_config(self.cog.bot.db_manager, self.ctx.guild.id, cfg)
-        await interaction.response.send_message(f"Систем {'ассан' if cfg['enabled'] else 'унтарсан'}.", ephemeral=True)
-        await self.refresh()
-    @ui.button(label="⏱ Cooldown тохируулах", style=discord.ButtonStyle.secondary, row=1)
-    async def cd_btn(self, interaction, button):
-        modal = ui.Modal(title="Cooldown (секунд)")
-        msg_inp = ui.TextInput(label="Мессеж", placeholder="60", required=True)
-        react_inp = ui.TextInput(label="Реакц", placeholder="10", required=True)
-        modal.add_item(msg_inp); modal.add_item(react_inp)
-        async def on_submit(inter):
-            try:
-                m = int(msg_inp.value); r = int(react_inp.value)
-                if m<=0 or r<=0: raise ValueError
-            except: return await inter.response.send_message("❌ Эерэг бүхэл тоо оруулна уу.", ephemeral=True)
-            cfg = await get_config(self.cog.bot.db_manager, self.ctx.guild.id)
-            cfg["msg_cooldown"] = m; cfg["react_cooldown"] = r
-            await set_config(self.cog.bot.db_manager, self.ctx.guild.id, cfg)
-            await inter.response.send_message("✅ Cooldown шинэчлэгдлээ.", ephemeral=True)
-            await self.refresh()
-        modal.on_submit = on_submit
-        await interaction.response.send_modal(modal)
-    @ui.button(label="🎨 Арын зураг URL", style=discord.ButtonStyle.secondary, row=1)
-    async def bg_btn(self, interaction, button):
-        modal = ui.Modal(title="Арын зураг")
-        url_inp = ui.TextInput(label="Зургийн URL", placeholder="https://...", required=True)
-        modal.add_item(url_inp)
-        async def on_submit(inter):
-            cfg = await get_config(self.cog.bot.db_manager, self.ctx.guild.id)
-            cfg["background_url"] = url_inp.value.strip()
-            await set_config(self.cog.bot.db_manager, self.ctx.guild.id, cfg)
-            await inter.response.send_message("✅ Арын зураг тохируулагдлаа.", ephemeral=True)
-            await self.refresh()
-        modal.on_submit = on_submit
-        await interaction.response.send_modal(modal)
-    @ui.button(label="🎖️ Түвшний роль тохиргоо", style=discord.ButtonStyle.success, row=2)
-    async def role_manager_btn(self, interaction, button):
-        view = LevelRoleManagerView(self.cog, self.ctx)
-        embed = await view.build_embed()
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
 
 # ================== MAIN COG ==================
 class Leveling(SupabaseCog):
@@ -510,7 +353,6 @@ class Leveling(SupabaseCog):
         if self.session: await self.session.close()
 
     async def init_db(self):
-        # Tables are pre-configured in Supabase
         pass
 
     def _on_cooldown(self, storage, user_id, seconds, guild_id=0):
@@ -697,22 +539,31 @@ class Leveling(SupabaseCog):
             await self._add_xp(inviter_id, guild_id, xp_reward, member=member)
 
     async def get_exceptions(self, guild_id):
+        gid = int(guild_id)
+        now = time.monotonic()
+        hit = _EXC_CACHE.get(gid)
+        if hit and hit[0] > now:
+            return hit[1]
         rows = await self.bot.db_manager.fetch_all(
             "leveling_exceptions", {"guild_id": str(guild_id)}
         )
-        return {"channels":[r["target_id"] for r in rows if r.get("type")=="channel"],
-                "users":[r["target_id"] for r in rows if r.get("type")=="user"]}
+        ex = {"channels":[r["target_id"] for r in rows if r.get("type")=="channel"],
+              "users":[r["target_id"] for r in rows if r.get("type")=="user"]}
+        _EXC_CACHE[gid] = (now + _CACHE_TTL, ex)
+        return ex
     async def add_exception(self, guild_id, exc_type, target_id):
         await self.bot.db_manager.upsert(
             "leveling_exceptions",
             {"guild_id": str(guild_id), "type": exc_type, "target_id": target_id},
             on_conflict="guild_id,type,target_id",
         )
+        _EXC_CACHE.pop(int(guild_id), None)
     async def remove_exception(self, guild_id, exc_type, target_id):
         await self.bot.db_manager.delete(
             "leveling_exceptions",
             {"guild_id": str(guild_id), "type": exc_type, "target_id": target_id},
         )
+        _EXC_CACHE.pop(int(guild_id), None)
 
     async def get_level_roles(self, guild_id):
         rows = await self.bot.db_manager.fetch_all(
@@ -727,7 +578,8 @@ class Leveling(SupabaseCog):
         )
     async def delete_level_role(self, guild_id, level):
         await self.bot.db_manager.delete(
-            "level_roles", {"guild_id": str(guild_id), "level": level}
+            "level_roles",
+            {"guild_id": str(guild_id), "level": level}
         )
 
     async def get_level_rewards(self, guild_id):
@@ -743,7 +595,8 @@ class Leveling(SupabaseCog):
         )
     async def delete_level_reward(self, guild_id, level):
         await self.bot.db_manager.delete(
-            "level_rewards", {"guild_id": str(guild_id), "level": level}
+            "level_rewards",
+            {"guild_id": str(guild_id), "level": level}
         )
 
     # ========== EVENT LISTENERS ==========
@@ -832,8 +685,8 @@ class Leveling(SupabaseCog):
                                 self._voice_last_xp[key] = now
                                 await self._add_xp(member.id, guild.id, xp, member=member, check_mute=False)
                                 try:
-                                    lvl_row = await self.bot.db_manager.fetch_safe(
-                                        "levels", {"user_id": str(member.id), "guild_id": str(guild.id)}, single=True
+                                    lvl_row = await self.bot.db_manager.fetch_one(
+                                        "levels", {"user_id": str(member.id), "guild_id": str(guild.id)}
                                     )
                                     if lvl_row:
                                         await self.bot.db_manager.update(
@@ -867,11 +720,12 @@ class Leveling(SupabaseCog):
     @xp_drop_loop.before_loop
     async def before_xp_drop_loop(self): await self.bot.wait_until_ready()
 
-    # ========== COMMANDS ==========
-    @commands.hybrid_command(name="grank", aliases=["rank","lvl"], description="Хэрэглэгчийн түвшин, XP болон эрэмбийг харах")
-    async def grank(self, ctx, user: discord.Member = None):
+    # ========== USER COMMANDS (hybrid) ==========
+    @commands.hybrid_command(name="rank", description="Хэрэглэгчийн түвшин, XP болон эрэмбийг харах")
+    async def rank(self, ctx, user: Optional[discord.Member] = None):
         target = user or ctx.author
-        await ctx.defer()
+        if ctx.interaction:
+            await ctx.defer()
         total_xp = await self.get_total_xp(target.id, ctx.guild.id)
         level = await self.get_level(target.id, ctx.guild.id)
         cfg = await get_config(self.bot.db_manager, ctx.guild.id)
@@ -892,7 +746,6 @@ class Leveling(SupabaseCog):
                 await ctx.send(embed=embed)
         except Exception as e: await ctx.send(f"❌ Rank карт үүсгэхэд алдаа гарлаа: {e}", ephemeral=True)
 
-    # ========== NEW: Server Activity Command ==========
     @commands.hybrid_command(name="serveractivity", aliases=["activity"], description="Серверийн идэвхтэй байдлын статистик")
     async def server_activity(self, ctx):
         """Серверийн идэвхтэй байдлыг харах"""
@@ -903,7 +756,6 @@ class Leveling(SupabaseCog):
         offline = guild.member_count - online
         voice_count = sum(1 for vc in guild.voice_channels for m in vc.members)
 
-        # Message count from database (all-time active chatters)
         active_chatters = 0
         try:
             lvl_rows = await self.bot.db_manager.fetch_all(
@@ -919,43 +771,6 @@ class Leveling(SupabaseCog):
         embed.set_footer(text="Note: Text chatters count is all-time, not 24h. To get 24h stats, add a last_message_time column.")
         await ctx.send(embed=embed)
 
-    async def _is_allowed(self, user):
-        try:
-            cfg = self.bot.config
-            return user.id == cfg.get("owner_id") or user.id in cfg.get("co_owner_ids",[])
-        except: return False
-
-    @commands.command(name="addxp")
-    async def addxp_cmd(self, ctx, user: discord.Member, amount: int):
-        if not await self._is_allowed(ctx.author): return await ctx.send("⛔ Зөвхөн бот эзэмшигч эсвэл co-owner ашиглах боломжтой.", ephemeral=True)
-        if amount <= 0: return await ctx.send("❌ Эерэг тоо оруулна уу.", ephemeral=True)
-        await self._add_xp(user.id, ctx.guild.id, amount, member=user, check_mute=False)
-        await ctx.send(f"✅ {user.display_name}-д {amount} XP нэмлээ.")
-
-    @commands.command(name="removexp")
-    async def removexp_cmd(self, ctx, user: discord.Member, amount: int):
-        if not await self._is_allowed(ctx.author): return await ctx.send("⛔ Зөвхөн бот эзэмшигч эсвэл co-owner ашиглах боломжтой.", ephemeral=True)
-        if amount <= 0: return await ctx.send("❌ Эерэг тоо оруулна уу.", ephemeral=True)
-        await self._add_xp(user.id, ctx.guild.id, -amount, member=user, check_mute=False)
-        await ctx.send(f"✅ {user.display_name}-ээс {amount} XP хасагдлаа.")
-
-    @commands.command(name="leveling_setup", aliases=["lsetup"])
-    async def leveling_setup(self, ctx):
-        if not (ctx.author.guild_permissions.administrator or await self._is_allowed(ctx.author)):
-            return await ctx.send("⛔ Админ эрх шаардлагатай.", ephemeral=True)
-        cfg = await get_config(self.bot.db_manager, ctx.guild.id)
-        embed = discord.Embed(title="🔧 Түвшний систем тохиргоо", color=INFO_COLOR)
-        ch = ctx.guild.get_channel(cfg["announce_channel"]) if cfg["announce_channel"] else None
-        embed.add_field(name="📢 Мэдэгдэл суваг", value=ch.mention if ch else "Тохируулаагүй", inline=False)
-        embed.add_field(name="Систем идэвхтэй", value="✅" if cfg["enabled"] else "❌", inline=True)
-        embed.add_field(name="Дуут XP", value="✅" if cfg["voice_xp_enabled"] else "❌", inline=True)
-        embed.add_field(name="Cooldown (msg/react)", value=f"{cfg['msg_cooldown']}с / {cfg['react_cooldown']}с", inline=True)
-        embed.add_field(name="Прогресс", value=f"{cfg['prog_type']} (base={cfg['prog_base']}, step={cfg['prog_step']})", inline=True)
-        embed.add_field(name="Урилгын XP", value=str(cfg.get("invite_xp",0)), inline=True)
-        embed.add_field(name="Гэрлэлтийн урамшуулал", value=f"{cfg.get('marriage_bonus',0.1)*100}%", inline=True)
-        view = LevelingSetupView(self, ctx)
-        msg = await ctx.send(embed=embed, view=view)
-        view.message = msg
 
 async def setup(bot):
     await bot.add_cog(Leveling(bot))

@@ -11,10 +11,11 @@ so cards can render bilingual titles consistently.
 
 Usage: python3 tools/sync_cmd_i18n.py
 """
+import os
 import re
 import sys
 
-BASE = '/home/ubuntu/Vortex/website'
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def read_cmds():
     src = open(f'{BASE}/js/commands.js').read()
