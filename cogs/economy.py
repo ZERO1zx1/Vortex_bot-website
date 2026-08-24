@@ -33,28 +33,55 @@ STARTING_BALANCE = 5000
 DAILY_MIN = 4000
 DAILY_MAX = 15000
 
-# ---------- Ажлын түвшин ----------
+# ---------- Татварын систем ----------
+TAX_PERCENT = 10  # нийт систем дэх татварын хувь
+TAX_COLLECTOR_ROLES = ("Ерөнхийлөгч", "Захирал")  # татварын орлого очих ролууд
+
+# ---------- Балансын динамик роль ----------
+WEALTH_ROLES = [
+    ("Тэрбумтан", 100_000_000, 0xf1c40f),
+    ("Саятан",    10_000_000, 0x9b59b6),
+    ("Дундаж",     100_000,   0x3498db),
+    ("Ядуу",       0,         0x95a5a6),
+]
+
+# ---------- Ажлын түвшин (цалин өссөн) ----------
 JOB_LEVELS = {
-    1:  {"name":"Гудамжны цас цэвэрлэгч",           "min":1000,"max":3000,"emoji":"❄️"},
-    5:  {"name":"Нарантуул дээр тэрэгчин",          "min":1500,"max":4200,"emoji":"🛒"},
-    10: {"name":"CU / GS25-ын кассчин",             "min":2000,"max":4500,"emoji":"🏪"},
-    15: {"name":"Хүргэлтийн курьер (Пицца)",        "min":2000,"max":4200,"emoji":"🍕"},
-    20: {"name":"Фитнессийн зааварлагч",            "min":2800,"max":4400,"emoji":"💪"},
-    25: {"name":"Компьютер форматлагч",             "min":3000,"max":5500,"emoji":"💻"},
-    30: {"name":"График дизайнер (Freelancer)",      "min":3200,"max":4500,"emoji":"🎨"},
-    40: {"name":"Сошиал контент бүтээгч",           "min":3500,"max":5600,"emoji":"📱"},
-    50: {"name":"Маркетингийн менежер",             "min":4200,"max":5600,"emoji":"📊"},
-    60: {"name":"Төслийн удирдагч",                 "min":4700,"max":6300,"emoji":"📋"},
-    70: {"name":"Кибер аюулгүй байдлын мэргэжилтэн", "min":3300,"max":7800,"emoji":"🔒"},
-    80: {"name":"Ахлах Программист",                "min":4600,"max":8700,"emoji":"⌨️"},
-    90: {"name":"Алтны уурхайн инженер",             "min":3000,"max":9600,"emoji":"⛏️"},
-    100:{"name":"Хувийн бизнес эрхлэгч",            "min":8000,"max":10000,"emoji":"🏢"},
-    110:{"name":"Хөрөнгийн биржийн брокер",          "min":4400,"max":11200,"emoji":"📈"},
-    120:{"name":"Томоохон банкны захирал",          "min":8500,"max":12300,"emoji":"🏦"},
-    140:{"name":"Олон улсын нисгэгч",                "min":5600,"max":11300,"emoji":"✈️"},
-    160:{"name":"Тэрбумтан хөрөнгө оруулагч",       "min":6400,"max":12700,"emoji":"💼"},
-    180:{"name":"Сансрын нисгэгч",                   "min":5800,"max":14500,"emoji":"🚀"},
-    200:{"name":"Дэлхийн Эзэн",                     "min":6000,"max":18000,"emoji":"🌍"},
+    1:   {"name":"Гудамжны цас цэвэрлэгч",           "min":1800,"max":5000,"emoji":"❄️"},
+    3:   {"name":"Хүнсний дэлгүүрийн ажилтан",        "min":2200,"max":5600,"emoji":"🛍️"},
+    5:   {"name":"Нарантуул дээр тэрэгчин",           "min":2600,"max":7000,"emoji":"🛒"},
+    8:   {"name":"Таксины жолооч",                    "min":3000,"max":7800,"emoji":"🚕"},
+    10:  {"name":"CU / GS25-ын кассчин",              "min":3400,"max":7600,"emoji":"🏪"},
+    12:  {"name":"Барилгын ажилтан",                  "min":4200,"max":8600,"emoji":"🧱"},
+    15:  {"name":"Хүргэлтийн курьер (Пицца)",         "min":3400,"max":7000,"emoji":"🍕"},
+    18:  {"name":"Бариста (Кофе шэй)",                "min":4000,"max":8000,"emoji":"☕"},
+    20:  {"name":"Фитнессийн зааварлагч",             "min":4700,"max":7400,"emoji":"💪"},
+    25:  {"name":"Компьютер форматлагч",              "min":5000,"max":9200,"emoji":"💻"},
+    30:  {"name":"График дизайнер (Freelancer)",       "min":5400,"max":7600,"emoji":"🎨"},
+    35:  {"name":"Сургуулийн багш",                   "min":6000,"max":10000,"emoji":"📚"},
+    40:  {"name":"Сошиал контент бүтээгч",            "min":6000,"max":9500,"emoji":"📱"},
+    45:  {"name":"Эмнэлгийн сувилагч",                "min":6600,"max":11200,"emoji":"🏥"},
+    50:  {"name":"Маркетингийн менежер",              "min":7000,"max":9500,"emoji":"📊"},
+    55:  {"name":"Дуучин / Хөгжимчин",                "min":8000,"max":13000,"emoji":"🎤"},
+    60:  {"name":"Төслийн удирдагч",                  "min":8000,"max":10500,"emoji":"📋"},
+    65:  {"name":"Хууль эрх зүйч",                    "min":8600,"max":14200,"emoji":"⚖️"},
+    70:  {"name":"Кибер аюулгүй байдлын мэргэжилтэн",  "min":5600,"max":13000,"emoji":"🔒"},
+    75:  {"name":"Архитектор",                        "min":8400,"max":15000,"emoji":"📐"},
+    80:  {"name":"Ахлах Программист",                 "min":7800,"max":14500,"emoji":"⌨️"},
+    85:  {"name":"Нефть-химийн инженер",               "min":10000,"max":17500,"emoji":"🛢️"},
+    90:  {"name":"Алтны уурхайн инженер",              "min":5100,"max":16000,"emoji":"⛏️"},
+    95:  {"name":"Супер модел",                       "min":11500,"max":20000,"emoji":"👗"},
+    100: {"name":"Хувийн бизнес эрхлэгч",             "min":13500,"max":17000,"emoji":"🏢"},
+    110: {"name":"Хөрөнгийн биржийн брокер",           "min":7500,"max":18500,"emoji":"📈"},
+    120: {"name":"Томоохон банкны захирал",           "min":14000,"max":20000,"emoji":"🏦"},
+    130: {"name":"Крипто трейдер",                    "min":11500,"max":23000,"emoji":"🪙"},
+    140: {"name":"Олон улсын нисгэгч",                "min":9500,"max":19000,"emoji":"✈️"},
+    150: {"name":"Клуб эзэмшигч",                     "min":15000,"max":25000,"emoji":"🎰"},
+    160: {"name":"Тэрбумтан хөрөнгө оруулагч",        "min":11000,"max":21000,"emoji":"💼"},
+    170: {"name":"Остров эзэмшигч",                   "min":17000,"max":27000,"emoji":"🏝️"},
+    180: {"name":"Сансрын нисгэгч",                    "min":10000,"max":24000,"emoji":"🚀"},
+    190: {"name":"Мультимиллиардер инвестор",          "min":20000,"max":33000,"emoji":"💹"},
+    200: {"name":"Дэлхийн Эзэн",                     "min":10000,"max":30000,"emoji":"🌍"},
 }
 
 # ---------- Гэмт хэрэг ----------
@@ -78,23 +105,31 @@ class Economy(SupabaseCog):
         super().__init__(bot)
         self.bot = bot
         self.max_balance = bot.config.get("max_balance", 100_000_000)
-        self.transfer_tax_percent = bot.config.get("transfer_tax_percent", 10)
+        self.transfer_tax_percent = bot.config.get("tax_percent", bot.config.get("transfer_tax_percent", TAX_PERCENT))
         self.bonus_percent = bot.config.get("bonus_percent", 10)
         self.chat_money_cooldown = {}
         self.use_default_replies = True
+        self._tax_collected = {}      # guild_id -> session нийт татвар
+        self._tax_distributed = {}    # guild_id -> session нийт хуваарилсан
+        self._collector_role_names = tuple(
+            bot.config.get("tax_collector_roles", TAX_COLLECTOR_ROLES)
+        )
+        self._wealth_task = None
 
     async def cog_load(self):
         # Tables are pre-configured in Supabase
         self.role_income_task = self.bot.loop.create_task(self._role_income_loop())
+        self._wealth_task = self.bot.loop.create_task(self._wealth_role_loop())
 
     async def cog_unload(self):
         """Docs extension-teardown best practice: cancel background tasks."""
-        if self.role_income_task:
-            self.role_income_task.cancel()
-            try:
-                await self.role_income_task
-            except asyncio.CancelledError:
-                pass
+        for task in (self.role_income_task, self._wealth_task):
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
     async def ensure_user(self, uid, gid):
         row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
@@ -105,12 +140,66 @@ class Economy(SupabaseCog):
         row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
         return row.get("balance", 0) if row else 0
 
-    async def update_balance(self, uid, gid, delta):
+    async def update_balance(self, uid, gid, delta, apply_tax: bool = None):
+        """Гар дээрх үлдэгдэл өөрчлөх. Эерэг орлогод 10% татвар автан,
+        Ерөнхийлөгч/Захирал ролттой хэрэглэгчид автоматаар хуваарилагдана.
+        Татварын өөрөө хуваарилах үедээ apply_tax=False дамжуулна."""
         await self.ensure_user(uid, gid)
+        if delta > 0 and (apply_tax if apply_tax is not None else True):
+            tax = int(delta * self.transfer_tax_percent / 100)
+            credited = delta - tax
+            if tax > 0:
+                await self.distribute_tax(gid, tax)
+        else:
+            tax = 0
+            credited = delta
         cur = await self.get_balance(uid, gid)
-        new = max(0, min(self.max_balance, cur + delta))
+        new = max(0, min(self.max_balance, cur + credited))
         await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "balance": new})
         return new
+
+    async def get_tax_collectors(self, gid):
+        """Ерөнхийлөгч / Захирал рольтой гишүүдийг олох."""
+        guild = self.bot.get_guild(int(gid))
+        if not guild:
+            return []
+        collectors = []
+        for role_name in self._collector_role_names:
+            role = discord.utils.find(
+                lambda r: r.name.lower() == role_name.lower(), guild.roles
+            )
+            if role:
+                collectors.extend(m for m in role.members if not m.bot)
+        # Давхардлыг арилгах
+        seen = set()
+        unique = []
+        for m in collectors:
+            if m.id not in seen:
+                seen.add(m.id)
+                unique.append(m)
+        return unique
+
+    async def distribute_tax(self, gid, tax: int):
+        """Цугларсан татварыг Ерөнхийлөгч/Захирал rolт хэрэглэгчид хувааж өгнө.
+        Татвар цуглуулагч байхгүй бол орлого алдагдана (сан хөрөнгө)."""
+        self._tax_collected[gid] = self._tax_collected.get(gid, 0) + tax
+        collectors = await self.get_tax_collectors(gid)
+        if not collectors or tax <= 0:
+            return 0
+        share = tax // len(collectors)
+        remainder = tax - share * len(collectors)
+        distributed = 0
+        for i, member in enumerate(collectors):
+            amount = share + (remainder if i == 0 else 0)
+            if amount <= 0:
+                continue
+            await self.ensure_user(member.id, gid)
+            cur = await self.get_balance(member.id, gid)
+            new = max(0, min(self.max_balance, cur + amount))
+            await self.update_data("economy", {"user_id": str(member.id), "guild_id": str(gid), "balance": new})
+            distributed += amount
+        self._tax_distributed[gid] = self._tax_distributed.get(gid, 0) + distributed
+        return distributed
 
     async def get_bank(self, uid, gid):
         row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
@@ -122,6 +211,14 @@ class Economy(SupabaseCog):
         new = max(0, min(self.max_balance, cur + delta))
         await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "bank_balance": new})
         return new
+
+    async def get_top_balances(self, guild_id: int, limit=10, offset=0):
+        """Хамгийн их үлдэгдэлтэй хэрэглэгчид (Leaderboard ког ашиглах)."""
+        rows = await self.bot.db_manager.fetch_all(
+            "economy", {"guild_id": str(guild_id)},
+            order_by="balance", desc=True, limit=limit, offset=offset,
+        )
+        return [(int(r["user_id"]), r.get("balance", 0) or 0) for r in rows]
 
     # ------- USER MANAGEMENT -------
     async def check_registration(self, ctx):
@@ -300,8 +397,9 @@ class Economy(SupabaseCog):
                 work_desc = f"{job['emoji']} {job['name']} ажил"
 
         await self.update_balance(ctx.author.id, ctx.guild.id, pay)
-        hunger_inc = random.randint(15, 25)
-        mood_inc = random.randint(10, 20)
+        tax = int(pay * self.transfer_tax_percent / 100)
+        hunger_inc = random.randint(10, 15)
+        mood_inc = random.randint(10, 15)
         new_hunger = min(100, hunger+hunger_inc)
         new_mood = min(100, mood+mood_inc)
         await self.set_hunger_mood(ctx.author.id, ctx.guild.id, hunger=new_hunger, mood=new_mood)
@@ -316,9 +414,10 @@ class Economy(SupabaseCog):
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "economy_work", 1)
 
+        tax_line = f"\n🏛️ Татвар ({self.transfer_tax_percent}%): -{tax:,} ₮ (Ерөнхийлөгч/Захирал-д)" if tax > 0 else ""
         embed = discord.Embed(
             title="💼 АЖИЛ АМЖИЛТТАЙ!",
-            description=f"{ctx.author.mention} **{work_desc}** хийж, **{pay:,}** ₮ оллоо!\n⭐ Урамшуулал: +{bonus}%",
+            description=f"{ctx.author.mention} **{work_desc}** хийж, **{pay:,}** ₮ оллоо!\n⭐ Урамшуулал: +{bonus}%{tax_line}",
             color=SUCCESS_COLOR,
             timestamp=datetime.now(timezone.utc)
         )
@@ -346,6 +445,7 @@ class Economy(SupabaseCog):
         reward = random.randint(DAILY_MIN, DAILY_MAX)
         await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_daily": now})
         await self.update_balance(ctx.author.id, ctx.guild.id, reward)
+        tax_note = f"\n🏛️ Татвар ({self.transfer_tax_percent}%): -{int(reward * self.transfer_tax_percent / 100):,} ₮" if reward > 0 else ""
         leveling = self.bot.get_cog("Leveling")
         if leveling:
             try: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(5, 10), member=ctx.author, check_mute=True, channel=ctx.channel)
@@ -357,7 +457,7 @@ class Economy(SupabaseCog):
             color=SUCCESS_COLOR,
             timestamp=datetime.now(timezone.utc)
         )
-        embed.add_field(name=i18n.t_direct(lang, "economy.daily.reward_field", mn="💰 Шагнал", en="💰 Reward"), value=f"+ **{reward:,}** ₮")
+        embed.add_field(name=i18n.t_direct(lang, "economy.daily.reward_field", mn="💰 Шагнал", en="💰 Reward"), value=f"+ **{reward:,}** ₮{tax_note}")
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
         embed.set_footer(text=i18n.t_direct(lang, "economy.daily.footer", mn="Дараагийн урамшуулал 24 цагийн дараа", en="Next reward in 24 hours"))
         await ctx.send(embed=embed)
@@ -371,10 +471,11 @@ class Economy(SupabaseCog):
         if random.random() < crime["success_chance"]:
             reward = random.randint(crime["min_reward"], crime["max_reward"])
             await self.update_balance(ctx.author.id, ctx.guild.id, reward)
+            crime_tax_note = f"\n🏛️ Татвар ({self.transfer_tax_percent}%): -{int(reward * self.transfer_tax_percent / 100):,} ₮"
             leveling = self.bot.get_cog("Leveling")
             if leveling: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(10, 20), member=ctx.author, check_mute=True, channel=ctx.channel)
             embed = discord.Embed(title="🎉 ГЭМТ ХЭРЭГ АМЖИЛТТАЙ!",
-                                  description=f"{ctx.author.mention} **{crime['name']}** үйлдэж, **{reward:,}** ₮ оллоо!",
+                                  description=f"{ctx.author.mention} **{crime['name']}** үйлдэж, **{reward:,}** ₮ оллоо!{crime_tax_note}",
                                   color=SUCCESS_COLOR,
                                   timestamp=datetime.now(timezone.utc))
             embed.add_field(name="💰 Шагнал", value=f"+ {reward:,} ₮")
@@ -415,8 +516,11 @@ class Economy(SupabaseCog):
         await view.wait()
         if view.value is not True:
             return await ctx.send("❌ Шилжүүлэг цуцлагдлаа.", ephemeral=True)
-        await self.update_balance(ctx.author.id, ctx.guild.id, -amount)
-        await self.update_balance(member.id, ctx.guild.id, final_amount)
+        await self.update_balance(ctx.author.id, ctx.guild.id, -amount, apply_tax=False)
+        await self.update_balance(member.id, ctx.guild.id, final_amount, apply_tax=False)
+        # Шилжүүлгийн татвар Ерөнхийлөгч/Захирал rolт хэрэглэгчид очно
+        if tax > 0:
+            await self.distribute_tax(ctx.guild.id, tax)
         success_embed = discord.Embed(title="✅ ГҮЙЛГЭЭ АМЖИЛТТАЙ!",
                                       description=f"{ctx.author.mention} → {member.mention} **{amount:,}** ₮ шилжүүллээ.",
                                       color=SUCCESS_COLOR)
@@ -476,7 +580,7 @@ class Economy(SupabaseCog):
     async def eat(self, ctx):
         if not await self.check_registration(ctx): return
         bal = await self.get_balance(ctx.author.id, ctx.guild.id)
-        cost = 3000
+        cost = 1500
         if bal < cost: return await ctx.send(embed=discord.Embed(title="❌ Мөнгө хүрэлцэхгүй", description=f"Хоолны үнэ {cost:,} ₮.", color=ERROR_COLOR))
         hunger, _ = await self.get_hunger_mood(ctx.author.id, ctx.guild.id)
         if hunger == 0: return await ctx.send(embed=discord.Embed(title="🍔 Цадсан", description="Та аль хэдийн цадсан байна!", color=WARNING_COLOR))
@@ -540,6 +644,117 @@ class Economy(SupabaseCog):
                               timestamp=datetime.now(timezone.utc))
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
+
+    @commands.command(name='jobs', aliases=['ajil', 'ажил'])
+    async def jobs_list(self, ctx):
+        """Бүх ажлын түвшин ба цалинг харах."""
+        lines = []
+        for req in sorted(JOB_LEVELS.keys()):
+            job = JOB_LEVELS[req]
+            lines.append(f"`Lvl {req:>3}` {job['emoji']} {job['name']} — {job['min']:,}-{job['max']:,} ₮")
+        embed = discord.Embed(
+            title=f"💼 АЖЛЫН ЖАГСААЛТ ({len(lines)} ажил)",
+            description="Discord түвшин өндөрлөх тусам илүү өндөр цалинтай ажилд орох боломжтой.",
+            color=GOLD_COLOR,
+        )
+        chunk = []
+        for i, line in enumerate(lines, 1):
+            chunk.append(line)
+            if len(chunk) == 12 or i == len(lines):
+                embed.add_field(name="\u200b", value="\n".join(chunk), inline=False)
+                chunk = []
+        embed.set_footer(text=f"Таны одоогийн ажлыг харах: {ctx.prefix}balance")
+        await ctx.send(embed=embed)
+
+    @commands.command(name='taxinfo', aliases=['татвар'])
+    async def tax_info(self, ctx):
+        """Татварын системийн мэдээлэл."""
+        gid = ctx.guild.id
+        collectors = await self.get_tax_collectors(gid)
+        embed = discord.Embed(title="🏛️ ТАТВАРЫН СИСТЕМ", color=GOLD_COLOR)
+        embed.add_field(name="📊 Татварын хувь", value=f"**{self.transfer_tax_percent}%** (нийт орлогод)", inline=True)
+        embed.add_field(name="💰 Энэ сессийн цугларсан", value=f"**{self._tax_collected.get(gid, 0):,}** ₮", inline=True)
+        embed.add_field(name="📤 Хуваарилсан", value=f"**{self._tax_distributed.get(gid, 0):,}** ₮", inline=True)
+        if collectors:
+            embed.add_field(
+                name="👑 Татвар хүлээн авагч",
+                value="\n".join(f"{m.mention} — {m.display_name}" for m in collectors[:10]),
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="👑 Татвар хүлээн авагч",
+                value=f"Байхгүй! `{', '.join(self._collector_role_names)}` ролуудын аль нэгийг зүүсэн хэрэглэгч татварын орлогыг авна.",
+                inline=False,
+            )
+        embed.set_footer(text="Татвар автоматаар цугларч, тухайн ролттой хэрэглэгчийн дансанд ордог.")
+        await ctx.send(embed=embed)
+
+    async def _wealth_role_loop(self):
+        """Балансаас хамаарч Ядуу/Дундаж/Саятан/Тэрбумтан ролуудыг автоматаар олгох."""
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            try:
+                for guild in self.bot.guilds:
+                    try:
+                        await self._update_wealth_roles(guild)
+                    except Exception:
+                        pass
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                pass
+            await asyncio.sleep(300)
+
+    async def _update_wealth_roles(self, guild: discord.Guild):
+        if not guild.me.guild_permissions.manage_roles:
+            return
+        rows = await self.bot.db_manager.fetch_all(
+            "economy", {"guild_id": str(guild.id)},
+            selects="user_id, balance, bank_balance",
+        )
+        if not rows:
+            return
+        role_objs = {}
+        for name, _threshold, color in WEALTH_ROLES:
+            role = discord.utils.find(lambda r, n=name: r.name.lower() == n.lower(), guild.roles)
+            if role is None:
+                try:
+                    role = await guild.create_role(name=name, color=discord.Color(color), reason="Санхүүгийн зэрэглэлийн роль")
+                except discord.Forbidden:
+                    return
+                except discord.HTTPException:
+                    continue
+            role_objs[name] = role
+        bot_top = guild.me.top_role.position
+        for row in rows:
+            try:
+                member = guild.get_member(int(row["user_id"]))
+            except (ValueError, TypeError):
+                continue
+            if not member or member.bot:
+                continue
+            total = (row.get("balance") or 0) + (row.get("bank_balance") or 0)
+            target_name = None
+            for name, threshold, _c in WEALTH_ROLES:
+                if total >= threshold:
+                    target_name = name
+                    break
+            target = role_objs.get(target_name) if target_name else None
+            to_remove = [
+                r for r in member.roles
+                if r.name in role_objs and (target is None or r.id != target.id)
+            ]
+            if target and target not in member.roles and target.position < bot_top:
+                try:
+                    await member.add_roles(target, reason=f"Санхүүгийн зэрэглэл: {target_name}")
+                except discord.HTTPException:
+                    pass
+            if to_remove:
+                try:
+                    await member.remove_roles(*to_remove, reason="Санхүүгийн зэрэглэл өөрчлөгдлөө")
+                except discord.HTTPException:
+                    pass
 
     async def _role_income_loop(self):
         await self.bot.wait_until_ready()

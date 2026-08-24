@@ -293,7 +293,7 @@ class Marketplace(commands.Cog):
                 embed.description = "Одоохондоо зарлал байхгүй."
                 return embed
             for lid, seller_id, item_id, qty, price, _ in rows:
-                item = shop.get_item(item_id) if shop else None
+                item = shop.get_item_sync(item_id) if shop else None
                 item_str = f"{item['emoji']} **{item['name']}**" if item else f"ID:{item_id}"
                 seller = guild.get_member(int(seller_id))
                 seller_name = seller.display_name if seller else "Тодорхойгүй"
@@ -311,7 +311,7 @@ class Marketplace(commands.Cog):
             options = []
             for lid, seller_id, item_id, qty, price, _ in rows:
                 shop = self.cog.bot.get_cog("ShopCog")
-                item = shop.get_item(item_id) if shop else None
+                item = shop.get_item_sync(item_id) if shop else None
                 item_name = item['name'] if item else f"ID:{item_id}"
                 label = f"#{lid} {item_name[:20]} x{qty} {price:,}₮"
                 options.append(discord.SelectOption(label=label[:100], value=str(lid)))
@@ -421,7 +421,7 @@ class Marketplace(commands.Cog):
         view = ui.View(timeout=180)
         embed = discord.Embed(title="📋 ТАНЫ ИДЭВХТЭЙ ЗАРУУД", color=GOLD_COLOR)
         for lid, item_id, qty, price, _ in rows:
-            item = shop.get_item(item_id) if shop else None
+            item = await shop.get_item(item_id) if shop else None
             item_str = f"{item['emoji']} **{item['name']}**" if item else f"ID:{item_id}"
             embed.add_field(
                 name=f"📌 #{lid}",

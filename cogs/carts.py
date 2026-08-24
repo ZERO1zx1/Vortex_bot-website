@@ -45,12 +45,20 @@ class InventoryView(View):
             return False
         return True
 
-    async def update_message(self, interaction: discord.Interaction):
+    async def update_message(self, interaction: discord.Interaction = None):
         embed, file = await self.cog.build_inventory_embed(self.member, self.all_items, self.page)
         self.prev_button.disabled = (self.page == 0)
         total_pages = max(1, -(-len(self.all_items) // self.per_page))
         self.next_button.disabled = (self.page >= total_pages - 1)
-        await interaction.edit_original_response(embed=embed, attachments=[file], view=self)
+        # Панел мессежийг шууд засах (select-ийн ephemeral хариултыг будлиулгүйн тулд)
+        if self.message:
+            try:
+                await self.message.edit(embed=embed, attachments=[], files=[file], view=self)
+                return
+            except discord.HTTPException:
+                pass
+        if interaction is not None:
+            await interaction.edit_original_response(embed=embed, attachment=file, view=self)
 
     @discord.ui.button(label="🔍 Хэрэглэх", style=discord.ButtonStyle.green, row=0)
     async def use_button(self, interaction: discord.Interaction, button: Button):
@@ -379,6 +387,16 @@ class Cards(commands.Cog):
         except:
             pass
 
+        equip_emojis = ""
+        try:
+            shop = self.bot.get_cog("ShopCog")
+            if shop and hasattr(shop, "get_equips"):
+                equips = await shop.get_equips(member.id, guild_id)
+                if equips:
+                    equip_emojis = " ".join(i["emoji"] for i in equips.values())
+        except:
+            pass
+
         url = member.display_avatar.replace(size=256, format="png").url
         ava = await self._download_avatar(url, 100)
 
@@ -387,7 +405,7 @@ class Cards(commands.Cog):
             "title": title, "badge": badge, "cash": cash, "bank": bank,
             "total": total, "job_emoji": job_emoji, "job_name": job_name,
             "hunger": hunger, "mood": mood, "drunk": drunk_level,
-            "disc_level": disc_level, "ava": ava
+            "disc_level": disc_level, "ava": ava, "equips": equip_emojis
         }
 
     # ═══════════════ PROBOT СТИЛЬТЭЙ ПРОФАЙЛ КАРТ ═══════════════
@@ -427,7 +445,11 @@ class Cards(commands.Cog):
 
         tx = ava_x + AVA_SIZE + 15
         draw.text((tx, ava_y + 5), member.display_name[:20], font=font_name, fill=TEXT_PRIMARY)
-        draw.text((tx, ava_y + 35), f"@{member.name}", font=font_small, fill=TEXT_SECONDARY)
+        # Нэрний доор зүүсэн хэрэгслийн тэмдэглэгээ (жишээ: бөгж, цаг, боолт)
+        uname_line = f"@{member.name}"
+        if data.get("equips"):
+            uname_line += f"  {data['equips']}"
+        await self._draw_text_with_emoji(img, draw, tx, ava_y + 35, uname_line, font=font_small, fill=TEXT_SECONDARY)
 
         level_str = f"LVL {data['level']}"
         level_w = draw.textlength(level_str, font=font_level)

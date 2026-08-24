@@ -19,7 +19,7 @@ DEFAULT_ASSET_FONT = os.path.join(ASSETS_DIR, "levelfont.otf")
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
 # ---------- Centralized Unicode-aware font management ----------
-from utils.fonts import load_font as _load_font
+from utils.fonts import load_font as _load_font, draw_text_with_fallback
 
 # ---------- Color constants ----------
 EMBED_COLOR   = 0x1e1e2f
@@ -267,7 +267,7 @@ async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, backgr
         font_small = _load_asset_font(18, bold=False)
 
         title = member.display_name[:24]
-        draw.text((240, 80), title, font=font_main, fill=(255, 255, 255, 255))
+        draw_text_with_fallback(draw, (240, 80), title, font_main, fill=(255, 255, 255, 255), size=46, bold=True)
         draw.text((240, 150), f"Түвшин {level}", font=font_sub, fill=(234, 179, 8, 255))
         draw.text((240, 190), f"Байр #{rank_pos}", font=font_sub, fill=(200, 200, 200, 255))
 
@@ -287,7 +287,7 @@ async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, backgr
         draw.text((bar_x + (bar_w - tx_w) // 2, bar_y + (bar_h - tx_h) // 2), xp_text, font=font_small, fill=(255, 255, 255, 255))
 
         footer_text = f"{member.name} • {BOT_NAME}-ээр бүтээгдсэн"
-        draw.text((240, 310), footer_text, font=font_small, fill=(170, 170, 170, 255))
+        draw_text_with_fallback(draw, (240, 310), footer_text, font_small, fill=(170, 170, 170, 255), size=18, bold=False)
 
         buffer = io.BytesIO()
         base.save(buffer, "PNG")
@@ -820,11 +820,14 @@ class Leveling(SupabaseCog):
                     exc = await self.get_exceptions(guild.id)
                     for vc in guild.voice_channels:
                         for member in vc.members:
-                            if member.bot or member.id in exc["users"] or member.voice.deaf or member.voice.self_deaf: continue
+                            if member.bot or member.id in exc["users"]: continue
+                            voice = member.voice
+                            if voice is None or voice.channel is None: continue
+                            if voice.deaf or voice.self_deaf: continue
                             key = (guild.id, member.id)
                             if key not in self._voice_join: self._voice_join[key] = now; self._voice_last_xp[key] = now
                             if now - self._voice_last_xp.get(key,0) >= VOICE_INTERVAL_SECS:
-                                talking = not (member.voice.mute or member.voice.self_mute)
+                                talking = not (voice.mute or voice.self_mute)
                                 xp = cfg["xp_voice_talking"] if talking else cfg["xp_voice_silent"]
                                 self._voice_last_xp[key] = now
                                 await self._add_xp(member.id, guild.id, xp, member=member, check_mute=False)
@@ -893,6 +896,8 @@ class Leveling(SupabaseCog):
     @commands.hybrid_command(name="serveractivity", aliases=["activity"], description="Серверийн идэвхтэй байдлын статистик")
     async def server_activity(self, ctx):
         """Серверийн идэвхтэй байдлыг харах"""
+        if ctx.interaction:
+            await ctx.defer()
         guild = ctx.guild
         online = sum(1 for m in guild.members if m.status != discord.Status.offline)
         offline = guild.member_count - online

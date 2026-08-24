@@ -628,6 +628,8 @@ class Games(commands.Cog):
             return await ctx.send(embed=discord.Embed(title="⏳ КҮҮКИ", description=f"**{m}м {s}с** хүлээх хэрэгтэй.", color=WARNING_COLOR))
         # Мөнгө хасах
         economy = self.bot.get_cog("Economy")
+        if not economy:
+            return await ctx.send("❌ Эдийн засаг ажиллахгүй байна!")
         await economy.update_balance(ctx.author.id, ctx.guild.id, -amount)
         self.set_cooldown(ctx.author.id, ctx.guild.id, command_name)
         view = view_class(self, ctx, amount)

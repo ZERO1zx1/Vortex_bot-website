@@ -247,6 +247,9 @@ class Stock(commands.Cog):
     # ================== НӨӨЦИЙН ТӨЛӨВ (ХУУДАСЛАЛТТАЙ) ==================
     @stock_group.command(name='status', description="Одоогийн нөөцийн түвшинг харуулах")
     async def stock_status(self, ctx):
+        # Slash дээр interaction-ийн хугацаа дуусахгүйн тулд эхэлж defer хийнэ
+        if ctx.interaction:
+            await ctx.defer()
         await self.ensure_stocks_for_guild(ctx.guild.id)
         stock_rows = await self.bot.db_manager.fetch_all(
             "shop_stock", {"guild_id": str(ctx.guild.id)},
@@ -351,6 +354,8 @@ class Stock(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     @commands.has_permissions(administrator=True)
     async def stock_reset(self, ctx):
+        if ctx.interaction:
+            await ctx.defer(ephemeral=True)
         await self.ensure_stocks_for_guild(ctx.guild.id)
         now_ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
         stock_rows = await self.bot.db_manager.fetch_all(
@@ -371,6 +376,8 @@ class Stock(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     @commands.has_permissions(administrator=True)
     async def stock_refresh(self, ctx):
+        if ctx.interaction:
+            await ctx.defer(ephemeral=True)
         for guild in self.bot.guilds:
             await self.ensure_stocks_for_guild(guild.id)
         await self._send_hybrid(ctx, "✅ Бүх серверийн нөөц шинэчлэгдлээ.", ephemeral=True)

@@ -858,7 +858,7 @@ class Marriage(SupabaseCog):
         embed.set_footer(text=f"{guild.name} • Гэр бүлийн мод")
         file = discord.File(buf, filename="family_tree.png")
         if is_slash:
-            await ctx_or_inter.edit_original_response(embed=embed, attachments=[file])
+            await ctx_or_inter.edit_original_response(embed=embed, attachment=file)
         else:
             await ctx_or_inter.send(embed=embed, file=file)
 
@@ -883,7 +883,7 @@ class Marriage(SupabaseCog):
         embed.set_image(url="attachment://marriage_card.png")
         file = discord.File(buf, filename="marriage_card.png")
         if is_slash:
-            await ctx_or_inter.edit_original_response(embed=embed, attachments=[file])
+            await ctx_or_inter.edit_original_response(embed=embed, attachment=file)
         else:
             await ctx_or_inter.send(embed=embed, file=file)
 
