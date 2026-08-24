@@ -28,7 +28,7 @@ def load_config():
         default = {
             "owner_id": None,
             "co_owner_ids": [],
-            "prefix": "!",
+            "prefix": "A!",
             "xp_per_message": 15,
             "voice_xp_per_minute": 1,
             "base_xp_needed": 100,

@@ -124,7 +124,7 @@ class MyBot(commands.Bot):
         cogs_to_load = [
             "admin", "avatar_check", "cafe", "carts", "confessions",
             "counting", "economy", "fun", "games", "giveaway",
-            "help", "invite_tracker", "leveling", "mafia", "mines",
+            "help", "invite_tracker",             "level", "level_admin", "mafia", "mines",
             "lang", "moderation", "pvp", "roles", "shop", "stock",
             "stick", "marriage", "announcement", "tempvoice", "trade",
             "quests", "leaderboard", "casino", "greetings", "presence",

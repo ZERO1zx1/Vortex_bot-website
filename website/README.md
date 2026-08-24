@@ -8,9 +8,9 @@
 |---|---|
 | Hero | 3D orb + floating feature cards + canvas particle фон |
 | Онцлогууд | Ботын 8 үндсэн ангилал (Economy, Leveling, Гэр бүл, Shop & Stock, Casino, Mafia, Модерац, Fun) |
-| Командууд | 94 slash командыг хайлт болон ангиллын фильтрээр |
-| Статистик | 29 cog · 77+ slash команд · 57 database таблиц · 24/7 (count-up animation) |
-| Статус | Ботын технологийн стек (Python 3.12, discord.py 2.7, Supabase) |
+| Командууд | 153 командыг (47 slash / 106 text) хайлт болон ангиллын фильтрээр |
+| Статистик | 35 cog · 153 команд · 63 database таблиц · 24/7 (count-up animation) |
+| Статус | Ботын технологийн стек (Python 3.13, discord.py 2.6, Supabase) |
 | About Us | Ботын тухай, технологи, чанарын тестийн мэдээлэл |
 | Premium | 3 төлөвлөгөөний үнэ (Free / Premium / Server) |
 | Invite CTA | Ботыг server-тээ нэмэх даралт |

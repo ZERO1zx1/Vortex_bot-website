@@ -58,7 +58,14 @@ class InventoryView(View):
             except discord.HTTPException:
                 pass
         if interaction is not None:
-            await interaction.edit_original_response(embed=embed, attachment=file, view=self)
+            target_msg = self.message or getattr(interaction, "message", None)
+            if target_msg is not None:
+                try:
+                    await target_msg.edit(embed=embed, attachments=[], files=[file], view=self)
+                    return
+                except discord.HTTPException:
+                    pass
+            await interaction.followup.send(embed=embed, file=file, view=self, ephemeral=True)
 
     @discord.ui.button(label="🔍 Хэрэглэх", style=discord.ButtonStyle.green, row=0)
     async def use_button(self, interaction: discord.Interaction, button: Button):
@@ -532,7 +539,8 @@ class Cards(commands.Cog):
             emoji_str = item.get("emoji", "📦")
             item_name = item["name"][:30]
             qty = item["quantity"]
-            await self._draw_text_with_emoji(img, draw, PAD + 8, y, f"{emoji_str} {item_name}  x{qty}", font=font_small, fill=TEXT_PRIMARY)
+            item_id = item.get("id", "?")
+            await self._draw_text_with_emoji(img, draw, PAD + 8, y, f"{emoji_str} {item_name}  x{qty}  🆔{item_id}", font=font_small, fill=TEXT_PRIMARY)
             y += 24
 
         if not page_items:

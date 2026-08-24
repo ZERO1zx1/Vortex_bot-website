@@ -189,7 +189,7 @@ class Marketplace(commands.Cog):
         item = await shop.get_item(item_id) if shop else None
         item_str = f"{item['emoji']} **{item['name']}**" if item else f"ID:{item_id}"
 
-        embed = discord.Embed(title=f"🔍 {item_str} ЗАРЛАЛУУД", color=GOLD_COLOR)
+        embed = discord.Embed(title=f"🔍 {item_str} (ID:{item_id}) ЗАРЛАЛУУД", color=GOLD_COLOR)
         for lid, seller_id, qty, price, _ in rows:
             seller = interaction.guild.get_member(int(seller_id))
             seller_name = seller.display_name if seller else "Тодорхойгүй"
@@ -292,13 +292,32 @@ class Marketplace(commands.Cog):
             if not rows:
                 embed.description = "Одоохондоо зарлал байхгүй."
                 return embed
-            for lid, seller_id, item_id, qty, price, _ in rows:
+            for row in rows:
+                # rows can be dict or tuple - handle both
+                if isinstance(row, dict):
+                    lid = row.get("id", 0)
+                    seller_id = row.get("seller_id", "0")
+                    item_id = row.get("item_id", 0)
+                    qty = row.get("quantity", 1)
+                    price = row.get("price_per_item", 0)
+                else:
+                    # Tuple - handle variable length
+                    if len(row) >= 6:
+                        lid, seller_id, item_id, qty, price = row[0], row[1], row[2], row[3], row[4]
+                    elif len(row) == 5:
+                        lid, seller_id, item_id, qty, price = row[0], row[1], row[2], row[3], row[4]
+                    elif len(row) == 4:
+                        lid, seller_id, item_id, qty = row[0], row[1], row[2], row[3]
+                        price = 0
+                    else:
+                        continue
+                
                 item = shop.get_item_sync(item_id) if shop else None
                 item_str = f"{item['emoji']} **{item['name']}**" if item else f"ID:{item_id}"
                 seller = guild.get_member(int(seller_id))
                 seller_name = seller.display_name if seller else "Тодорхойгүй"
                 embed.add_field(
-                    name=f"📌 #{lid} | {seller_name}",
+                    name=f"📌 ID: {lid} | {seller_name}",
                     value=f"{item_str} x{qty}\n💰 {price:,}₮/ш (Нийт: {price*qty:,}₮)",
                     inline=False
                 )
@@ -309,7 +328,26 @@ class Marketplace(commands.Cog):
             self.clear_items()
             # Select
             options = []
-            for lid, seller_id, item_id, qty, price, _ in rows:
+            for row in rows:
+                # rows can be dict or tuple - handle both
+                if isinstance(row, dict):
+                    lid = row.get("id", 0)
+                    seller_id = row.get("seller_id", "0")
+                    item_id = row.get("item_id", 0)
+                    qty = row.get("quantity", 1)
+                    price = row.get("price_per_item", 0)
+                else:
+                    # Tuple - handle variable length
+                    if len(row) >= 6:
+                        lid, seller_id, item_id, qty, price = row[0], row[1], row[2], row[3], row[4]
+                    elif len(row) == 5:
+                        lid, seller_id, item_id, qty, price = row[0], row[1], row[2], row[3], row[4]
+                    elif len(row) == 4:
+                        lid, seller_id, item_id, qty = row[0], row[1], row[2], row[3]
+                        price = 0
+                    else:
+                        continue
+                
                 shop = self.cog.bot.get_cog("ShopCog")
                 item = shop.get_item_sync(item_id) if shop else None
                 item_name = item['name'] if item else f"ID:{item_id}"
@@ -420,7 +458,15 @@ class Marketplace(commands.Cog):
         shop = await self.get_shop_cog()
         view = ui.View(timeout=180)
         embed = discord.Embed(title="📋 ТАНЫ ИДЭВХТЭЙ ЗАРУУД", color=GOLD_COLOR)
-        for lid, item_id, qty, price, _ in rows:
+        for r in rows:
+            if isinstance(r, dict):
+                lid = r.get("id")
+                item_id = r.get("item_id")
+                qty = r.get("quantity", 1)
+                price = r.get("price_per_item", 0)
+            else:
+                vals = list(r)
+                lid, item_id, qty, price = vals[0], vals[1], vals[2], vals[3]
             item = await shop.get_item(item_id) if shop else None
             item_str = f"{item['emoji']} **{item['name']}**" if item else f"ID:{item_id}"
             embed.add_field(
@@ -438,11 +484,19 @@ class Marketplace(commands.Cog):
     def make_cancel_callback(self, listing_id: int):
         async def cancel_cb(interaction: discord.Interaction):
             listing = await self.get_listing(listing_id)
-            if not listing or str(listing[2]) != str(interaction.user.id):
+            if not listing:
+                return await interaction.response.send_message("❌ Зар олдсонгүй.", ephemeral=True)
+            if isinstance(listing, dict):
+                seller_id = listing.get("seller_id")
+                item_id = listing.get("item_id")
+                qty = listing.get("quantity", 1)
+            else:
+                seller_id, item_id, qty = listing[2], listing[3], listing[4]
+            if str(seller_id) != str(interaction.user.id):
                 return await interaction.response.send_message("❌ Та зөвхөн өөрийн зарыг цуцлах боломжтой.", ephemeral=True)
             shop = await self.get_shop_cog()
-            item_id = listing[3]
-            qty = listing[4]
+            if not shop:
+                return await interaction.response.send_message("❌ Shop систем олдсонгүй.", ephemeral=True)
             await shop.add_item(interaction.user.id, interaction.guild_id, item_id, qty)
             await self.delete_listing(listing_id)
             await interaction.response.send_message(f"✅ #{listing_id} зар цуцлагдлаа. Бараа инвентарт буцлаа.", ephemeral=True)
@@ -489,6 +543,74 @@ class Marketplace(commands.Cog):
             color=GOLD_COLOR
         )
         await ctx.send(embed=embed)
+
+
+@commands.hybrid_command(name='trade', description="Бараа хоосгалзуулах")
+async def trade(self, ctx, user: discord.Member, item: str, amount: int, target: discord.Member):
+        """Бараа хоосгалзуулах"""
+        await ctx.defer()
+        shop = await self.get_shop_cog()
+        economy = await self.get_economy_cog()
+        if not shop or not economy:
+            return await ctx.send("❌ Систем ачаалагдаагүй байна.", ephemeral=True)
+
+        # Check user's inventory
+        user_inv = await shop.get_user_inventory(ctx.author.id, ctx.guild.id)
+        target_inv = await shop.get_user_inventory(user.id, ctx.guild.id)
+
+        item_id = int(item) if item.isdigit() else None
+        if item_id is None:
+            return await ctx.send("❌ Буруу ID формат.", ephemeral=True)
+
+        # Check user has the item
+        user_qty = user_inv.get(item_id, 0)
+        if user_qty < amount:
+            return await ctx.send(f"❌ Та `{amount}` шагналаа `{item_id}`-г явгадлаа. Та идэвхтэй тоо: `{user_qty}`.", ephemeral=True)
+
+        # Check target has space (max 50 items usually)
+        target_qty = target_inv.get(item_id, 0)
+        current_total = sum(target_inv.values())
+        max_slots = getattr(shop, "max_inventory_slots", 50)
+
+        if current_total + amount > max_slots:
+            return await ctx.send(f"❌ Дууны инвентарт нэмээгүй байна. Эхлэлт: {current_total}/{max_slots}.", ephemeral=True)
+
+        # Remove from user
+        await shop.remove_item(ctx.author.id, ctx.guild.id, item_id, amount)
+
+        # Add to target
+        existing = await shop.bot.db_manager.fetch_one(
+            "user_inventory", {"user_id": str(user.id), "guild_id": str(ctx.guild.id), "item_id": item_id}
+        )
+        if existing:
+            await shop.bot.db_manager.update(
+                "user_inventory",
+                {"user_id": str(user.id), "guild_id": str(ctx.guild.id), "item_id": item_id},
+                {"quantity": (existing.get("quantity", 0) or 0) + amount},
+            )
+        else:
+            await shop.bot.db_manager.insert("user_inventory", {
+                "user_id": str(user.id),
+                "guild_id": str(ctx.guild.id),
+                "item_id": item_id,
+                "quantity": amount,
+            })
+
+        # Get item info for embed
+        item_data = await shop.get_item(item_id)
+        item_str = f"{item_data['emoji']} **{item_data['name']}**" if item_data else f"ID:{item_id}"
+
+        embed = discord.Embed(title="✅ ХООСГАЛЗУУЛАХ", color=SUCCESS_COLOR)
+        embed.add_field(name="Үндсэн", value=f"{ctx.author.mention} → {user.mention}", inline=False)
+        embed.add_field(name="Бараa", value=f"{item_str} x{amount}", inline=True)
+        embed.add_field(name="Үлдээд", value=f"Үлдэсэн: {amount} ш Montana", inline=True)
+        embed.set_footer(text=f"Трейдийн орчин: {ctx.author.display_name}")
+        await ctx.send(embed=embed)
+
+        # Trigger quest event
+        quests = await self.get_quests_cog()
+        if quests:
+            await quests.trigger_event(ctx.author.id, ctx.guild.id, "trade_complete", 1)
 
 
 async def setup(bot):
