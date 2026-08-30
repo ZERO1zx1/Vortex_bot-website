@@ -668,7 +668,13 @@ class Leveling(SupabaseCog):
             try:
                 now = time.monotonic()
                 for guild in self.bot.guilds:
-                    cfg = await get_config(self.bot.db_manager, guild.id)
+                    try:
+                        cfg = await get_config(self.bot.db_manager, guild.id)
+                    except Exception as e:
+                        # Нэг guild-ийн DB алдаа (504/timeout г.м.) бусад guild-ыг
+                        # зогсоохгүйгээр тухайн guild-г алгасаж үргэлжлүүлнэ.
+                        log.warning(f"Voice XP: guild {guild.id} config уншигдсангүй: {e}")
+                        continue
                     if not cfg["enabled"] or not cfg.get("voice_xp_enabled",True): continue
                     exc = await self.get_exceptions(guild.id)
                     for vc in guild.voice_channels:

@@ -3,9 +3,12 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands, ui
 import datetime
+import logging
 import random
 import re
 from typing import Optional
+
+log = logging.getLogger(__name__)
 
 # ===== COLOR SCHEME =====
 EMBED_COLOR = 0x1e1e2f
@@ -160,6 +163,11 @@ class GiveawaySetupView(ui.View):
         self.cog = cog
         self.ctx = ctx
         self.message = None
+        # ctx нь commands.Context эсвэл discord.Interaction аль ч байж болно.
+        # Interaction-д .author байхгүй (.user байдаг) тул эзэмшигчийн ID-г
+        # урьдчилан задарч хадгална.
+        owner = getattr(ctx, "author", None) or getattr(ctx, "user", None)
+        self.owner_id: Optional[int] = owner.id if owner is not None else None
 
         # Тохиргооны утгууд
         self.channel: Optional[discord.TextChannel] = None
@@ -170,7 +178,7 @@ class GiveawaySetupView(ui.View):
         self.embed_color: int = GOLD_COLOR
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.ctx.author.id:
+        if self.owner_id is not None and interaction.user.id != self.owner_id:
             await interaction.response.send_message("❌ Энэ самбар таных биш.", ephemeral=True)
             return False
         return True
@@ -278,7 +286,7 @@ class GiveawaySetupView(ui.View):
         view = GiveawayEnterView()
         message = await self.channel.send(embed=embed, view=view)
 
-        await self.ctx.bot.db_manager.insert("giveaways", {
+        await self.cog.bot.db_manager.insert("giveaways", {
             "guild_id": str(interaction.guild.id),
             "channel_id": str(self.channel.id),
             "message_id": str(message.id),
@@ -518,13 +526,25 @@ class Giveaway(commands.Cog):
     async def giveaway_check(self):
         await self.bot.wait_until_ready()
         now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-        giveaway_rows = await self.bot.db_manager.fetch_safe("giveaways", {"ended": False})
+        try:
+            giveaway_rows = await self.bot.db_manager.fetch_safe("giveaways", {"ended": False})
+        except Exception as e:
+            # Түр зуурын сүлжээний/DB алдаа (timeout г.м.) — дараагийн
+            # эргэлтэд дахин оролдоно, loop-г унагаахгүй.
+            log.warning(f"giveaway_check: DB уншиж чадсангүй, дараа дахин оролдоно: {e}")
+            return
         expired = [
-            r for r in giveaway_rows
+            r for r in (giveaway_rows or [])
             if (r.get("end_time") or 0) <= now
         ]
 
         for gw in expired:
+            try:
+                await self._process_expired_giveaway(gw)
+            except Exception as e:
+                log.error(f"giveaway_check: giveaway id={gw.get('id')} боловсруулахад алдаа: {e}")
+
+    async def _process_expired_giveaway(self, gw: dict):
             gid = gw.get("id")
             channel_id = gw.get("channel_id")
             msg_id = gw.get("message_id")
@@ -536,12 +556,12 @@ class Giveaway(commands.Cog):
             channel = self.bot.get_channel(channel_id)
             if not channel:
                 await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": True})
-                continue
+                return
             try:
                 message = await channel.fetch_message(msg_id)
-            except:
+            except Exception:
                 await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": True})
-                continue
+                return
 
             guild = channel.guild
             entries = await self.get_entries(gid, req_role_id, guild)
@@ -558,6 +578,12 @@ class Giveaway(commands.Cog):
                 await message.edit(embed=embed, view=None)
                 await message.channel.send(embed=embed)
                 await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": True})
+
+    @giveaway_check.error
+    async def giveaway_check_error(self, error):
+        # tasks loop-ын ямар ч баригдаагүй алдааг энд барьж, loop-г
+        # зогсоохгүйгээр дараагийн эргэлтэд үргэлжлүүлэнэ.
+        log.error(f"giveaway_check loop алдаа: {error}", exc_info=error)
 
     @giveaway_check.before_loop
     async def before_giveaway_check(self):
