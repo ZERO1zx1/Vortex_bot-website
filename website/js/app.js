@@ -93,7 +93,7 @@
   const applyTheme = (theme) => {
     root.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark');
     if (meta) meta.setAttribute('content', theme === 'light' ? '#F7F9FC' : '#0B0B14');
-    try { localStorage.setItem('aether-theme', theme); } catch {}
+    try { localStorage.setItem('aether-theme', theme); } catch { }
     window.__aetherTheme = theme;
   };
   let theme = 'dark';
@@ -101,7 +101,7 @@
     const saved = localStorage.getItem('aether-theme');
     const prefersLight = window.matchMedia?.('(prefers-color-scheme: light)')?.matches;
     theme = (saved === 'light' || saved === 'dark') ? saved : (prefersLight ? 'light' : 'dark');
-  } catch {}
+  } catch { }
   applyTheme(theme);
   const toggle = document.getElementById('theme-toggle');
   if (toggle) {
@@ -400,6 +400,9 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   const APIKEY = cfg.HEARTBEAT_APIKEY || '';
   const TIMEOUT_MS = cfg.HEARTBEAT_TIMEOUT_MS || 6000;
   const POLL_MS = cfg.HEARTBEAT_POLL_MS || 60000;
+  // FastAPI backend (Railway). Тохируулсан бол /api/status-аас уншина,
+  // амжилтгүй бол шууд Supabase heartbeat руу fallback хийнэ.
+  const API_BASE_URL = (cfg.API_BASE_URL || '').replace(/\/+$/, '');
 
   const dot = document.getElementById('status-dot');
   const text = document.getElementById('online-text');
@@ -446,7 +449,35 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     return;
   }
 
+  // Backend API-гаас төлөв авах оролдлого. Амжилттай бол true буцаана.
+  const checkViaBackend = async () => {
+    if (!API_BASE_URL) return false;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/status`, { signal: ctrl.signal, cache: 'no-store' });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data?.ok) return false;
+      // Backend-ийн хариуг heartbeat row хэлбэр рүү хувиргана
+      // (uptime_secs → uptime_since ISO).
+      const row = {
+        last_ping: data.last_ping,
+        uptime_since: (data.online && data.uptime_secs)
+          ? new Date(Date.now() - data.uptime_secs * 1000).toISOString()
+          : null,
+      };
+      if (data.online) setOnline(row); else setOffline(row);
+      return true;
+    } catch {
+      return false; // backend унтарсан/хүлээгдэхгүй → Supabase fallback
+    } finally {
+      clearTimeout(t);
+    }
+  };
+
   const check = async () => {
+    if (await checkViaBackend()) return;
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -468,6 +499,291 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   };
   check();
   setInterval(check, POLL_MS);
+})();
+
+/* ---------------- Hero: mouse-follow 3D parallax ---------------- */
+/* Orb-ийг хулганы дагуу 3D эргүүлж, float картуудыг гүн гүнзгий
+   (CSS --mx/--my vars + per-card --fx/--fy depth) хөдөлгөнө. */
+(() => {
+  const hero = document.querySelector('.hero');
+  const visual = document.querySelector('.hero-visual');
+  const tilt = document.getElementById('orb-tilt');
+  if (!hero || !visual || !tilt) return;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
+  if (window.matchMedia?.('(hover: none)')?.matches) return; // touch төхөөрөмж
+
+  let tx = 0, ty = 0, cx = 0, cy = 0, raf = null;
+  function frame() {
+    cx += (tx - cx) * 0.08;
+    cy += (ty - cy) * 0.08;
+    tilt.style.transform = `rotateX(${(-cy * 9).toFixed(2)}deg) rotateY(${(cx * 12).toFixed(2)}deg)`;
+    visual.style.setProperty('--mx', cx.toFixed(3));
+    visual.style.setProperty('--my', cy.toFixed(3));
+    if (Math.abs(tx - cx) > 0.001 || Math.abs(ty - cy) > 0.001) {
+      raf = requestAnimationFrame(frame);
+    } else {
+      raf = null;
+    }
+  }
+  function kick() { if (!raf) raf = requestAnimationFrame(frame); }
+
+  hero.addEventListener('mousemove', (e) => {
+    const r = hero.getBoundingClientRect();
+    tx = ((e.clientX - r.left) / r.width - 0.5) * 2;   // -1 .. 1
+    ty = ((e.clientY - r.top) / r.height - 0.5) * 2;
+    kick();
+    // Three.js orb руу хулганы байрлал дамжуулах
+    window.__aetherMouse = { x: tx, y: ty };
+  });
+  hero.addEventListener('mouseleave', () => {
+    tx = 0; ty = 0; kick();
+    window.__aetherMouse = { x: 0, y: 0 };
+  });
+})();
+
+/* ---------------- Hero: Three.js WebGL orb (CSS orb-ын дээр overlay) ---------------- */
+/* three.min.js (r158 UMD) ачаалагдсан бол бодит WebGL orb зурж,
+   CSS orb-ийг (fallback) нуух. Ачаалагдаагүй/WebGL дэмжигдэхгүй бол юу ч болохгүй. */
+(() => {
+  function init3DOrb() {
+    const container = document.getElementById('three-orb-container');
+    if (!container || typeof THREE === 'undefined') return;
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    } catch {
+      return; // WebGL дэмжигдэхгүй — CSS orb хэвээр
+    }
+
+    // ── Мобайл оновчлол: бага GPU, батерей хэмнэлт ──
+    // Төхөөрөмж эргэх (portrait↔landscape) үед шинэчлэгдэх resize handler-д дахин уншина.
+    let isMobile = window.innerWidth <= 768;
+    const seg = () => (isMobile ? 32 : 64);   // Sphere сегмент: 64→32
+    const wireSeg = () => (isMobile ? 16 : 24);
+    const ringSeg = () => (isMobile ? 64 : 128);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.z = 3.2;
+
+    // Brand палитр: blue #89B4FA · cyan #94E2D5 · gold #FAB387
+    const geometry = new THREE.SphereGeometry(1.15, seg(), seg());
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x2b3f6e,
+      emissive: 0x89b4fa,        // brand blue glow
+      emissiveIntensity: 0.55,
+      roughness: 0.25,
+      metalness: 0.75,
+    });
+    const orb = new THREE.Mesh(geometry, material);
+    scene.add(orb);
+
+    // Гадна талын сууцит wireframe (holographic circuit мэдрэмж)
+    const wire = new THREE.Mesh(
+      new THREE.SphereGeometry(1.22, wireSeg(), wireSeg()),
+      new THREE.MeshBasicMaterial({ color: 0x94e2d5, wireframe: true, transparent: true, opacity: 0.14 })
+    );
+    scene.add(wire);
+
+    // Эргэлдэх holographic ring-үүд (CSS orb-ring-ийн 3D хувилбар)
+    const rings = [];
+    [[1.55, 0x89b4fa, 0.5, 1.25, 0.35], [1.75, 0x94e2d5, 0.35, 1.1, -0.5], [1.95, 0xfab387, 0.25, 1.4, 0.9]].forEach(([r, color, op, tiltX, tiltY]) => {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(r, 0.012, 8, ringSeg()),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op })
+      );
+      ring.rotation.x = tiltX;
+      ring.rotation.y = tiltY;
+      scene.add(ring);
+      rings.push(ring);
+    });
+
+    // Гэрэлтүүлэг — cyan дулаан тал, pink/violet хүйтэн тал (cinematic contrast)
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    const key = new THREE.PointLight(0x94e2d5, 2.2, 12);
+    key.position.set(2.5, 2, 3);
+    scene.add(key);
+    const rim = new THREE.PointLight(0xb494fa, 1.6, 12);
+    rim.position.set(-3, -2, -2);
+    scene.add(rim);
+    const gold = new THREE.PointLight(0xfab387, 0.9, 10);
+    gold.position.set(0, -3, 2);
+    scene.add(gold);
+
+    container.appendChild(renderer.domElement);
+    container.classList.add('active'); // → CSS orb-ийг нуух
+
+    // WebGL context loss (санах ой дүүрэх, GPU crash) үед CSS orb fallback руу буцна
+    renderer.domElement.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      container.classList.remove('active');
+      container.innerHTML = '';
+    }, false);
+
+    let mx = 0, my = 0;
+    function resize() {
+      const w = container.clientWidth, h = container.clientHeight;
+      if (!w || !h) return;
+      isMobile = window.innerWidth <= 768;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      // Мобайл (3x-4x Retina) дээр 1.5 хүртэл хязгаарлаж GPU/батерей хэмнэнэ
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2));
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Харагдахгүй үед (scroll хийсэн/таб солисон) render хийхгүй — батерей хэмнэлт
+    let visible = true;
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver((es) => { visible = es[0].isIntersecting; }, { threshold: 0.02 }).observe(container);
+    }
+    document.addEventListener('visibilitychange', () => { visible = !document.hidden; });
+
+    let t = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!visible) return;
+      t += 0.01;
+      // Хулганы дагуу жигд эргэлт (hero parallax-ийн __aetherMouse-аас)
+      const m = window.__aetherMouse || { x: 0, y: 0 };
+      mx += (m.x - mx) * 0.06;
+      my += (m.y - my) * 0.06;
+      orb.rotation.y = t * 0.4 + mx * 0.7;
+      orb.rotation.x = my * 0.5;
+      wire.rotation.y = -t * 0.25;
+      wire.rotation.x = t * 0.12;
+      rings[0].rotation.z = t * 0.5;
+      rings[1].rotation.z = -t * 0.35;
+      rings[2].rotation.z = t * 0.22;
+      // Зөөлөн хөвүүлэлт
+      orb.position.y = Math.sin(t * 1.4) * 0.08;
+      wire.position.y = orb.position.y;
+      renderer.render(scene, camera);
+    }
+    animate();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init3DOrb);
+  } else {
+    init3DOrb();
+  }
+})();
+
+/* ---------------- Command cards: holographic cursor glow ---------------- */
+/* Карт бүр дээр хулгана очих газар --gx/--gy var-ыг тохируулж
+   CSS ::before radial glow-г тэр байрлал руу шилжүүлнэ. */
+(() => {
+  const grid = document.getElementById('cmd-grid');
+  if (!grid) return;
+  grid.addEventListener('mousemove', (e) => {
+    const card = e.target.closest('.cmd-card');
+    if (!card) return;
+    const r = card.getBoundingClientRect();
+    card.style.setProperty('--gx', `${(e.clientX - r.left).toFixed(1)}px`);
+    card.style.setProperty('--gy', `${(e.clientY - r.top).toFixed(1)}px`);
+  });
+})();
+
+/* ---------------- Live status: holographic activity graph ---------------- */
+/* status-card доторх canvas дээр урсдаг 3D-мэдрэмжтэй шугаман график зурна.
+   Бот Online бол blue/cyan долгион, Offline бол улаан, дарсан долгион. */
+(() => {
+  const canvas = document.getElementById('status-graph');
+  if (!canvas) return;
+  const dot = document.getElementById('status-dot');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, t = 0;
+  const NODE_COUNT = 5;
+
+  function resize() {
+    const r = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = canvas.width = Math.max(1, Math.round(r.width * dpr));
+    H = canvas.height = Math.max(1, Math.round(r.height * dpr));
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Олон давхаргат sine долгион — илүү органик харагдал
+  const wave = (x, tt) =>
+    Math.sin(x * 0.9 + tt) * 0.32 +
+    Math.sin(x * 1.7 + tt * 1.6) * 0.14 +
+    Math.sin(x * 3.1 + tt * 0.7) * 0.07;
+
+  // Харагдахгүй үед зурахгүй (CPU хэмнэлт)
+  let visible = true;
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver((es) => { visible = es[0].isIntersecting; }, { threshold: 0.05 }).observe(canvas);
+  }
+
+  function draw() {
+    requestAnimationFrame(draw);
+    if (!visible) return;
+    t += 0.02;
+    ctx.clearRect(0, 0, W, H);
+
+    const online = !dot || !dot.classList.contains('offline');
+    const amp = online ? 1 : 0.15; // Offline үед долгион дарна
+    const cA = online ? '137,180,250' : '243,139,168';
+    const cB = online ? '148,226,213' : '243,139,168';
+
+    // Дэвсгэр grid шугамууд (holographic мэдрэмж)
+    ctx.strokeStyle = `rgba(${cA},0.07)`;
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, (H / 4) * i);
+      ctx.lineTo(W, (H / 4) * i);
+      ctx.stroke();
+    }
+
+    const mid = H * 0.52, scale = H * 0.42;
+
+    // Гол шугам — gradient + glow
+    const strokeGrad = ctx.createLinearGradient(0, 0, W, 0);
+    strokeGrad.addColorStop(0, `rgba(${cA},0.95)`);
+    strokeGrad.addColorStop(1, `rgba(${cB},0.95)`);
+    ctx.beginPath();
+    for (let px = 0; px <= W; px += 4) {
+      const y = mid - wave((px / W) * 6, t) * scale * amp;
+      if (px === 0) ctx.moveTo(px, y); else ctx.lineTo(px, y);
+    }
+    ctx.strokeStyle = strokeGrad;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = `rgba(${cA},0.8)`;
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Шугамын доорх fill (дээд талдаа гялалзсан)
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    const fillGrad = ctx.createLinearGradient(0, 0, 0, H);
+    fillGrad.addColorStop(0, `rgba(${cA},0.16)`);
+    fillGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = fillGrad;
+    ctx.fill();
+
+    // Шугаман дээр урсдаг data node-ууд
+    for (let i = 0; i < NODE_COUNT; i++) {
+      const p = ((t * 0.06) + i / NODE_COUNT) % 1;
+      const x = p * W;
+      const y = mid - wave(p * 6, t) * scale * amp;
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${cB},${(0.9 - p * 0.4).toFixed(2)})`;
+      ctx.shadowColor = `rgba(${cB},0.9)`;
+      ctx.shadowBlur = 10;
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+  draw();
 })();
 
 /* ---------------- Mobile: tilt reset on touch ---------------- */
@@ -990,7 +1306,7 @@ const AETHER_I18N = {
     document.querySelectorAll('.lang-btn').forEach(b => {
       b.classList.toggle('active', b.getAttribute('data-lang') === lang);
     });
-    try { localStorage.setItem('aether-lang', lang); } catch {}
+    try { localStorage.setItem('aether-lang', lang); } catch { }
     // Heartbeat статусын текстүүдийг одоогийн төлөвөөр дахин зурна
     if (window.__aetherLang === 'en' || window.__aetherLang === 'mn') {
       // status нь аль хэдийн тогтсон байвал last-seen-ийг зөвхөн шалгах текстээр
@@ -1010,7 +1326,7 @@ const AETHER_I18N = {
     if (typeof window.__aetherRender === 'function') window.__aetherRender();
   };
   let lang = 'mn';
-  try { lang = localStorage.getItem('aether-lang') || 'mn'; } catch {}
+  try { lang = localStorage.getItem('aether-lang') || 'mn'; } catch { }
   const switcher = document.getElementById('lang-switcher');
   if (switcher) {
     switcher.querySelectorAll('.lang-btn').forEach(b => {
