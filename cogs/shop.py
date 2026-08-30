@@ -198,25 +198,28 @@ class FlavorSelectView(View):
         if combo_id is None: return await interaction.response.send_message("❌ Алдаа: вайп олдсонгүй.", ephemeral=True)
         economy = self.cog.bot.get_cog("Economy")
         if not economy: return await interaction.response.send_message("❌ Системийн алдаа.", ephemeral=True)
+        # DB дуудлагууд удаж болох тул interaction-г ЭХЛЭЭД defer хийнэ.
+        # 3 секундийн дотор хариу өгөхгүй бол "Unknown interaction" (10062) алдаа гардаг.
+        await interaction.response.defer()
         guild_id = self.ctx.guild.id
         balance = await economy.get_balance(self.ctx.author.id, guild_id)
         price = self.base_item["price"]
         if balance < price:
             embed = discord.Embed(title="❌ Хангалтгүй мөнгө", description=f"**{ALL_VAPE_COMBOS[combo_id]['emoji']} {ALL_VAPE_COMBOS[combo_id]['name']}** худалдаж авахад **{price:,}** ₮ шаардлагатай.\nТаны үлдэгдэл: `{balance:,}` ₮", color=ERROR_COLOR)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.edit_original_response(embed=embed, view=None)
             return
         stock_cog = self.cog.bot.get_cog("Stock")
         if stock_cog:
             if not await stock_cog.consume_stock(guild_id, combo_id, 1):
                 embed = discord.Embed(title="❌ ДУУССАН", description=f"**{ALL_VAPE_COMBOS[combo_id]['emoji']} {ALL_VAPE_COMBOS[combo_id]['name']}** дууссан.", color=ERROR_COLOR)
-                await interaction.response.edit_message(embed=embed, view=None)
+                await interaction.edit_original_response(embed=embed, view=None)
                 return
         await economy.update_balance(self.ctx.author.id, guild_id, -price)
         await self.cog.add_item(self.ctx.author.id, guild_id, combo_id, 1)
         combo = ALL_VAPE_COMBOS[combo_id]
         embed = discord.Embed(title="✅ Худалдан авалт амжилттай", description=f"{self.ctx.author.mention} **{combo['emoji']} {combo['name']}** -г `{price:,}` ₮-өөр худалдаж авлаа!", color=SUCCESS_COLOR)
         embed.set_thumbnail(url=self.ctx.author.display_avatar.url)
-        await interaction.response.edit_message(embed=embed, view=None)
+        await interaction.edit_original_response(embed=embed, view=None)
 
         # === Даалгаврын прогресс ===
         quests_cog = self.cog.bot.get_cog("Quests")
@@ -439,24 +442,27 @@ class ShopCog(commands.Cog):
                 if not item: return await interaction.response.send_message("❌ Бараа олдсонгүй.", ephemeral=True)
                 economy = self.bot.get_cog("Economy")
                 if not economy: return await interaction.response.send_message("❌ Системийн алдаа.", ephemeral=True)
+                # DB дуудлагууд удаж болох тул interaction-г ЭХЛЭЭД defer хийнэ.
+                # 3 секундийн дотор хариу өгөхгүй бол "Unknown interaction" (10062) алдаа гардаг.
+                await interaction.response.defer()
                 guild_id = ctx.guild.id
                 balance = await economy.get_balance(ctx.author.id, guild_id)
                 price = item["price"]
                 if balance < price:
                     embed = discord.Embed(title="❌ Хангалтгүй мөнгө", description=f"**{item['emoji']} {item['name']}** худалдаж авахад **{price:,}** ₮ шаардлагатай.\nТаны үлдэгдэл: `{balance:,}` ₮", color=ERROR_COLOR)
-                    await interaction.response.edit_message(embed=embed, view=None)
+                    await interaction.edit_original_response(embed=embed, view=None)
                     return
                 stock_cog = self.bot.get_cog("Stock")
                 if stock_cog:
                     if not await stock_cog.consume_stock(guild_id, item["id"], 1):
                         embed = discord.Embed(title="❌ ДУУССАН", description=f"**{item['emoji']} {item['name']}** дууссан.", color=ERROR_COLOR)
-                        await interaction.response.edit_message(embed=embed, view=None)
+                        await interaction.edit_original_response(embed=embed, view=None)
                         return
                 await economy.update_balance(ctx.author.id, guild_id, -price)
                 await self.add_item(ctx.author.id, guild_id, item["id"], 1)
                 embed = discord.Embed(title="✅ Худалдан авалт амжилттай", description=f"{ctx.author.mention} **{item['emoji']} {item['name']}** -г `{price:,}` ₮-өөр худалдаж авлаа!", color=SUCCESS_COLOR)
                 embed.set_thumbnail(url=ctx.author.display_avatar.url)
-                await interaction.response.edit_message(embed=embed, view=None)
+                await interaction.edit_original_response(embed=embed, view=None)
 
                 # === Даалгаврын прогресс ===
                 quests_cog = self.bot.get_cog("Quests")
