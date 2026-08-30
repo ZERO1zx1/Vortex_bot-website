@@ -25,4 +25,13 @@ window.AETHER_CONFIG = {
   HEARTBEAT_APIKEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ucHhwdmVtbWplc29ieHBpbGdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2ODQ2OTcsImV4cCI6MjEwMjI2MDY5N30.Wh5O6JJLuYbykLBbfHSuvrj2-sC_AqlkWp0ix3X_jMk',
   HEARTBEAT_TIMEOUT_MS: 120000,   // мс — 2 минутаас дээш ping ирэхгүй бол Offline
   HEARTBEAT_POLL_MS: 60000,       // мс — 60 сек тутам дахин шалгана
+  /*
+   * BACKEND API (FastAPI — backend/ фолдер, Railway дээр deploy):
+   * Railway дээр deploy хийж domain авсныхаа дараа энд бичнэ, жишээ:
+   *   API_BASE_URL: 'https://aether-backend.up.railway.app',
+   * Тохируулбал ботын төлөв /api/status-аас уншигдана (anon key
+   * браузерт ил гарахгүй болно). Хоосон бол одоогийн Supabase
+   * heartbeat (HEARTBEAT_URL) ашиглагдсаар байна.
+   */
+  API_BASE_URL: '',
 };
