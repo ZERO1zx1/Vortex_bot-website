@@ -1,1 +1,1885 @@
-[{"name":"accessories","cat":"Economy","icon":"💰","desc":"Гоёл чимэглэлийн зүйлс харах.","descEN":"View accessories","args":[],"example":"A!accessories"},{"name":"addmoney","cat":"Economy","icon":"➕","desc":"Хэрэглэгчид мөнгө нэмнэ.","descEN":"Add money to a user","args":[{"key":"member","req":true},{"key":"amount","req":true}],"example":"/addmoney <member> <amount>"},{"name":"admin-panel","cat":"Economy","icon":"💰","desc":"Эдийн засаг админы самбар (тест/тохиргоо).","descEN":"Economy admin panel","args":[],"example":"A!admin-panel"},{"name":"bail","cat":"Economy","icon":"💰","desc":"Баривчлагдаас мөнгөөр гарч чөлөөлөгдөнө.","descEN":"Pay bail to be released","args":[],"example":"A!bail"},{"name":"balance","cat":"Economy","icon":"💳","desc":"balance команд","descEN":"balance","args":[{"key":"member","req":true}],"example":"A!balance <member>"},{"name":"bankprotect","cat":"Economy","icon":"🔧","desc":"bankprotect команд","descEN":"bankprotect","args":[],"example":"A!bankprotect"},{"name":"buy","cat":"Economy","icon":"🛒","desc":"Дэлгүүрээс зүйл худалдаж авна.","descEN":"Buy an item","args":[{"key":"item_input","req":true},{"key":"quantity","req":true}],"example":"A!buy <item_input> <quantity>"},{"name":"cafe","cat":"Economy","icon":"☕","desc":"cafe команд","descEN":"cafe","args":[],"example":"A!cafe"},{"name":"crime","cat":"Economy","icon":"💰","desc":"Зөрүүд ажил — амжилттай бол урамшуулал, бусад тохиолдолд торгууль.","descEN":"Commit a crime for cash","args":[],"example":"A!crime"},{"name":"daily","cat":"Economy","icon":"📅","desc":"daily команд","descEN":"daily","args":[],"example":"A!daily"},{"name":"deposit","cat":"Economy","icon":"🔧","desc":"deposit команд","descEN":"deposit","args":[{"key":"amount_str","req":true}],"example":"A!deposit <amount_str>"},{"name":"dine","cat":"Economy","icon":"🍽️","desc":"dine команд","descEN":"dine","args":[{"key":"number","req":true}],"example":"A!dine <number>"},{"name":"drink","cat":"Economy","icon":"💰","desc":"Уух зүйл ашиглаж согтуур болно.","descEN":"Drink an item","args":[{"key":"item_id","req":true}],"example":"A!drink <item_id>"},{"name":"eat","cat":"Economy","icon":"🔧","desc":"eat команд","descEN":"eat","args":[],"example":"A!eat"},{"name":"equip","cat":"Economy","icon":"💰","desc":"Зүйлээ зүүж авна.","descEN":"Equip an item","args":[{"key":"item_input","req":true}],"example":"A!equip <item_input>"},{"name":"equipped","cat":"Economy","icon":"💰","desc":"Хэрэглэгчийн зүүсэн зүйлс харах.","descEN":"View equipped items","args":[{"key":"member","req":true}],"example":"A!equipped <member>"},{"name":"iteminfo","cat":"Economy","icon":"💰","desc":"Зүйлний дэлгэрэнгүй мэдээлэл (ID-тай).","descEN":"Item details","args":[{"key":"item_id","req":true}],"example":"A!iteminfo <item_id>"},{"name":"jobs","cat":"Economy","icon":"💰","desc":"Ажлын систем харах/ажиллах.","descEN":"Job system","args":[],"example":"A!jobs"},{"name":"market","cat":"Economy","icon":"🏪","desc":"Зах зээлийн зарыг харах.","descEN":"View marketplace","args":[],"example":"A!market"},{"name":"removemoney","cat":"Economy","icon":"➖","desc":"Хэрэглэгчээс мөнгө хасна.","descEN":"Remove money from a user","args":[{"key":"member","req":true},{"key":"amount","req":true}],"example":"/removemoney <member> <amount>"},{"name":"rob","cat":"Economy","icon":"🦹","desc":"rob команд","descEN":"rob","args":[{"key":"target","req":true}],"example":"A!rob <target>"},{"name":"shop","cat":"Economy","icon":"🔧","desc":"shop команд","descEN":"shop","args":[],"example":"A!shop"},{"name":"sogtol","cat":"Economy","icon":"💰","desc":"Согтуу байдлын төлөв харах.","descEN":"Drunk status","args":[],"example":"A!sogtol"},{"name":"taxinfo","cat":"Economy","icon":"💰","desc":"Татвар болон шимтгэлийн мэдээлэл.","descEN":"Tax information","args":[],"example":"A!taxinfo"},{"name":"transfer","cat":"Economy","icon":"🔧","desc":"transfer команд","descEN":"transfer","args":[{"key":"member","req":true},{"key":"amount_str","req":true}],"example":"A!transfer <member> <amount_str>"},{"name":"unequip","cat":"Economy","icon":"💰","desc":"Зүүсэн зүйлээ тайрч хасна.","descEN":"Unequip an item","args":[{"key":"slot_input","req":true}],"example":"A!unequip <slot_input>"},{"name":"use","cat":"Economy","icon":"💰","desc":"Зүйлээ ашиглана.","descEN":"Use an item","args":[{"key":"item_input","req":true}],"example":"A!use <item_input>"},{"name":"vape","cat":"Economy","icon":"💰","desc":"Вейп ашиглан согтуурээ арилгана.","descEN":"Use a vape","args":[],"example":"A!vape"},{"name":"withdraw","cat":"Economy","icon":"🔧","desc":"withdraw команд","descEN":"withdraw","args":[{"key":"amount_str","req":true}],"example":"A!withdraw <amount_str>"},{"name":"work","cat":"Economy","icon":"💼","desc":"work команд","descEN":"work","args":[{"key":"custom_text","req":true}],"example":"A!work <custom_text>"},{"name":"workphrase","cat":"Economy","icon":"📝","desc":"Ажлын хэллэгийн систем.","descEN":"Work phrase system","args":[],"example":"A!workphrase"},{"name":"addxp","cat":"Leveling","icon":"✨","desc":"addxp команд","descEN":"addxp","args":[{"key":"user","req":true},{"key":"amount","req":true}],"example":"A!addxp <user> <amount>"},{"name":"leaderboard","cat":"Leveling","icon":"🏆","desc":"leaderboard команд","descEN":"leaderboard","args":[],"example":"A!leaderboard"},{"name":"leveling_setup","cat":"Leveling","icon":"⚙️","desc":"Түвшний системийн бүрэн тохиргоо (роль, XP, цаг).","descEN":"Leveling setup","args":[],"example":"A!leveling_setup"},{"name":"rank","cat":"Leveling","icon":"🏅","desc":"rank команд","descEN":"rank","args":[{"key":"user","req":true}],"example":"A!rank <user>"},{"name":"removexp","cat":"Leveling","icon":"📉","desc":"removexp команд","descEN":"removexp","args":[{"key":"user","req":true},{"key":"amount","req":true}],"example":"A!removexp <user> <amount>"},{"name":"serveractivity","cat":"Leveling","icon":"📈","desc":"Серверийн хамгийн идэвхтэй гишүүдийн жагсаалт.","descEN":"Server activity ranking","args":[],"example":"A!serveractivity"},{"name":"adopt","cat":"Social","icon":"👶","desc":"adopt команд","descEN":"adopt","args":[{"key":"child","req":true}],"example":"A!adopt <child>"},{"name":"confess","cat":"Social","icon":"🤫","desc":"confess команд","descEN":"confess","args":[],"example":"/confess"},{"name":"confess_blacklist","cat":"Social","icon":"⛔","desc":"Нууц мессежид хориглосон үг жагсаах.","descEN":"Confession blacklist","args":[{"key":"action","req":true},{"key":"word","req":true}],"example":"/confess_blacklist <action> <word>"},{"name":"confess_delete","cat":"Social","icon":"🗑️","desc":"Нууц мессежийг ID-гаар устгах.","descEN":"Delete a confession","args":[{"key":"confession_id","req":true}],"example":"/confess_delete <confession_id>"},{"name":"confess_setup","cat":"Social","icon":"🕵️","desc":"Нууц мессежийн суваг тохируулах.","descEN":"Confession setup","args":[],"example":"/confess_setup"},{"name":"confess_stats","cat":"Social","icon":"📊","desc":"Нууц мессежийн статистик.","descEN":"Confession stats","args":[],"example":"/confess_stats"},{"name":"disown","cat":"Social","icon":"🚪","desc":"disown команд","descEN":"disown","args":[{"key":"child","req":true}],"example":"A!disown <child>"},{"name":"divorce","cat":"Social","icon":"💔","desc":"divorce команд","descEN":"divorce","args":[{"key":"user","req":true}],"example":"A!divorce <user>"},{"name":"familytree","cat":"Social","icon":"🌳","desc":"familytree команд","descEN":"familytree","args":[{"key":"member","req":true}],"example":"A!familytree <member>"},{"name":"gift","cat":"Social","icon":"🎁","desc":"gift команд","descEN":"gift","args":[{"key":"gift_type","req":true}],"example":"A!gift <gift_type>"},{"name":"love","cat":"Social","icon":"❤️","desc":"love команд","descEN":"love","args":[{"key":"target","req":true}],"example":"A!love <target>"},{"name":"marriage_setup","cat":"Social","icon":"🔧","desc":"Гэр бүлийн системийн тохиргоо.","descEN":"Marriage setup","args":[],"example":"/marriage_setup"},{"name":"marriagepro","cat":"Social","icon":"🏛️","desc":"marriagepro команд","descEN":"marriagepro","args":[{"key":"member","req":true}],"example":"A!marriagepro <member>"},{"name":"propose","cat":"Social","icon":"💍","desc":"propose команд","descEN":"propose","args":[{"key":"user","req":true}],"example":"A!propose <user>"},{"name":"spouse","cat":"Social","icon":"👫","desc":"spouse команд","descEN":"spouse","args":[],"example":"A!spouse"},{"name":"8ball","cat":"Games","icon":"🔧","desc":"Магадлалтай 8 тост хариулт өгнө.","descEN":"Magic 8-ball answer","args":[{"key":"question","req":true}],"example":"A!8ball <question>"},{"name":"blackjack","cat":"Games","icon":"🔧","desc":"blackjack команд","descEN":"blackjack","args":[{"key":"amount_str","req":true}],"example":"A!blackjack <amount_str>"},{"name":"cgive","cat":"Games","icon":"🎲","desc":"Казино мөнгөө өөр хэрэглэгчид шилжүүлнэ.","descEN":"Transfer casino chips","args":[{"key":"target","req":true},{"key":"amount","req":true}],"example":"A!cgive <target> <amount>"},{"name":"coin","cat":"Games","icon":"🔧","desc":"Зоогийн мөнгө хаяж үр дүнг харуулна.","descEN":"Flip a coin","args":[],"example":"A!coin"},{"name":"coinflipgame","cat":"Games","icon":"🎲","desc":"Талбайн тоглоом — зоогийн мөнгөнээр тал руу чихэгдэнэ.","descEN":"Coinflip gambling game","args":[{"key":"amount_str","req":true}],"example":"A!coinflipgame <amount_str>"},{"name":"count_save","cat":"Games","icon":"🔧","desc":"Тооллогын оноо хадгалах.","descEN":"Save counting score","args":[],"example":"/count_save"},{"name":"count_stats_server","cat":"Games","icon":"📊","desc":"Серверийн тооллогын статистик.","descEN":"Server counting stats","args":[],"example":"/count_stats_server"},{"name":"count_stats_user","cat":"Games","icon":"👤","desc":"Хэрэглэгчийн тооллогын статистик.","descEN":"User counting stats","args":[{"key":"member","req":true}],"example":"/count_stats_user <member>"},{"name":"crash","cat":"Games","icon":"🎲","desc":"Crash тоглоом — өсөлт зогсоохоос өмнө гарч ав.","descEN":"Crash betting game","args":[{"key":"amount_str","req":true}],"example":"A!crash <amount_str>"},{"name":"dice","cat":"Games","icon":"🎲","desc":"dice команд","descEN":"dice","args":[{"key":"amount_str","req":true}],"example":"A!dice <amount_str>"},{"name":"gamble","cat":"Games","icon":"🎰","desc":"gamble команд","descEN":"gamble","args":[{"key":"amount_str","req":true}],"example":"A!gamble <amount_str>"},{"name":"gamestats","cat":"Games","icon":"🎲","desc":"Өөрийн тоглоомын нийт статистик харуулна.","descEN":"Your game statistics","args":[],"example":"A!gamestats"},{"name":"highcard","cat":"Games","icon":"🎲","desc":"Өндөр карт тоглоом — эсрэгтэйгээ өрсөлд.","descEN":"High-card duel game","args":[{"key":"amount_str","req":true}],"example":"A!highcard <amount_str>"},{"name":"highlow","cat":"Games","icon":"🔧","desc":"highlow команд","descEN":"highlow","args":[{"key":"amount_str","req":true},{"key":"choice","req":true}],"example":"A!highlow <amount_str> <choice>"},{"name":"mafia_setup","cat":"Games","icon":"🎲","desc":"Mafia тоглоомын суваг/дүрэм тохируулах.","descEN":"Setup mafia game","args":[],"example":"/mafia_setup"},{"name":"mafiacreate","cat":"Games","icon":"🎭","desc":"Шинэ Mafia наалт үүсгэнэ.","descEN":"Create a mafia session","args":[],"example":"A!mafiacreate"},{"name":"mafiaend","cat":"Games","icon":"⏹️","desc":"Идэвхтэй Mafia наалтыг дуусгана.","descEN":"End mafia session","args":[],"example":"A!mafiaend"},{"name":"mafiastart","cat":"Games","icon":"▶️","desc":"Mafia наалт эхлүүлж тоглогчдыг хуваарилна.","descEN":"Start mafia session","args":[],"example":"A!mafiastart"},{"name":"mines","cat":"Games","icon":"💣","desc":"mines команд","descEN":"mines","args":[{"key":"bet","req":true}],"example":"A!mines <bet>"},{"name":"mp","cat":"Games","icon":"🛍️","desc":"Зах зээл командын товчлол.","descEN":"Marketplace shortcut","args":[],"example":"A!mp"},{"name":"numberguess","cat":"Games","icon":"🔧","desc":"numberguess команд","descEN":"numberguess","args":[{"key":"amount_str","req":true}],"example":"A!numberguess <amount_str>"},{"name":"roll","cat":"Games","icon":"🔧","desc":"1-ээс өгөгдсөн хүртэлх тоо шиднэ.","descEN":"Roll a random number","args":[{"key":"maximum","req":true}],"example":"A!roll <maximum>"},{"name":"roulettegame","cat":"Games","icon":"🎲","desc":"Рулетт тоглоом — өнгө/тойрог тавина.","descEN":"Roulette game","args":[{"key":"amount_str","req":true}],"example":"A!roulettegame <amount_str>"},{"name":"rps","cat":"Games","icon":"✊","desc":"rps команд","descEN":"rps","args":[{"key":"amount_str","req":true}],"example":"A!rps <amount_str>"},{"name":"slot","cat":"Games","icon":"🔧","desc":"slot команд","descEN":"slot","args":[{"key":"amount_str","req":true}],"example":"A!slot <amount_str>"},{"name":"trade","cat":"Games","icon":"🔄","desc":"Нөхөртэйгөө зүйл солилцох.","descEN":"Trade items with a user","args":[{"key":"user","req":true},{"key":"item","req":true},{"key":"amount","req":true},{"key":"target","req":true}],"example":"A!trade <user> <item> <amount> <target>"},{"name":"trivia","cat":"Games","icon":"🔧","desc":"trivia команд","descEN":"trivia","args":[],"example":"A!trivia"},{"name":"avatar_config","cat":"Moderation","icon":"🖼️","desc":"Avatar шалгалт/лог системийн тохиргоо.","descEN":"Avatar check config","args":[],"example":"A!avatar_config"},{"name":"ban","cat":"Moderation","icon":"🔨","desc":"ban команд","descEN":"ban","args":[{"key":"member","req":true},{"key":"reason","req":true}],"example":"/ban <member> <reason>"},{"name":"banlist","cat":"Moderation","icon":"📋","desc":"Хориглогдсон хэрэглэгчдийн жагсаалт.","descEN":"List banned users","args":[],"example":"/banlist"},{"name":"clear","cat":"Moderation","icon":"🗑️","desc":"clear команд","descEN":"clear","args":[{"key":"amount","req":true}],"example":"/clear <amount>"},{"name":"kick","cat":"Moderation","icon":"🦶","desc":"kick команд","descEN":"kick","args":[{"key":"member","req":true},{"key":"reason","req":true}],"example":"/kick <member> <reason>"},{"name":"lock","cat":"Moderation","icon":"🔒","desc":"lock команд","descEN":"lock","args":[{"key":"channel","req":true},{"key":"reason","req":true}],"example":"/lock <channel> <reason>"},{"name":"rrlist","cat":"Moderation","icon":"🛡️","desc":"Reaction-role холболтууд харах.","descEN":"List reaction roles","args":[],"example":"A!rrlist"},{"name":"set_log_channel","cat":"Moderation","icon":"📢","desc":"Лог бичих суваг тохируулах.","descEN":"Set log channel","args":[{"key":"channel","req":true}],"example":"/set_log_channel <channel>"},{"name":"staff_counts","cat":"Moderation","icon":"🔢","desc":"Ажилчдын үйл ажиллагааны тооллого.","descEN":"Staff activity counts","args":[],"example":"/staff_counts"},{"name":"staff_setup","cat":"Moderation","icon":"👮","desc":"Стaff (ажилчин) систем тохируулах.","descEN":"Setup staff system","args":[],"example":"/staff_setup"},{"name":"staff_status","cat":"Moderation","icon":"📟","desc":"Ажилчны төлөв/статистик.","descEN":"Staff status","args":[{"key":"member","req":true}],"example":"/staff_status <member>"},{"name":"temprole_config","cat":"Moderation","icon":"🛡️","desc":"Түр роль системийн тохиргоо.","descEN":"Temp role config","args":[],"example":"/temprole_config"},{"name":"unban","cat":"Moderation","icon":"🔓","desc":"unban команд","descEN":"unban","args":[{"key":"user_id","req":true},{"key":"reason","req":true}],"example":"/unban <user_id> <reason>"},{"name":"unlock","cat":"Moderation","icon":"🔓","desc":"unlock команд","descEN":"unlock","args":[{"key":"channel","req":true},{"key":"reason","req":true}],"example":"/unlock <channel> <reason>"},{"name":"untimeout","cat":"Moderation","icon":"▶️","desc":"untimeout команд","descEN":"untimeout","args":[{"key":"member","req":true}],"example":"/untimeout <member>"},{"name":"unwarnid","cat":"Moderation","icon":"🛡️","desc":"Анхааруулгыг ID-гаар нь цуцлана.","descEN":"Remove warning by ID","args":[{"key":"warning_id","req":true}],"example":"/unwarnid <warning_id>"},{"name":"warn","cat":"Moderation","icon":"⚠️","desc":"warn команд","descEN":"warn","args":[{"key":"member","req":true},{"key":"reason","req":true}],"example":"/warn <member> <reason>"},{"name":"warned","cat":"Moderation","icon":"🛡️","desc":"Өөрт огдсон анхааруулгууд.","descEN":"Your warnings","args":[],"example":"/warned"},{"name":"warnedusers","cat":"Moderation","icon":"👥","desc":"Анхааруулга авсан хэрэглэгчид.","descEN":"List warned users","args":[],"example":"/warnedusers"},{"name":"warnings","cat":"Moderation","icon":"📃","desc":"warnings команд","descEN":"warnings","args":[{"key":"member","req":true}],"example":"/warnings <member>"},{"name":"announce","cat":"Admin","icon":"📣","desc":"Серверт зар мэдээ тараах.","descEN":"Send announcement","args":[],"example":"/announce"},{"name":"counting_setup","cat":"Admin","icon":"⚙️","desc":"Тооллого тоглоомын тохиргоо.","descEN":"Counting setup","args":[],"example":"/counting_setup"},{"name":"greeting_reset","cat":"Admin","icon":"🔁","desc":"Мэндчилгээний тохиргоо цэвэрлэх.","descEN":"Reset greetings","args":[],"example":"/greeting_reset"},{"name":"greeting_status","cat":"Admin","icon":"✅","desc":"Мэндчилгээний төлөв харах.","descEN":"Greeting status","args":[],"example":"/greeting_status"},{"name":"info","cat":"Admin","icon":"ℹ️","desc":"Бот/серверийн ерөнхий мэдээлэл.","descEN":"Bot/server info","args":[],"example":"/info"},{"name":"lang","cat":"Admin","icon":"🔧","desc":"Ботын хэл солих.","descEN":"Change language","args":[{"key":"new_lang","req":true}],"example":"A!lang <new_lang>"},{"name":"rolelist","cat":"Admin","icon":"🎭","desc":"Хэрэглэгчийн ролийн жагсаалт.","descEN":"List user roles","args":[{"key":"member","req":true}],"example":"/rolelist <member>"},{"name":"status","cat":"Admin","icon":"🩺","desc":"Ботын ажиллагааны төлөв.","descEN":"Bot status","args":[],"example":"/status"},{"name":"stick","cat":"Admin","icon":"🔧","desc":"Статик мессеж бэхлэх.","descEN":"Pin a sticky message","args":[{"key":"content","req":true}],"example":"/stick <content>"},{"name":"template_create","cat":"Admin","icon":"📄","desc":"Мэндчилгээний загвар үүсгэх.","descEN":"Create template","args":[],"example":"/template_create"},{"name":"template_delete","cat":"Admin","icon":"❌","desc":"Загвар устгах.","descEN":"Delete template","args":[{"key":"template_id","req":true}],"example":"/template_delete <template_id>"},{"name":"template_edit","cat":"Admin","icon":"✏️","desc":"Загвар засварлах.","descEN":"Edit template","args":[{"key":"template_id","req":true}],"example":"/template_edit <template_id>"},{"name":"template_list","cat":"Admin","icon":"📑","desc":"Загваруудын жагсаалт.","descEN":"List templates","args":[],"example":"/template_list"},{"name":"template_preview","cat":"Admin","icon":"👁️","desc":"Загварыг урьдчилж харах.","descEN":"Preview template","args":[{"key":"template_id","req":true},{"key":"member","req":true}],"example":"/template_preview <template_id> <member>"},{"name":"unstick","cat":"Admin","icon":"🔧","desc":"Бэхэлсэн мессеж цуцлах.","descEN":"Unpin sticky message","args":[],"example":"A!unstick"},{"name":"voicesettings","cat":"Admin","icon":"🔊","desc":"Түр дуут сувагны тохиргоо.","descEN":"Temp voice settings","args":[],"example":"/voicesettings"},{"name":"voicesetup","cat":"Admin","icon":"🎙️","desc":"voicesetup команд","descEN":"voicesetup","args":[],"example":"/voicesetup"},{"name":"angry","cat":"Utility","icon":"🔧","desc":"angry команд","descEN":"angry","args":[],"example":"A!angry"},{"name":"autoaccept","cat":"Utility","icon":"✔️","desc":"Гэрлэх саналыг автоматаар зөвшөөрөх эсэх.","descEN":"Auto-accept marriage","args":[{"key":"enabled","req":true}],"example":"/autoaccept <enabled>"},{"name":"avatar","cat":"Utility","icon":"🖼️","desc":"avatar команд","descEN":"avatar","args":[{"key":"member","req":true}],"example":"A!avatar <member>"},{"name":"bite","cat":"Utility","icon":"🔧","desc":"bite команд","descEN":"bite","args":[{"key":"target","req":true}],"example":"A!bite <target>"},{"name":"boop","cat":"Utility","icon":"🔧","desc":"boop команд","descEN":"boop","args":[{"key":"target","req":true}],"example":"A!boop <target>"},{"name":"bully","cat":"Utility","icon":"🔧","desc":"bully команд","descEN":"bully","args":[{"key":"target","req":true}],"example":"A!bully <target>"},{"name":"cat","cat":"Utility","icon":"🔧","desc":"cat команд","descEN":"cat","args":[],"example":"A!cat"},{"name":"cry","cat":"Utility","icon":"🔧","desc":"cry команд","descEN":"cry","args":[],"example":"A!cry"},{"name":"cuddle","cat":"Utility","icon":"🔧","desc":"cuddle команд","descEN":"cuddle","args":[{"key":"target","req":true}],"example":"A!cuddle <target>"},{"name":"dance","cat":"Utility","icon":"🔧","desc":"dance команд","descEN":"dance","args":[],"example":"A!dance"},{"name":"dog","cat":"Utility","icon":"🔧","desc":"dog команд","descEN":"dog","args":[],"example":"A!dog"},{"name":"fox","cat":"Utility","icon":"🔧","desc":"fox команд","descEN":"fox","args":[],"example":"A!fox"},{"name":"gif","cat":"Utility","icon":"🔧","desc":"gif команд","descEN":"gif","args":[{"key":"query","req":true}],"example":"A!gif <query>"},{"name":"hack","cat":"Utility","icon":"🔧","desc":"hack команд","descEN":"hack","args":[{"key":"target","req":true}],"example":"A!hack <target>"},{"name":"handhold","cat":"Utility","icon":"🔧","desc":"handhold команд","descEN":"handhold","args":[{"key":"target","req":true}],"example":"A!handhold <target>"},{"name":"happy","cat":"Utility","icon":"🔧","desc":"happy команд","descEN":"happy","args":[],"example":"A!happy"},{"name":"help","cat":"Utility","icon":"❓","desc":"Тусламж — ангилал эсвэл тушаалын дэлгэрэнгүй.","descEN":"Help command","args":[{"key":"command","req":true}],"example":"A!help <command>"},{"name":"highfive","cat":"Utility","icon":"🔧","desc":"highfive команд","descEN":"highfive","args":[{"key":"target","req":true}],"example":"A!highfive <target>"},{"name":"hug","cat":"Utility","icon":"🔧","desc":"hug команд","descEN":"hug","args":[{"key":"target","req":true}],"example":"A!hug <target>"},{"name":"inventory","cat":"Utility","icon":"🔧","desc":"inventory команд","descEN":"inventory","args":[{"key":"member","req":true}],"example":"A!inventory <member>"},{"name":"kiss","cat":"Utility","icon":"🔧","desc":"kiss команд","descEN":"kiss","args":[{"key":"target","req":true}],"example":"A!kiss <target>"},{"name":"laugh","cat":"Utility","icon":"🔧","desc":"laugh команд","descEN":"laugh","args":[],"example":"A!laugh"},{"name":"meme","cat":"Utility","icon":"🔧","desc":"meme команд","descEN":"meme","args":[],"example":"A!meme"},{"name":"pat","cat":"Utility","icon":"🔧","desc":"pat команд","descEN":"pat","args":[{"key":"target","req":true}],"example":"A!pat <target>"},{"name":"ping","cat":"Utility","icon":"🔧","desc":"ping команд","descEN":"ping","args":[],"example":"A!ping"},{"name":"placeholders","cat":"Utility","icon":"📌","desc":"Мэндчилгээний боломжит тэмдэгтүүд.","descEN":"Greeting placeholders","args":[],"example":"/placeholders"},{"name":"poke","cat":"Utility","icon":"🔧","desc":"poke команд","descEN":"poke","args":[{"key":"target","req":true}],"example":"A!poke <target>"},{"name":"profile","cat":"Utility","icon":"🔧","desc":"profile команд","descEN":"profile","args":[{"key":"member","req":true}],"example":"A!profile <member>"},{"name":"punch","cat":"Utility","icon":"🔧","desc":"punch команд","descEN":"punch","args":[{"key":"target","req":true}],"example":"A!punch <target>"},{"name":"quest","cat":"Utility","icon":"🔧","desc":"quest команд","descEN":"quest","args":[],"example":"A!quest"},{"name":"relax","cat":"Utility","icon":"🔧","desc":"relax команд","descEN":"relax","args":[],"example":"A!relax"},{"name":"slap","cat":"Utility","icon":"🔧","desc":"slap команд","descEN":"slap","args":[{"key":"target","req":true}],"example":"A!slap <target>"},{"name":"sleep","cat":"Utility","icon":"🔧","desc":"sleep команд","descEN":"sleep","args":[],"example":"A!sleep"},{"name":"snuggle","cat":"Utility","icon":"🔧","desc":"snuggle команд","descEN":"snuggle","args":[{"key":"target","req":true}],"example":"A!snuggle <target>"},{"name":"stare","cat":"Utility","icon":"🔧","desc":"stare команд","descEN":"stare","args":[{"key":"target","req":true}],"example":"A!stare <target>"},{"name":"think","cat":"Utility","icon":"🔧","desc":"think команд","descEN":"think","args":[],"example":"A!think"},{"name":"wave","cat":"Utility","icon":"🔧","desc":"wave команд","descEN":"wave","args":[{"key":"target","req":true}],"example":"A!wave <target>"}]
+[
+    {
+        "name": "accessories",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Гоёл чимэглэлийн зүйлс харах.",
+        "descEN": "View accessories",
+        "args": [],
+        "example": "A!accessories"
+    },
+    {
+        "name": "addmoney",
+        "cat": "Economy",
+        "icon": "➕",
+        "desc": "Хэрэглэгчид мөнгө нэмнэ.",
+        "descEN": "Add money to a user",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            },
+            {
+                "key": "amount",
+                "req": true
+            }
+        ],
+        "example": "/addmoney <member> <amount>"
+    },
+    {
+        "name": "admin-panel",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Эдийн засаг админы самбар (тест/тохиргоо).",
+        "descEN": "Economy admin panel",
+        "args": [],
+        "example": "A!admin-panel"
+    },
+    {
+        "name": "bail",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Баривчлагдаас мөнгөөр гарч чөлөөлөгдөнө.",
+        "descEN": "Pay bail to be released",
+        "args": [],
+        "example": "A!bail"
+    },
+    {
+        "name": "balance",
+        "cat": "Economy",
+        "icon": "💳",
+        "desc": "balance команд",
+        "descEN": "balance",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "A!balance <member>"
+    },
+    {
+        "name": "bankprotect",
+        "cat": "Economy",
+        "icon": "🔧",
+        "desc": "bankprotect команд",
+        "descEN": "bankprotect",
+        "args": [],
+        "example": "A!bankprotect"
+    },
+    {
+        "name": "buy",
+        "cat": "Economy",
+        "icon": "🛒",
+        "desc": "Дэлгүүрээс зүйл худалдаж авна.",
+        "descEN": "Buy an item",
+        "args": [
+            {
+                "key": "item_input",
+                "req": true
+            },
+            {
+                "key": "quantity",
+                "req": true
+            }
+        ],
+        "example": "A!buy <item_input> <quantity>"
+    },
+    {
+        "name": "cafe",
+        "cat": "Economy",
+        "icon": "☕",
+        "desc": "cafe команд",
+        "descEN": "cafe",
+        "args": [],
+        "example": "A!cafe"
+    },
+    {
+        "name": "crime",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Зөрүүд ажил — амжилттай бол урамшуулал, бусад тохиолдолд торгууль.",
+        "descEN": "Commit a crime for cash",
+        "args": [],
+        "example": "A!crime"
+    },
+    {
+        "name": "daily",
+        "cat": "Economy",
+        "icon": "📅",
+        "desc": "daily команд",
+        "descEN": "daily",
+        "args": [],
+        "example": "A!daily"
+    },
+    {
+        "name": "deposit",
+        "cat": "Economy",
+        "icon": "🔧",
+        "desc": "deposit команд",
+        "descEN": "deposit",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!deposit <amount_str>"
+    },
+    {
+        "name": "dine",
+        "cat": "Economy",
+        "icon": "🍽️",
+        "desc": "dine команд",
+        "descEN": "dine",
+        "args": [
+            {
+                "key": "number",
+                "req": true
+            }
+        ],
+        "example": "A!dine <number>"
+    },
+    {
+        "name": "drink",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Уух зүйл ашиглаж согтуур болно.",
+        "descEN": "Drink an item",
+        "args": [
+            {
+                "key": "item_id",
+                "req": true
+            }
+        ],
+        "example": "A!drink <item_id>"
+    },
+    {
+        "name": "eat",
+        "cat": "Economy",
+        "icon": "🔧",
+        "desc": "eat команд",
+        "descEN": "eat",
+        "args": [],
+        "example": "A!eat"
+    },
+    {
+        "name": "equip",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Зүйлээ зүүж авна.",
+        "descEN": "Equip an item",
+        "args": [
+            {
+                "key": "item_input",
+                "req": true
+            }
+        ],
+        "example": "A!equip <item_input>"
+    },
+    {
+        "name": "equipped",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Хэрэглэгчийн зүүсэн зүйлс харах.",
+        "descEN": "View equipped items",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "A!equipped <member>"
+    },
+    {
+        "name": "iteminfo",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Зүйлний дэлгэрэнгүй мэдээлэл (ID-тай).",
+        "descEN": "Item details",
+        "args": [
+            {
+                "key": "item_id",
+                "req": true
+            }
+        ],
+        "example": "A!iteminfo <item_id>"
+    },
+    {
+        "name": "jobs",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Ажлын систем харах/ажиллах.",
+        "descEN": "Job system",
+        "args": [],
+        "example": "A!jobs"
+    },
+    {
+        "name": "market",
+        "cat": "Economy",
+        "icon": "🏪",
+        "desc": "Зах зээлийн зарыг харах.",
+        "descEN": "View marketplace",
+        "args": [],
+        "example": "A!market"
+    },
+    {
+        "name": "removemoney",
+        "cat": "Economy",
+        "icon": "➖",
+        "desc": "Хэрэглэгчээс мөнгө хасна.",
+        "descEN": "Remove money from a user",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            },
+            {
+                "key": "amount",
+                "req": true
+            }
+        ],
+        "example": "/removemoney <member> <amount>"
+    },
+    {
+        "name": "rob",
+        "cat": "Economy",
+        "icon": "🦹",
+        "desc": "rob команд",
+        "descEN": "rob",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!rob <target>"
+    },
+    {
+        "name": "shop",
+        "cat": "Economy",
+        "icon": "🔧",
+        "desc": "shop команд",
+        "descEN": "shop",
+        "args": [],
+        "example": "A!shop"
+    },
+    {
+        "name": "sogtol",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Согтуу байдлын төлөв харах.",
+        "descEN": "Drunk status",
+        "args": [],
+        "example": "A!sogtol"
+    },
+    {
+        "name": "taxinfo",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Татвар болон шимтгэлийн мэдээлэл.",
+        "descEN": "Tax information",
+        "args": [],
+        "example": "A!taxinfo"
+    },
+    {
+        "name": "transfer",
+        "cat": "Economy",
+        "icon": "🔧",
+        "desc": "transfer команд",
+        "descEN": "transfer",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            },
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!transfer <member> <amount_str>"
+    },
+    {
+        "name": "unequip",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Зүүсэн зүйлээ тайрч хасна.",
+        "descEN": "Unequip an item",
+        "args": [
+            {
+                "key": "slot_input",
+                "req": true
+            }
+        ],
+        "example": "A!unequip <slot_input>"
+    },
+    {
+        "name": "use",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Зүйлээ ашиглана.",
+        "descEN": "Use an item",
+        "args": [
+            {
+                "key": "item_input",
+                "req": true
+            }
+        ],
+        "example": "A!use <item_input>"
+    },
+    {
+        "name": "vape",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Вейп ашиглан согтуурээ арилгана.",
+        "descEN": "Use a vape",
+        "args": [],
+        "example": "A!vape"
+    },
+    {
+        "name": "withdraw",
+        "cat": "Economy",
+        "icon": "🔧",
+        "desc": "withdraw команд",
+        "descEN": "withdraw",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!withdraw <amount_str>"
+    },
+    {
+        "name": "work",
+        "cat": "Economy",
+        "icon": "💼",
+        "desc": "work команд",
+        "descEN": "work",
+        "args": [
+            {
+                "key": "custom_text",
+                "req": true
+            }
+        ],
+        "example": "A!work <custom_text>"
+    },
+    {
+        "name": "workphrase",
+        "cat": "Economy",
+        "icon": "📝",
+        "desc": "Ажлын хэллэгийн систем.",
+        "descEN": "Work phrase system",
+        "args": [],
+        "example": "A!workphrase"
+    },
+    {
+        "name": "addxp",
+        "cat": "Leveling",
+        "icon": "✨",
+        "desc": "addxp команд",
+        "descEN": "addxp",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            },
+            {
+                "key": "amount",
+                "req": true
+            }
+        ],
+        "example": "A!addxp <user> <amount>"
+    },
+    {
+        "name": "leaderboard",
+        "cat": "Leveling",
+        "icon": "🏆",
+        "desc": "leaderboard команд",
+        "descEN": "leaderboard",
+        "args": [],
+        "example": "A!leaderboard"
+    },
+    {
+        "name": "leveling_setup",
+        "cat": "Leveling",
+        "icon": "⚙️",
+        "desc": "Түвшний системийн бүрэн тохиргоо (роль, XP, цаг).",
+        "descEN": "Leveling setup",
+        "args": [],
+        "example": "A!leveling_setup"
+    },
+    {
+        "name": "rank",
+        "cat": "Leveling",
+        "icon": "🏅",
+        "desc": "rank команд",
+        "descEN": "rank",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            }
+        ],
+        "example": "A!rank <user>"
+    },
+    {
+        "name": "removexp",
+        "cat": "Leveling",
+        "icon": "📉",
+        "desc": "removexp команд",
+        "descEN": "removexp",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            },
+            {
+                "key": "amount",
+                "req": true
+            }
+        ],
+        "example": "A!removexp <user> <amount>"
+    },
+    {
+        "name": "serveractivity",
+        "cat": "Leveling",
+        "icon": "📈",
+        "desc": "Серверийн хамгийн идэвхтэй гишүүдийн жагсаалт.",
+        "descEN": "Server activity ranking",
+        "args": [],
+        "example": "A!serveractivity"
+    },
+    {
+        "name": "adopt",
+        "cat": "Social",
+        "icon": "👶",
+        "desc": "adopt команд",
+        "descEN": "adopt",
+        "args": [
+            {
+                "key": "child",
+                "req": true
+            }
+        ],
+        "example": "A!adopt <child>"
+    },
+    {
+        "name": "confess",
+        "cat": "Social",
+        "icon": "🤫",
+        "desc": "confess команд",
+        "descEN": "confess",
+        "args": [],
+        "example": "/confess"
+    },
+    {
+        "name": "confess_blacklist",
+        "cat": "Social",
+        "icon": "⛔",
+        "desc": "Нууц мессежид хориглосон үг жагсаах.",
+        "descEN": "Confession blacklist",
+        "args": [
+            {
+                "key": "action",
+                "req": true
+            },
+            {
+                "key": "word",
+                "req": true
+            }
+        ],
+        "example": "/confess_blacklist <action> <word>"
+    },
+    {
+        "name": "confess_delete",
+        "cat": "Social",
+        "icon": "🗑️",
+        "desc": "Нууц мессежийг ID-гаар устгах.",
+        "descEN": "Delete a confession",
+        "args": [
+            {
+                "key": "confession_id",
+                "req": true
+            }
+        ],
+        "example": "/confess_delete <confession_id>"
+    },
+    {
+        "name": "confess_setup",
+        "cat": "Social",
+        "icon": "🕵️",
+        "desc": "Нууц мессежийн суваг тохируулах.",
+        "descEN": "Confession setup",
+        "args": [],
+        "example": "/confess_setup"
+    },
+    {
+        "name": "confess_stats",
+        "cat": "Social",
+        "icon": "📊",
+        "desc": "Нууц мессежийн статистик.",
+        "descEN": "Confession stats",
+        "args": [],
+        "example": "/confess_stats"
+    },
+    {
+        "name": "disown",
+        "cat": "Social",
+        "icon": "🚪",
+        "desc": "disown команд",
+        "descEN": "disown",
+        "args": [
+            {
+                "key": "child",
+                "req": true
+            }
+        ],
+        "example": "A!disown <child>"
+    },
+    {
+        "name": "divorce",
+        "cat": "Social",
+        "icon": "💔",
+        "desc": "divorce команд",
+        "descEN": "divorce",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            }
+        ],
+        "example": "A!divorce <user>"
+    },
+    {
+        "name": "familytree",
+        "cat": "Social",
+        "icon": "🌳",
+        "desc": "familytree команд",
+        "descEN": "familytree",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "A!familytree <member>"
+    },
+    {
+        "name": "gift",
+        "cat": "Social",
+        "icon": "🎁",
+        "desc": "gift команд",
+        "descEN": "gift",
+        "args": [
+            {
+                "key": "gift_type",
+                "req": true
+            }
+        ],
+        "example": "A!gift <gift_type>"
+    },
+    {
+        "name": "love",
+        "cat": "Social",
+        "icon": "❤️",
+        "desc": "love команд",
+        "descEN": "love",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!love <target>"
+    },
+    {
+        "name": "marriage_setup",
+        "cat": "Social",
+        "icon": "🔧",
+        "desc": "Гэр бүлийн системийн тохиргоо.",
+        "descEN": "Marriage setup",
+        "args": [],
+        "example": "/marriage_setup"
+    },
+    {
+        "name": "marriagepro",
+        "cat": "Social",
+        "icon": "🏛️",
+        "desc": "marriagepro команд",
+        "descEN": "marriagepro",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "A!marriagepro <member>"
+    },
+    {
+        "name": "propose",
+        "cat": "Social",
+        "icon": "💍",
+        "desc": "propose команд",
+        "descEN": "propose",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            }
+        ],
+        "example": "A!propose <user>"
+    },
+    {
+        "name": "spouse",
+        "cat": "Social",
+        "icon": "👫",
+        "desc": "spouse команд",
+        "descEN": "spouse",
+        "args": [],
+        "example": "A!spouse"
+    },
+    {
+        "name": "8ball",
+        "cat": "Games",
+        "icon": "🔧",
+        "desc": "Магадлалтай 8 тост хариулт өгнө.",
+        "descEN": "Magic 8-ball answer",
+        "args": [
+            {
+                "key": "question",
+                "req": true
+            }
+        ],
+        "example": "A!8ball <question>"
+    },
+    {
+        "name": "blackjack",
+        "cat": "Games",
+        "icon": "🔧",
+        "desc": "blackjack команд",
+        "descEN": "blackjack",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!blackjack <amount_str>"
+    },
+    {
+        "name": "cgive",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Казино мөнгөө өөр хэрэглэгчид шилжүүлнэ.",
+        "descEN": "Transfer casino chips",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            },
+            {
+                "key": "amount",
+                "req": true
+            }
+        ],
+        "example": "A!cgive <target> <amount>"
+    },
+    {
+        "name": "coin",
+        "cat": "Games",
+        "icon": "🔧",
+        "desc": "Зоогийн мөнгө хаяж үр дүнг харуулна.",
+        "descEN": "Flip a coin",
+        "args": [],
+        "example": "A!coin"
+    },
+    {
+        "name": "coinflipgame",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Талбайн тоглоом — зоогийн мөнгөнээр тал руу чихэгдэнэ.",
+        "descEN": "Coinflip gambling game",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!coinflipgame <amount_str>"
+    },
+    {
+        "name": "count_save",
+        "cat": "Games",
+        "icon": "🔧",
+        "desc": "Тооллогын оноо хадгалах.",
+        "descEN": "Save counting score",
+        "args": [],
+        "example": "/count_save"
+    },
+    {
+        "name": "count_stats_server",
+        "cat": "Games",
+        "icon": "📊",
+        "desc": "Серверийн тооллогын статистик.",
+        "descEN": "Server counting stats",
+        "args": [],
+        "example": "/count_stats_server"
+    },
+    {
+        "name": "count_stats_user",
+        "cat": "Games",
+        "icon": "👤",
+        "desc": "Хэрэглэгчийн тооллогын статистик.",
+        "descEN": "User counting stats",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "/count_stats_user <member>"
+    },
+    {
+        "name": "crash",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Crash тоглоом — өсөлт зогсоохоос өмнө гарч ав.",
+        "descEN": "Crash betting game",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!crash <amount_str>"
+    },
+    {
+        "name": "dice",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "dice команд",
+        "descEN": "dice",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!dice <amount_str>"
+    },
+    {
+        "name": "gamble",
+        "cat": "Games",
+        "icon": "🎰",
+        "desc": "gamble команд",
+        "descEN": "gamble",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!gamble <amount_str>"
+    },
+    {
+        "name": "gamestats",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Өөрийн тоглоомын нийт статистик харуулна.",
+        "descEN": "Your game statistics",
+        "args": [],
+        "example": "A!gamestats"
+    },
+    {
+        "name": "highcard",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Өндөр карт тоглоом — эсрэгтэйгээ өрсөлд.",
+        "descEN": "High-card duel game",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!highcard <amount_str>"
+    },
+    {
+        "name": "highlow",
+        "cat": "Games",
+        "icon": "🔧",
+        "desc": "highlow команд",
+        "descEN": "highlow",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            },
+            {
+                "key": "choice",
+                "req": true
+            }
+        ],
+        "example": "A!highlow <amount_str> <choice>"
+    },
+    {
+        "name": "mafia_setup",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Mafia тоглоомын суваг/дүрэм тохируулах.",
+        "descEN": "Setup mafia game",
+        "args": [],
+        "example": "/mafia_setup"
+    },
+    {
+        "name": "mafiacreate",
+        "cat": "Games",
+        "icon": "🎭",
+        "desc": "Шинэ Mafia наалт үүсгэнэ.",
+        "descEN": "Create a mafia session",
+        "args": [],
+        "example": "A!mafiacreate"
+    },
+    {
+        "name": "mafiaend",
+        "cat": "Games",
+        "icon": "⏹️",
+        "desc": "Идэвхтэй Mafia наалтыг дуусгана.",
+        "descEN": "End mafia session",
+        "args": [],
+        "example": "A!mafiaend"
+    },
+    {
+        "name": "mafiastart",
+        "cat": "Games",
+        "icon": "▶️",
+        "desc": "Mafia наалт эхлүүлж тоглогчдыг хуваарилна.",
+        "descEN": "Start mafia session",
+        "args": [],
+        "example": "A!mafiastart"
+    },
+    {
+        "name": "mines",
+        "cat": "Games",
+        "icon": "💣",
+        "desc": "mines команд",
+        "descEN": "mines",
+        "args": [
+            {
+                "key": "bet",
+                "req": true
+            }
+        ],
+        "example": "A!mines <bet>"
+    },
+    {
+        "name": "mp",
+        "cat": "Games",
+        "icon": "🛍️",
+        "desc": "Зах зээл командын товчлол.",
+        "descEN": "Marketplace shortcut",
+        "args": [],
+        "example": "A!mp"
+    },
+    {
+        "name": "numberguess",
+        "cat": "Games",
+        "icon": "🔧",
+        "desc": "numberguess команд",
+        "descEN": "numberguess",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!numberguess <amount_str>"
+    },
+    {
+        "name": "roll",
+        "cat": "Games",
+        "icon": "🔧",
+        "desc": "1-ээс өгөгдсөн хүртэлх тоо шиднэ.",
+        "descEN": "Roll a random number",
+        "args": [
+            {
+                "key": "maximum",
+                "req": true
+            }
+        ],
+        "example": "A!roll <maximum>"
+    },
+    {
+        "name": "roulettegame",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Рулетт тоглоом — өнгө/тойрог тавина.",
+        "descEN": "Roulette game",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!roulettegame <amount_str>"
+    },
+    {
+        "name": "rps",
+        "cat": "Games",
+        "icon": "✊",
+        "desc": "rps команд",
+        "descEN": "rps",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!rps <amount_str>"
+    },
+    {
+        "name": "slot",
+        "cat": "Games",
+        "icon": "🔧",
+        "desc": "slot команд",
+        "descEN": "slot",
+        "args": [
+            {
+                "key": "amount_str",
+                "req": true
+            }
+        ],
+        "example": "A!slot <amount_str>"
+    },
+    {
+        "name": "trade",
+        "cat": "Games",
+        "icon": "🔄",
+        "desc": "Нөхөртэйгөө зүйл солилцох.",
+        "descEN": "Trade items with a user",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            },
+            {
+                "key": "item",
+                "req": true
+            },
+            {
+                "key": "amount",
+                "req": true
+            },
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!trade <user> <item> <amount> <target>"
+    },
+    {
+        "name": "trivia",
+        "cat": "Games",
+        "icon": "🔧",
+        "desc": "trivia команд",
+        "descEN": "trivia",
+        "args": [],
+        "example": "A!trivia"
+    },
+    {
+        "name": "avatar_config",
+        "cat": "Moderation",
+        "icon": "🖼️",
+        "desc": "Avatar шалгалт/лог системийн тохиргоо.",
+        "descEN": "Avatar check config",
+        "args": [],
+        "example": "A!avatar_config"
+    },
+    {
+        "name": "ban",
+        "cat": "Moderation",
+        "icon": "🔨",
+        "desc": "ban команд",
+        "descEN": "ban",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            },
+            {
+                "key": "reason",
+                "req": true
+            }
+        ],
+        "example": "/ban <member> <reason>"
+    },
+    {
+        "name": "banlist",
+        "cat": "Moderation",
+        "icon": "📋",
+        "desc": "Хориглогдсон хэрэглэгчдийн жагсаалт.",
+        "descEN": "List banned users",
+        "args": [],
+        "example": "/banlist"
+    },
+    {
+        "name": "clear",
+        "cat": "Moderation",
+        "icon": "🗑️",
+        "desc": "clear команд",
+        "descEN": "clear",
+        "args": [
+            {
+                "key": "amount",
+                "req": true
+            }
+        ],
+        "example": "/clear <amount>"
+    },
+    {
+        "name": "kick",
+        "cat": "Moderation",
+        "icon": "🦶",
+        "desc": "kick команд",
+        "descEN": "kick",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            },
+            {
+                "key": "reason",
+                "req": true
+            }
+        ],
+        "example": "/kick <member> <reason>"
+    },
+    {
+        "name": "lock",
+        "cat": "Moderation",
+        "icon": "🔒",
+        "desc": "lock команд",
+        "descEN": "lock",
+        "args": [
+            {
+                "key": "channel",
+                "req": true
+            },
+            {
+                "key": "reason",
+                "req": true
+            }
+        ],
+        "example": "/lock <channel> <reason>"
+    },
+    {
+        "name": "rrlist",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Reaction-role холболтууд харах.",
+        "descEN": "List reaction roles",
+        "args": [],
+        "example": "A!rrlist"
+    },
+    {
+        "name": "set_log_channel",
+        "cat": "Moderation",
+        "icon": "📢",
+        "desc": "Лог бичих суваг тохируулах.",
+        "descEN": "Set log channel",
+        "args": [
+            {
+                "key": "channel",
+                "req": true
+            }
+        ],
+        "example": "/set_log_channel <channel>"
+    },
+    {
+        "name": "staff_counts",
+        "cat": "Moderation",
+        "icon": "🔢",
+        "desc": "Ажилчдын үйл ажиллагааны тооллого.",
+        "descEN": "Staff activity counts",
+        "args": [],
+        "example": "/staff_counts"
+    },
+    {
+        "name": "staff_setup",
+        "cat": "Moderation",
+        "icon": "👮",
+        "desc": "Стaff (ажилчин) систем тохируулах.",
+        "descEN": "Setup staff system",
+        "args": [],
+        "example": "/staff_setup"
+    },
+    {
+        "name": "staff_status",
+        "cat": "Moderation",
+        "icon": "📟",
+        "desc": "Ажилчны төлөв/статистик.",
+        "descEN": "Staff status",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "/staff_status <member>"
+    },
+    {
+        "name": "temprole_config",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Түр роль системийн тохиргоо.",
+        "descEN": "Temp role config",
+        "args": [],
+        "example": "/temprole_config"
+    },
+    {
+        "name": "unban",
+        "cat": "Moderation",
+        "icon": "🔓",
+        "desc": "unban команд",
+        "descEN": "unban",
+        "args": [
+            {
+                "key": "user_id",
+                "req": true
+            },
+            {
+                "key": "reason",
+                "req": true
+            }
+        ],
+        "example": "/unban <user_id> <reason>"
+    },
+    {
+        "name": "unlock",
+        "cat": "Moderation",
+        "icon": "🔓",
+        "desc": "unlock команд",
+        "descEN": "unlock",
+        "args": [
+            {
+                "key": "channel",
+                "req": true
+            },
+            {
+                "key": "reason",
+                "req": true
+            }
+        ],
+        "example": "/unlock <channel> <reason>"
+    },
+    {
+        "name": "untimeout",
+        "cat": "Moderation",
+        "icon": "▶️",
+        "desc": "untimeout команд",
+        "descEN": "untimeout",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "/untimeout <member>"
+    },
+    {
+        "name": "unwarnid",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Анхааруулгыг ID-гаар нь цуцлана.",
+        "descEN": "Remove warning by ID",
+        "args": [
+            {
+                "key": "warning_id",
+                "req": true
+            }
+        ],
+        "example": "/unwarnid <warning_id>"
+    },
+    {
+        "name": "warn",
+        "cat": "Moderation",
+        "icon": "⚠️",
+        "desc": "warn команд",
+        "descEN": "warn",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            },
+            {
+                "key": "reason",
+                "req": true
+            }
+        ],
+        "example": "/warn <member> <reason>"
+    },
+    {
+        "name": "warned",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Өөрт огдсон анхааруулгууд.",
+        "descEN": "Your warnings",
+        "args": [],
+        "example": "/warned"
+    },
+    {
+        "name": "warnedusers",
+        "cat": "Moderation",
+        "icon": "👥",
+        "desc": "Анхааруулга авсан хэрэглэгчид.",
+        "descEN": "List warned users",
+        "args": [],
+        "example": "/warnedusers"
+    },
+    {
+        "name": "warnings",
+        "cat": "Moderation",
+        "icon": "📃",
+        "desc": "warnings команд",
+        "descEN": "warnings",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "/warnings <member>"
+    },
+    {
+        "name": "announce",
+        "cat": "Admin",
+        "icon": "📣",
+        "desc": "Серверт зар мэдээ тараах.",
+        "descEN": "Send announcement",
+        "args": [],
+        "example": "/announce"
+    },
+    {
+        "name": "counting_setup",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Тооллого тоглоомын тохиргоо.",
+        "descEN": "Counting setup",
+        "args": [],
+        "example": "/counting_setup"
+    },
+    {
+        "name": "greeting_reset",
+        "cat": "Admin",
+        "icon": "🔁",
+        "desc": "Мэндчилгээний тохиргоо цэвэрлэх.",
+        "descEN": "Reset greetings",
+        "args": [],
+        "example": "/greeting_reset"
+    },
+    {
+        "name": "greeting_status",
+        "cat": "Admin",
+        "icon": "✅",
+        "desc": "Мэндчилгээний төлөв харах.",
+        "descEN": "Greeting status",
+        "args": [],
+        "example": "/greeting_status"
+    },
+    {
+        "name": "info",
+        "cat": "Admin",
+        "icon": "ℹ️",
+        "desc": "Бот/серверийн ерөнхий мэдээлэл.",
+        "descEN": "Bot/server info",
+        "args": [],
+        "example": "/info"
+    },
+    {
+        "name": "lang",
+        "cat": "Admin",
+        "icon": "🔧",
+        "desc": "Ботын хэл солих.",
+        "descEN": "Change language",
+        "args": [
+            {
+                "key": "new_lang",
+                "req": true
+            }
+        ],
+        "example": "A!lang <new_lang>"
+    },
+    {
+        "name": "rolelist",
+        "cat": "Admin",
+        "icon": "🎭",
+        "desc": "Хэрэглэгчийн ролийн жагсаалт.",
+        "descEN": "List user roles",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "/rolelist <member>"
+    },
+    {
+        "name": "status",
+        "cat": "Admin",
+        "icon": "🩺",
+        "desc": "Ботын ажиллагааны төлөв.",
+        "descEN": "Bot status",
+        "args": [],
+        "example": "/status"
+    },
+    {
+        "name": "stick",
+        "cat": "Admin",
+        "icon": "🔧",
+        "desc": "Статик мессеж бэхлэх.",
+        "descEN": "Pin a sticky message",
+        "args": [
+            {
+                "key": "content",
+                "req": true
+            }
+        ],
+        "example": "/stick <content>"
+    },
+    {
+        "name": "template_create",
+        "cat": "Admin",
+        "icon": "📄",
+        "desc": "Мэндчилгээний загвар үүсгэх.",
+        "descEN": "Create template",
+        "args": [],
+        "example": "/template_create"
+    },
+    {
+        "name": "template_delete",
+        "cat": "Admin",
+        "icon": "❌",
+        "desc": "Загвар устгах.",
+        "descEN": "Delete template",
+        "args": [
+            {
+                "key": "template_id",
+                "req": true
+            }
+        ],
+        "example": "/template_delete <template_id>"
+    },
+    {
+        "name": "template_edit",
+        "cat": "Admin",
+        "icon": "✏️",
+        "desc": "Загвар засварлах.",
+        "descEN": "Edit template",
+        "args": [
+            {
+                "key": "template_id",
+                "req": true
+            }
+        ],
+        "example": "/template_edit <template_id>"
+    },
+    {
+        "name": "template_list",
+        "cat": "Admin",
+        "icon": "📑",
+        "desc": "Загваруудын жагсаалт.",
+        "descEN": "List templates",
+        "args": [],
+        "example": "/template_list"
+    },
+    {
+        "name": "template_preview",
+        "cat": "Admin",
+        "icon": "👁️",
+        "desc": "Загварыг урьдчилж харах.",
+        "descEN": "Preview template",
+        "args": [
+            {
+                "key": "template_id",
+                "req": true
+            },
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "/template_preview <template_id> <member>"
+    },
+    {
+        "name": "unstick",
+        "cat": "Admin",
+        "icon": "🔧",
+        "desc": "Бэхэлсэн мессеж цуцлах.",
+        "descEN": "Unpin sticky message",
+        "args": [],
+        "example": "A!unstick"
+    },
+    {
+        "name": "voicesettings",
+        "cat": "Admin",
+        "icon": "🔊",
+        "desc": "Түр дуут сувагны тохиргоо.",
+        "descEN": "Temp voice settings",
+        "args": [],
+        "example": "/voicesettings"
+    },
+    {
+        "name": "voicesetup",
+        "cat": "Admin",
+        "icon": "🎙️",
+        "desc": "voicesetup команд",
+        "descEN": "voicesetup",
+        "args": [],
+        "example": "/voicesetup"
+    },
+    {
+        "name": "angry",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "angry команд",
+        "descEN": "angry",
+        "args": [],
+        "example": "A!angry"
+    },
+    {
+        "name": "autoaccept",
+        "cat": "Utility",
+        "icon": "✔️",
+        "desc": "Гэрлэх саналыг автоматаар зөвшөөрөх эсэх.",
+        "descEN": "Auto-accept marriage",
+        "args": [
+            {
+                "key": "enabled",
+                "req": true
+            }
+        ],
+        "example": "/autoaccept <enabled>"
+    },
+    {
+        "name": "avatar",
+        "cat": "Utility",
+        "icon": "🖼️",
+        "desc": "avatar команд",
+        "descEN": "avatar",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "A!avatar <member>"
+    },
+    {
+        "name": "bite",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "bite команд",
+        "descEN": "bite",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!bite <target>"
+    },
+    {
+        "name": "boop",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "boop команд",
+        "descEN": "boop",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!boop <target>"
+    },
+    {
+        "name": "bully",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "bully команд",
+        "descEN": "bully",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!bully <target>"
+    },
+    {
+        "name": "cat",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "cat команд",
+        "descEN": "cat",
+        "args": [],
+        "example": "A!cat"
+    },
+    {
+        "name": "cry",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "cry команд",
+        "descEN": "cry",
+        "args": [],
+        "example": "A!cry"
+    },
+    {
+        "name": "cuddle",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "cuddle команд",
+        "descEN": "cuddle",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!cuddle <target>"
+    },
+    {
+        "name": "dance",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "dance команд",
+        "descEN": "dance",
+        "args": [],
+        "example": "A!dance"
+    },
+    {
+        "name": "dog",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "dog команд",
+        "descEN": "dog",
+        "args": [],
+        "example": "A!dog"
+    },
+    {
+        "name": "fox",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "fox команд",
+        "descEN": "fox",
+        "args": [],
+        "example": "A!fox"
+    },
+    {
+        "name": "gif",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "gif команд",
+        "descEN": "gif",
+        "args": [
+            {
+                "key": "query",
+                "req": true
+            }
+        ],
+        "example": "A!gif <query>"
+    },
+    {
+        "name": "hack",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "hack команд",
+        "descEN": "hack",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!hack <target>"
+    },
+    {
+        "name": "handhold",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "handhold команд",
+        "descEN": "handhold",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!handhold <target>"
+    },
+    {
+        "name": "happy",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "happy команд",
+        "descEN": "happy",
+        "args": [],
+        "example": "A!happy"
+    },
+    {
+        "name": "help",
+        "cat": "Utility",
+        "icon": "❓",
+        "desc": "Тусламж — ангилал эсвэл тушаалын дэлгэрэнгүй.",
+        "descEN": "Help command",
+        "args": [
+            {
+                "key": "command",
+                "req": true
+            }
+        ],
+        "example": "A!help <command>"
+    },
+    {
+        "name": "highfive",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "highfive команд",
+        "descEN": "highfive",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!highfive <target>"
+    },
+    {
+        "name": "hug",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "hug команд",
+        "descEN": "hug",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!hug <target>"
+    },
+    {
+        "name": "inventory",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "inventory команд",
+        "descEN": "inventory",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "A!inventory <member>"
+    },
+    {
+        "name": "kiss",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "kiss команд",
+        "descEN": "kiss",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!kiss <target>"
+    },
+    {
+        "name": "laugh",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "laugh команд",
+        "descEN": "laugh",
+        "args": [],
+        "example": "A!laugh"
+    },
+    {
+        "name": "meme",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "meme команд",
+        "descEN": "meme",
+        "args": [],
+        "example": "A!meme"
+    },
+    {
+        "name": "pat",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "pat команд",
+        "descEN": "pat",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!pat <target>"
+    },
+    {
+        "name": "ping",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "ping команд",
+        "descEN": "ping",
+        "args": [],
+        "example": "A!ping"
+    },
+    {
+        "name": "placeholders",
+        "cat": "Utility",
+        "icon": "📌",
+        "desc": "Мэндчилгээний боломжит тэмдэгтүүд.",
+        "descEN": "Greeting placeholders",
+        "args": [],
+        "example": "/placeholders"
+    },
+    {
+        "name": "poke",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "poke команд",
+        "descEN": "poke",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!poke <target>"
+    },
+    {
+        "name": "profile",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "profile команд",
+        "descEN": "profile",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "A!profile <member>"
+    },
+    {
+        "name": "punch",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "punch команд",
+        "descEN": "punch",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!punch <target>"
+    },
+    {
+        "name": "quest",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "quest команд",
+        "descEN": "quest",
+        "args": [],
+        "example": "A!quest"
+    },
+    {
+        "name": "relax",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "relax команд",
+        "descEN": "relax",
+        "args": [],
+        "example": "A!relax"
+    },
+    {
+        "name": "slap",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "slap команд",
+        "descEN": "slap",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!slap <target>"
+    },
+    {
+        "name": "sleep",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "sleep команд",
+        "descEN": "sleep",
+        "args": [],
+        "example": "A!sleep"
+    },
+    {
+        "name": "snuggle",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "snuggle команд",
+        "descEN": "snuggle",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!snuggle <target>"
+    },
+    {
+        "name": "stare",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "stare команд",
+        "descEN": "stare",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!stare <target>"
+    },
+    {
+        "name": "think",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "think команд",
+        "descEN": "think",
+        "args": [],
+        "example": "A!think"
+    },
+    {
+        "name": "wave",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "wave команд",
+        "descEN": "wave",
+        "args": [
+            {
+                "key": "target",
+                "req": true
+            }
+        ],
+        "example": "A!wave <target>"
+    }
+]
