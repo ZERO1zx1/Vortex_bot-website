@@ -475,7 +475,9 @@ CREATE OR REPLACE FUNCTION increment(
     filter_val TEXT,
     col TEXT,
     delta BIGINT
-) RETURNS VOID LANGUAGE plpgsql AS $$
+) RETURNS VOID LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
 BEGIN
     EXECUTE format(
         'UPDATE %I SET %I = COALESCE(%I, 0) + %s WHERE %I = %L',
@@ -541,3 +543,43 @@ CREATE TABLE IF NOT EXISTS custom_replies (
 CREATE INDEX IF NOT EXISTS idx_economy_balance ON economy (balance);
 CREATE INDEX IF NOT EXISTS idx_economy_guild ON economy (guild_id, balance);
 CREATE INDEX IF NOT EXISTS idx_levels_guild ON levels (guild_id, level DESC, xp DESC);
+
+-- ── Row-level security ─────────────────────────────────
+-- The bot and the static status page operate with the anon (public)
+-- key, so every public table enables RLS with an explicit "allow all"
+-- policy (USING(true) / WITH CHECK(true)). This resolves the
+-- database-linter findings (0013_rls_disabled_in_public,
+-- 0007_policy_exists_rls_disabled). This fragment is idempotent.
+DO $$
+DECLARE
+    t TEXT;
+BEGIN
+    FOR t IN
+        SELECT tablename
+        FROM pg_tables
+        WHERE schemaname = 'public'
+          AND tablename NOT LIKE 'pg_%'
+          AND tablename <> 'supabase_migrations'
+    LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'allow_all_' || t, t);
+        EXECUTE format(
+            'CREATE POLICY %I ON %I FOR ALL USING (true) WITH CHECK (true)',
+            'allow_all_' || t, t
+        );
+    END LOOP;
+END;
+$$;
+
+-- Grants for anon/authenticated (required for anon key access)
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  GRANT ALL ON TABLES TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  GRANT ALL ON SEQUENCES TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  GRANT EXECUTE ON FUNCTIONS TO anon, authenticated;
+
+NOTIFY pgrst, 'reload schema';

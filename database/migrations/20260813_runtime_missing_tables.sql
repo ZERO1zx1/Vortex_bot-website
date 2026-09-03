@@ -575,7 +575,9 @@ CREATE OR REPLACE FUNCTION increment(
     filter_val TEXT,
     col TEXT,
     delta BIGINT
-) RETURNS VOID LANGUAGE plpgsql AS $$
+) RETURNS VOID LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
 BEGIN
     EXECUTE format(
         'UPDATE %I SET %I = COALESCE(%I, 0) + %s WHERE %I = %L',
@@ -597,68 +599,31 @@ CREATE INDEX IF NOT EXISTS idx_game_stats_guild ON game_stats (guild_id, total_w
 CREATE INDEX IF NOT EXISTS idx_shop_stock_guild ON shop_stock (guild_id);
 
 -- ── Row-level security ─────────────────────────────────
--- Supabase creates new tables with RLS enabled but no policies,
--- which gives the bot's anon key HTTP 401 on every request.
--- The bot is server-side only, so RLS is disabled (idempotent).
-ALTER TABLE adoptions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE automod_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE avatar_log_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE confession_blacklist DISABLE ROW LEVEL SECURITY;
-ALTER TABLE confession_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE confession_cooldown DISABLE ROW LEVEL SECURITY;
-ALTER TABLE confession_messages DISABLE ROW LEVEL SECURITY;
-ALTER TABLE counting_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE counting_progress DISABLE ROW LEVEL SECURITY;
-ALTER TABLE counting_stats DISABLE ROW LEVEL SECURITY;
-ALTER TABLE custom_replies DISABLE ROW LEVEL SECURITY;
-ALTER TABLE daily_stats DISABLE ROW LEVEL SECURITY;
-ALTER TABLE economy DISABLE ROW LEVEL SECURITY;
-ALTER TABLE economy_cooldowns_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE economy_fail_rates DISABLE ROW LEVEL SECURITY;
-ALTER TABLE economy_fines_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE economy_payouts_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE game_stats DISABLE ROW LEVEL SECURITY;
-ALTER TABLE giveaway_entries DISABLE ROW LEVEL SECURITY;
-ALTER TABLE giveaways DISABLE ROW LEVEL SECURITY;
-ALTER TABLE greeting_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE greeting_templates DISABLE ROW LEVEL SECURITY;
-ALTER TABLE guild_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE invite_joins DISABLE ROW LEVEL SECURITY;
-ALTER TABLE invite_labels DISABLE ROW LEVEL SECURITY;
-ALTER TABLE invite_log_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE invite_stats DISABLE ROW LEVEL SECURITY;
-ALTER TABLE level_rewards DISABLE ROW LEVEL SECURITY;
-ALTER TABLE level_roles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE leveling_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE leveling_exceptions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE levels DISABLE ROW LEVEL SECURITY;
-ALTER TABLE lottery DISABLE ROW LEVEL SECURITY;
-ALTER TABLE lottery_entries DISABLE ROW LEVEL SECURITY;
-ALTER TABLE marketplace_listings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE marriage_gifts DISABLE ROW LEVEL SECURITY;
-ALTER TABLE marriage_guild_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE marriage_proposals DISABLE ROW LEVEL SECURITY;
-ALTER TABLE marriage_user_settings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE marriages DISABLE ROW LEVEL SECURITY;
-ALTER TABLE pvp_cooldowns DISABLE ROW LEVEL SECURITY;
-ALTER TABLE quest_history DISABLE ROW LEVEL SECURITY;
-ALTER TABLE reaction_roles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE role_income DISABLE ROW LEVEL SECURITY;
-ALTER TABLE shop_stock DISABLE ROW LEVEL SECURITY;
-ALTER TABLE staff_activity DISABLE ROW LEVEL SECURITY;
-ALTER TABLE staff_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE staff_members DISABLE ROW LEVEL SECURITY;
-ALTER TABLE staff_weekly_winners DISABLE ROW LEVEL SECURITY;
-ALTER TABLE sticky_messages DISABLE ROW LEVEL SECURITY;
-ALTER TABLE temp_channels DISABLE ROW LEVEL SECURITY;
-ALTER TABLE temprole_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE temproles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE tempvoice_setup_msg DISABLE ROW LEVEL SECURITY;
-ALTER TABLE user_drunk DISABLE ROW LEVEL SECURITY;
-ALTER TABLE user_inventory DISABLE ROW LEVEL SECURITY;
-ALTER TABLE user_quests DISABLE ROW LEVEL SECURITY;
-ALTER TABLE warnings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE work_phrases DISABLE ROW LEVEL SECURITY;
+-- The bot and the static status page operate with the anon (public)
+-- key, so every public table enables RLS with an explicit "allow all"
+-- policy (USING(true) / WITH CHECK(true)). This resolves the
+-- database-linter findings (0013_rls_disabled_in_public,
+-- 0007_policy_exists_rls_disabled). This fragment is idempotent.
+DO $$
+DECLARE
+    t TEXT;
+BEGIN
+    FOR t IN
+        SELECT tablename
+        FROM pg_tables
+        WHERE schemaname = 'public'
+          AND tablename NOT LIKE 'pg_%'
+          AND tablename <> 'supabase_migrations'
+    LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'allow_all_' || t, t);
+        EXECUTE format(
+            'CREATE POLICY %I ON %I FOR ALL USING (true) WITH CHECK (true)',
+            'allow_all_' || t, t
+        );
+    END LOOP;
+END;
+$$;
 
 -- ── Grants for anon/authenticated (required for anon key access) ──
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
