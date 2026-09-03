@@ -364,7 +364,7 @@ class SupabaseManager:
         and the static site reads them with the anon key.
         """
         try:
-            now = datetime.now(timezone.utc).isoformat() + "Z"
+            now = datetime.now(timezone.utc).isoformat()
             data: Dict[str, Any] = {"id": 1, "status": status, "last_ping": now}
 
             def _ping():
