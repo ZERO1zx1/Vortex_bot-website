@@ -3,11 +3,14 @@ from discord.ext import commands
 from discord.ui import View, Button, Select
 import asyncio
 import io
+import logging
 import os
 import aiohttp
 import time
 from PIL import Image, ImageDraw, ImageFont
 from PIL.Image import Resampling
+
+logger = logging.getLogger(__name__)
 
 # ---------- Centralized Unicode-aware font management ----------
 from utils.fonts import (
@@ -17,16 +20,11 @@ from utils.fonts import (
     get_font_manager,
 )
 
-# ---------- ProBot палитр ----------
-BG_COLOR = (30, 33, 40, 255)
-CARD_BG = (44, 47, 51, 255)
-BAR_BG = (64, 68, 75, 255)
-BAR_FILL = (114, 137, 218, 255)
-TEXT_PRIMARY = (255, 255, 255, 255)
-TEXT_SECONDARY = (185, 187, 190, 255)
-GOLD = (255, 180, 50, 255)
-GREEN = (87, 242, 135, 255)
-RED = (237, 66, 69, 255)
+# ---------- Explorer-journal art kit (procedural illustrated style) ----------
+from utils import journal_style as journal
+
+# Embed accent matching the parchment pages.
+JOURNAL_EMBED_COLOR = 0xC89A3D
 
 # ==================== ИНВЕНТАР VIEW ====================
 class InventoryView(View):
@@ -51,20 +49,21 @@ class InventoryView(View):
         total_pages = max(1, -(-len(self.all_items) // self.per_page))
         self.next_button.disabled = (self.page >= total_pages - 1)
         # Панел мессежийг шууд засах (select-ийн ephemeral хариултыг будлиулгүйн тулд)
+        # NOTE: Message.edit() нь `attachments` авдаг, `files` гэсэн параметр байхгүй.
         if self.message:
             try:
-                await self.message.edit(embed=embed, attachments=[], files=[file], view=self)
+                await self.message.edit(embed=embed, attachments=[file], view=self)
                 return
-            except discord.HTTPException:
-                pass
+            except discord.HTTPException as e:
+                logger.debug("inventory panel edit failed, falling back: %s", e)
         if interaction is not None:
             target_msg = self.message or getattr(interaction, "message", None)
             if target_msg is not None:
                 try:
-                    await target_msg.edit(embed=embed, attachments=[], files=[file], view=self)
+                    await target_msg.edit(embed=embed, attachments=[file], view=self)
                     return
-                except discord.HTTPException:
-                    pass
+                except discord.HTTPException as e:
+                    logger.debug("inventory panel edit failed, falling back: %s", e)
             await interaction.followup.send(embed=embed, file=file, view=self, ephemeral=True)
 
     @discord.ui.button(label="🔍 Хэрэглэх", style=discord.ButtonStyle.green, row=0)
@@ -162,8 +161,8 @@ class InventoryView(View):
                 child.disabled = True
             try:
                 await self.message.edit(view=self)
-            except:
-                pass
+            except discord.HTTPException as e:
+                logger.debug("inventory view timeout edit failed: %s", e)
 
 
 # ==================== ҮНДСЭН COG ====================
@@ -190,8 +189,8 @@ class Cards(commands.Cog):
                     img = Image.open(io.BytesIO(data)).convert("RGBA")
                     img = img.resize((size, size), Image.LANCZOS)
                     return img
-        except:
-            pass
+        except (aiohttp.ClientError, OSError) as e:
+            logger.debug("emoji fetch failed for %r: %s", emoji_char, e)
         return None
 
     async def _draw_text_with_emoji(self, canvas, draw, x, y, text, font, fill, emoji_size=28):
@@ -252,7 +251,8 @@ class Cards(commands.Cog):
             async with self._session.get(url) as resp:
                 data = await resp.read()
             img = Image.open(io.BytesIO(data)).convert("RGBA").resize((size, size))
-        except:
+        except (aiohttp.ClientError, OSError) as e:
+            logger.debug("avatar download failed, using fallback: %s", e)
             img = Image.new("RGBA", (size, size), (88, 101, 242, 255))
         mask = Image.new("L", (size, size), 0)
         ImageDraw.Draw(mask).ellipse((0, 0, size, size), fill=255)
@@ -415,147 +415,132 @@ class Cards(commands.Cog):
             "disc_level": disc_level, "ava": ava, "equips": equip_emojis
         }
 
-    # ═══════════════ PROBOT СТИЛЬТЭЙ ПРОФАЙЛ КАРТ ═══════════════
+    # ═══════════════ EXPLORER'S JOURNAL ПРОФАЙЛ ХУУДАС ═══════════════
     async def _render_profile_card(self, member, data, background=None):
-        W, H = 800, 250
-        RADIUS = 10
-        PAD = 15
-        AVA_SIZE = 85
+        W, H = 820, 348
+        seed = abs(hash(getattr(member, "id", 7))) % 997
 
-        img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-
+        img = journal.parchment((W, H), seed=seed)
+        # Хувийн фон (background_url) байвал цаасны дээр бүдэгхэн шингээх
         if background:
-            bg = background.resize((W, H), Resampling.LANCZOS)
-            img.paste(bg, (0, 0), bg)
-        else:
-            draw.rounded_rectangle([0, 0, W-1, H-1], radius=RADIUS, fill=BG_COLOR)
-
-        # Overlay-уудыг assets-аас татах
-        self._apply_overlay(img, "overlay1.png")
-        self._apply_overlay(img, "curveborder.png")
-        draw.rounded_rectangle([0, 0, W-1, H-1], radius=RADIUS, outline=(75, 78, 85), width=1)
-
-        ava_x, ava_y = PAD + 10, (H - AVA_SIZE) // 2
-        ava_img = data["ava"].resize((AVA_SIZE, AVA_SIZE))
-        img.paste(ava_img, (ava_x, ava_y), ava_img)
-
-        ring_size = AVA_SIZE + 6
-        ring = Image.new("RGBA", (ring_size, ring_size), (0, 0, 0, 0))
-        ImageDraw.Draw(ring).ellipse((0, 0, ring_size-1, ring_size-1), outline=(114, 137, 218), width=3)
-        img.paste(ring, (ava_x - 3, ava_y - 3), ring)
+            try:
+                bg = background.convert("RGBA").resize((W, H), Resampling.LANCZOS)
+                img = Image.blend(bg, img, 0.55)
+            except Exception as e:
+                logger.debug("profile background skipped: %s", e)
+        draw = ImageDraw.Draw(img)
+        journal.ink_border(draw, (W, H), seed=seed)
 
         font_name = _load_font(30, bold=True)
-        font_sub = _load_font(16, bold=False)
         font_small = _load_font(14, bold=False)
-        font_level = _load_font(32, bold=True)
+        font_seal = _load_font(20, bold=True)
 
-        tx = ava_x + AVA_SIZE + 15
-        draw.text((tx, ava_y + 5), member.display_name[:20], font=font_name, fill=TEXT_PRIMARY)
-        # Нэрний доор зүүсэн хэрэгслийн тэмдэглэгээ (жишээ: бөгж, цаг, боолт)
+        # Зүүн талд хавчуулсан хөрөг
+        journal.sketch_frame(img, (48, 100, 144, 196), data["ava"], seed=seed)
+        draw = ImageDraw.Draw(img)  # sketch_frame зурсны дараа дахин авах
+
+        # Нэрийн тууз
+        journal.banner(draw, (176, 24, 596, 64), member.display_name[:20], font_name, seed=seed)
         uname_line = f"@{member.name}"
         if data.get("equips"):
             uname_line += f"  {data['equips']}"
-        await self._draw_text_with_emoji(img, draw, tx, ava_y + 35, uname_line, font=font_small, fill=TEXT_SECONDARY)
+        await self._draw_text_with_emoji(img, draw, 184, 70, uname_line, font=font_small, fill=journal.INK_SOFT)
 
-        level_str = f"LVL {data['level']}"
-        level_w = draw.textlength(level_str, font=font_level)
-        draw.text((W - PAD - 10, ava_y + 5), level_str, font=font_level, fill=BAR_FILL)
-        rank_str = f"#{data['rank']}"
-        rank_w = draw.textlength(rank_str, font=font_sub)
-        draw.text((W - PAD - 10 - rank_w, ava_y + 45), rank_str, font=font_sub, fill=TEXT_SECONDARY)
+        # Түвшний лав тамга
+        journal.wax_seal(draw, (736, 66), 46, f"LVL {data['level']}", font_seal, seed=seed)
+        # Зэрэглэлийн нөхөөс (embroidered patch)
+        journal.patch(draw, (628, 122, 792, 156))
+        rank_txt = f"#{data['rank']} • {data.get('title', '')[:14]}"
+        try:
+            rtw = draw.textlength(rank_txt, font=font_small)
+        except AttributeError:
+            rtw = draw.textsize(rank_txt, font=font_small)[0]
+        draw.text(((628 + 792 - rtw) / 2, 131), rank_txt, font=font_small, fill=journal.INK)
 
-        bar_x = tx
-        bar_y = ava_y + 60
-        bar_w = W - bar_x - 80
-        bar_h = 14
+        # Туршлагын усан будгийн зам
         progress = data['xp'] / data['next_xp'] if data['next_xp'] else 0
-        progress = max(0.0, min(1.0, progress))
-        fill_w = int(bar_w * progress)
+        journal.watercolor_bar(draw, (48, 216, 640, 240), progress,
+                               journal.LEAF, journal.RIVER, seed=seed)
+        xp_txt = f"{data['xp']:,} / {data['next_xp']:,} XP"
+        draw.text((650, 218), xp_txt, font=font_small, fill=journal.INK_SOFT)
 
-        draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], radius=bar_h//2, fill=BAR_BG)
-        if fill_w > 0:
-            draw.rounded_rectangle([bar_x, bar_y, bar_x + fill_w, bar_y + bar_h], radius=bar_h//2, fill=BAR_FILL)
-
-        font_xp = _load_font(13, bold=False)
-        draw.text((bar_x + bar_w + 8, bar_y), f"{data['xp']:,} / {data['next_xp']:,}", font=font_xp, fill=TEXT_SECONDARY)
-
-        info_y = bar_y + bar_h + 10
-        col1_x = PAD + 10
-        col2_x = W // 2 + 10
-
-        await self._draw_text_with_emoji(img, draw, col1_x, info_y, f"💰 Гар: {data['cash']:,}₮", font=font_small, fill=TEXT_PRIMARY)
-        await self._draw_text_with_emoji(img, draw, col1_x, info_y + 20, f"🏦 Банк: {data['bank']:,}₮", font=font_small, fill=TEXT_PRIMARY)
-        await self._draw_text_with_emoji(img, draw, col1_x, info_y + 40, f"💼 {data['job_emoji']} {data['job_name'][:18]}", font=font_small, fill=TEXT_SECONDARY)
-
-        await self._draw_text_with_emoji(img, draw, col2_x, info_y, f"🍖 Өлсгөлөн: {data['hunger']}/100", font=font_small, fill=TEXT_PRIMARY)
-        await self._draw_text_with_emoji(img, draw, col2_x, info_y + 20, f"🔋 Уур: {data['mood']}/100", font=font_small, fill=TEXT_PRIMARY)
-        await self._draw_text_with_emoji(img, draw, col2_x, info_y + 40, f"🍺 Согтолт: {data['drunk']}/100", font=font_small, fill=TEXT_SECONDARY)
+        # Тусгаарлах зураас + хоёр баганатай үзүүлэлт
+        journal.sketch_divider(draw, 48, 772, 256, seed=seed)
+        col1_x, col2_x = 60, 430
+        info_y = 266
+        await self._draw_text_with_emoji(img, draw, col1_x, info_y, f"💰 Гар: {data['cash']:,}₮", font=font_small, fill=journal.INK)
+        await self._draw_text_with_emoji(img, draw, col1_x, info_y + 22, f"🏦 Банк: {data['bank']:,}₮", font=font_small, fill=journal.INK)
+        await self._draw_text_with_emoji(img, draw, col1_x, info_y + 44, f"💼 {data['job_emoji']} {data['job_name'][:16]}", font=font_small, fill=journal.INK_SOFT)
+        await self._draw_text_with_emoji(img, draw, col2_x, info_y, f"🍖 Өлсгөлөн: {data['hunger']}/100", font=font_small, fill=journal.INK)
+        await self._draw_text_with_emoji(img, draw, col2_x, info_y + 22, f"🔋 Уур: {data['mood']}/100", font=font_small, fill=journal.INK)
+        await self._draw_text_with_emoji(img, draw, col2_x, info_y + 44, f"🍺 Согтолт: {data['drunk']}/100", font=font_small, fill=journal.INK_SOFT)
 
         buf = io.BytesIO()
         img.save(buf, format="PNG", optimize=True)
         buf.seek(0)
         return buf
 
-    # ═══════════════ ИНВЕНТАР КАРТ ═══════════════
+    # ═══════════════ CROSS-HATCHED SATCHEL ИНВЕНТАР ═══════════════
     async def _render_inventory_card(self, member, avatar_img, page_items, used_slots, total_slots, buffs, page, total_pages):
-        W, H = 780, 380
-        RADIUS = 12
-        PAD = 18
-        AVA = 45
+        W, H = 800, 440
+        seed = abs(hash(getattr(member, "id", 7))) % 997
 
-        img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        img = journal.parchment((W, H), seed=seed)
         draw = ImageDraw.Draw(img)
+        journal.ink_border(draw, (W, H), seed=seed)
 
-        draw.rounded_rectangle([0, 0, W-1, H-1], radius=RADIUS, fill=BG_COLOR)
-        self._apply_overlay(img, "overlay1.png")
-        self._apply_overlay(img, "curveborder.png")
+        font_title = _load_font(24, True)
+        font_sub = _load_font(15, False)
+        font_small = _load_font(13, False)
 
-        font_title = _load_font(26, True)
-        font_sub = _load_font(16, False)
-        font_small = _load_font(14, False)
+        # Толгой: хөрөг + тууз + багтаамжийн зам
+        journal.sketch_frame(img, (40, 28, 85, 73), avatar_img, seed=seed)
+        draw = ImageDraw.Draw(img)
+        journal.banner(draw, (104, 24, 480, 60), f"{member.display_name[:18]}'s Satchel", font_title, seed=seed)
+        cap_txt = f"Багтаамж: {used_slots}/{total_slots}"
+        await self._draw_text_with_emoji(img, draw, 500, 30, cap_txt, font=font_sub, fill=journal.INK_SOFT)
+        journal.watercolor_bar(draw, (500, 52, 740, 66), used_slots / total_slots if total_slots else 0,
+                               journal.GOLD, journal.WAX_RED, seed=seed)
 
-        ava_x, ava_y = PAD, 12
-        img.paste(avatar_img, (ava_x, ava_y), avatar_img)
-
-        name = member.display_name[:20]
-        draw.text((ava_x + AVA + 10, ava_y + 3), f"{name}'s Inventory", font=font_title, fill=TEXT_PRIMARY)
-        await self._draw_text_with_emoji(img, draw, ava_x + AVA + 10, ava_y + 30, f"Багтаамж: {used_slots}/{total_slots}", font=font_sub, fill=TEXT_SECONDARY)
-
-        bar_x = ava_x + AVA + 10
-        bar_y = ava_y + 52
-        bar_w, bar_h = 280, 10
-        progress = used_slots / total_slots if total_slots else 0
-        fill_w = int(bar_w * progress)
-        draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], radius=bar_h//2, fill=BAR_BG)
-        if fill_w > 0:
-            draw.rounded_rectangle([bar_x, bar_y, bar_x + fill_w, bar_y + bar_h], radius=bar_h//2, fill=BAR_FILL)
-
-        line_y = bar_y + bar_h + 12
-        draw.line([(PAD, line_y), (W - PAD, line_y)], fill=BAR_BG, width=2)
-
-        y = line_y + 12
-        for item in page_items:
-            emoji_str = item.get("emoji", "📦")
-            item_name = item["name"][:30]
+        # 3x2 нүд: зүйл бүр — crosshatch дэвсгэр, дүрс, нэр, тооны зураас, rarity шошго
+        cols, rows = 3, 2
+        gx, gy, gw, gh, gap = 40, 96, 232, 128, 12
+        for idx in range(cols * rows):
+            sx = gx + (idx % cols) * (gw + gap)
+            sy = gy + (idx // cols) * (gh + gap)
+            journal.patch(draw, (sx, sy, sx + gw, sy + gh))
+            journal.crosshatch(draw, (sx + 8, sy + 8, sx + gw - 8, sy + gh - 8),
+                               spacing=9, fill=(60, 46, 30, 46))
+            if idx >= len(page_items):
+                draw.text((sx + 70, sy + 52), "— хоосон —", font=font_small, fill=journal.INK_FAINT)
+                continue
+            item = page_items[idx]
+            emoji_img = await self._fetch_emoji_image(item.get("emoji", "📦"), size=44)
+            if emoji_img:
+                img.paste(emoji_img, (sx + 14, sy + 14), emoji_img)
+            draw.text((sx + 66, sy + 10), item["name"][:17], font=font_sub, fill=journal.INK)
             qty = item["quantity"]
-            item_id = item.get("id", "?")
-            await self._draw_text_with_emoji(img, draw, PAD + 8, y, f"{emoji_str} {item_name}  x{qty}  🆔{item_id}", font=font_small, fill=TEXT_PRIMARY)
-            y += 24
+            used = journal.tally(draw, sx + 66, sy + 34, qty)
+            if not used:  # Том овоолгыг товч тэмдэглэгээгээр
+                draw.text((sx + 66, sy + 34), f"x{qty}", font=font_sub, fill=journal.INK)
+            rarity = str(item.get("rarity", "common")).lower()
+            journal.twine_tag(draw, sx + 64, sy + 66, rarity, font_small,
+                              journal.RARITY_COLORS.get(rarity, journal.RARITY_COLORS["common"]))
+            draw.text((sx + gw - 52, sy + gh - 22), f"ID:{item.get('id', '?')}",
+                      font=font_small, fill=journal.INK_FAINT)
 
         if not page_items:
-            draw.text((PAD + 8, y), "Цүнх хоосон байна.", font=font_small, fill=TEXT_SECONDARY)
+            draw.text((gx + 8, gy + 8), "Цүнх хоосон байна.", font=font_small, fill=journal.INK_SOFT)
 
-        buff_y = H - 50
-        draw.line([(PAD, buff_y - 8), (W - PAD, buff_y - 8)], fill=BAR_BG, width=1)
-        await self._draw_text_with_emoji(img, draw, PAD, buff_y, "✨ BUFFS", font=font_sub, fill=GOLD)
+        # Доод талд: шохойн самбар дээрх идэвхтэй эффектүүд + хуудас
+        journal.chalk_panel(draw, (40, H - 56, 660, H - 24), seed=seed)
         if buffs:
-            buff_text = "  |  ".join(b['name'] for b in buffs[:3])
-            await self._draw_text_with_emoji(img, draw, PAD, buff_y + 22, buff_text, font=font_small, fill=TEXT_PRIMARY)
+            buff_text = "  |  ".join(b['name'] for b in buffs[:2])[:52]
         else:
-            draw.text((PAD, buff_y + 22), "Идэвхтэй эффект байхгүй", font=font_small, fill=TEXT_SECONDARY)
-
-        draw.text((W - PAD - 70, H - 22), f"{page + 1}/{total_pages}", font=font_small, fill=TEXT_SECONDARY)
+            buff_text = "Идэвхтэй эффект байхгүй"
+        await self._draw_text_with_emoji(img, draw, 52, H - 50, f"✨ {buff_text}",
+                                         font=font_small, fill=journal.CHALK)
+        draw.text((684, H - 48), f"{page + 1}/{total_pages}", font=font_small, fill=journal.INK_SOFT)
 
         buf = io.BytesIO()
         img.save(buf, format="PNG", optimize=True)
@@ -587,7 +572,7 @@ class Cards(commands.Cog):
         avatar_img = await self._download_avatar(url, 45)
 
         buf = await self._render_inventory_card(member, avatar_img, page_items, used_slots, max_slots, buffs, page, total_pages)
-        embed = discord.Embed(color=0x7289da)
+        embed = discord.Embed(color=JOURNAL_EMBED_COLOR)
         embed.set_image(url="attachment://inventory.png")
         embed.set_footer(text=f"{member.guild.name} • {member.display_name}")
         return embed, discord.File(buf, filename="inventory.png")
@@ -617,7 +602,7 @@ class Cards(commands.Cog):
         background = await self._load_background(ctx.guild.id, bg_url)
 
         buf = await self._render_profile_card(target, data, background)
-        embed = discord.Embed(color=0x7289da)
+        embed = discord.Embed(color=JOURNAL_EMBED_COLOR)
         embed.set_image(url="attachment://profilecard.png")
         embed.set_footer(text=f"{ctx.guild.name} • {target.display_name}")
         await ctx.send(embed=embed, file=discord.File(buf, filename="profilecard.png"))

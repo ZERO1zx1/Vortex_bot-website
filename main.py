@@ -108,6 +108,13 @@ class MyBot(commands.Bot):
         self.loaded_cogs = []
         self.failed_cogs = []
 
+        # Wire slash-command errors to our handler.
+        # NOTE: discord.py's CommandTree.on_error only logs by default and
+        # does NOT dispatch Bot.on_app_command_error automatically, so without
+        # this assignment MissingPermissions/CheckFailure etc. end up as
+        # "Ignoring exception in command ..." ERROR spam with no user feedback.
+        self.tree.on_error = self.on_app_command_error
+
     async def setup_hook(self):
         # Connect to Supabase
         try:
@@ -214,23 +221,65 @@ class MyBot(commands.Bot):
 
         logger.exception("Command error [%s] %s: %s", ctx.command, ctx.author, error)
 
+    async def _safe_app_error_reply(self, interaction, content):
+        """Ephemeral хариу илгээх — response/followup ялгааг автоматаар зохицуулна."""
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(content, ephemeral=True)
+            else:
+                await interaction.response.send_message(content, ephemeral=True)
+        except discord.NotFound as e:
+            # 10062 Unknown interaction — хэрэглэгч аль хэдийн interaction цонхоо хаасан
+            logger.warning("Interaction expired, could not send error reply: %s", e)
+        except discord.HTTPException as e:
+            logger.warning("Failed to send slash error reply: %s", e)
+
     async def on_app_command_error(self, interaction, error):
         """Slash command алдааг ./logs/cogs.log руу бүртгэнэ."""
         from discord import app_commands as _app
 
         cmd = interaction.command.qualified_name if interaction.command else "unknown"
 
-        if isinstance(error, _app.CommandOnCooldown):
-            await interaction.response.send_message(
-                f"⏳ Хэтрүүлэн ашигласан тул {error.retry_after:.1f}с хүлээнэ үү.", ephemeral=True
+        # CommandInvokeError доторх жинхэнэ алдааг задлах (invoke үеийн Forbidden гэх мэт)
+        original = getattr(error, "original", None)
+        err = original if isinstance(error, _app.CommandInvokeError) and original is not None else error
+
+        if isinstance(err, _app.CommandOnCooldown):
+            await self._safe_app_error_reply(
+                interaction, f"⏳ Хэтрүүлэн ашигласан тул {err.retry_after:.1f}с хүлээнэ үү."
+            )
+            logger.info("Slash cooldown [%s] %s", cmd, interaction.user)
+            return
+        if isinstance(err, _app.MissingPermissions):
+            perms = ", ".join(err.missing_permissions)
+            await self._safe_app_error_reply(
+                interaction, f"⛔ Танд энэ командын эрх байхгүй: {perms}"
+            )
+            logger.info("Slash MissingPermissions [%s] %s: %s", cmd, interaction.user, perms)
+            return
+        if isinstance(err, _app.BotMissingPermissions):
+            perms = ", ".join(err.missing_permissions)
+            await self._safe_app_error_reply(
+                interaction, f"⛔ Надад энэ командын эрх байхгүй: {perms}"
+            )
+            logger.warning("Slash BotMissingPermissions [%s] %s: %s", cmd, interaction.user, perms)
+            return
+        if isinstance(err, _app.NoPrivateMessage):
+            await self._safe_app_error_reply(
+                interaction, "❌ Энэ командыг зөвхөн серверт ашиглаж болно."
             )
             return
-        if isinstance(error, _app.MissingPermissions):
-            perms = ", ".join(error.missing_permissions)
-            await interaction.response.send_message(f"⛔ Танд энэ командын эрх байхгүй: {perms}", ephemeral=True)
+        if isinstance(err, _app.CheckFailure):
+            await self._safe_app_error_reply(
+                interaction, "⛔ Та энэ командыг ашиглах эрхгүй байна."
+            )
+            logger.info("Slash CheckFailure [%s] %s: %s", cmd, interaction.user, err)
             return
-        if isinstance(error, _app.CheckFailure):
-            await interaction.response.send_message("⛔ Та энэ командыг ашиглах эрхгүй байна.", ephemeral=True)
+        if isinstance(err, discord.Forbidden):
+            await self._safe_app_error_reply(
+                interaction, "⛔ Ботод энэ үйлдлийг гүйцэтгэх Discord эрх хүрэхгүй байна."
+            )
+            logger.warning("Slash Forbidden [%s] %s: %s", cmd, interaction.user, err)
             return
         if isinstance(error, (_app.TransformerError, _app.CommandInvokeError)):
             inner = getattr(error, "original", None)

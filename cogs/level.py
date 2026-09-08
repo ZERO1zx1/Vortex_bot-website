@@ -19,6 +19,7 @@ from PIL.Image import Resampling
 
 from utils.fonts import load_font as _load_font, draw_text_with_fallback
 from utils.branding import BOT_NAME
+from utils import journal_style as journal
 
 # ── Logger ──
 log = logging.getLogger(__name__)
@@ -68,6 +69,18 @@ def _safe_bool(value, default=False):
     if isinstance(value, int): return bool(value)
     if isinstance(value, str): return value.lower() in ('1','true','yes','on')
     return default
+
+def _parse_xp_tiers(raw):
+    """Accept jsonb list/dict or JSON string; fall back to defaults."""
+    if isinstance(raw, list) and raw:
+        return raw
+    if isinstance(raw, str) and raw.lstrip().startswith('['):
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, list) and parsed else DEFAULT_XP_TIERS
+        except (ValueError, TypeError) as e:
+            log.debug("xp_tiers JSON parse failed, using defaults: %s", e)
+    return DEFAULT_XP_TIERS
 
 # ── XP progression math ──
 def xp_for_level(level: int, cfg: Dict[str, Any]) -> int:
@@ -187,7 +200,7 @@ async def get_config(db_manager, guild_id: int) -> Dict[str, Any]:
             "prog_type": data.get("prog_type") or "arithmetic",
             "prog_base": _safe_int(data.get("prog_base"), 100),
             "prog_step": _safe_float(data.get("prog_step"), 150.0),
-            "xp_tiers": json.loads(data["xp_tiers"]) if data.get("xp_tiers") and data["xp_tiers"].startswith('[') else DEFAULT_XP_TIERS,
+            "xp_tiers": _parse_xp_tiers(data.get("xp_tiers")),
             "xp_media": _safe_int(data.get("xp_media"), 15),
             "xp_reaction": _safe_int(data.get("xp_reaction"), 1),
             "xp_voice_silent": _safe_int(data.get("xp_voice_silent"), 5),
@@ -236,27 +249,21 @@ async def set_config(db_manager, guild_id: int, cfg: Dict[str, Any]):
     await db_manager.execute("leveling_config", data)
     _CFG_CACHE.pop(int(guild_id), None)
 
-# ── Rank card renderer (DiscordLevelingCard) ──
-async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, background_url=None):
+# ── Rank card renderer: "Inked Path" journal page ──
+async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, background_url=None, stamp_text=None):
     try:
-        width, height = 900, 360
-        base = Image.new("RGBA", (width, height), (20, 25, 35, 255))
+        width, height = 900, 380
+        seed = abs(hash(getattr(member, "id", 7))) % 997
+        base = journal.parchment((width, height), seed=seed)
 
-        background = await _load_background_image(background_url)
-        if background:
+        if background_url:
             try:
-                background = background.resize((width, height), resample=Resampling.LANCZOS)
-                base.alpha_composite(background)
-            except:
-                pass
-
-        for overlay_name in ["overlay1.png", "curveborder.png"]:
-            overlay = await _load_overlay(overlay_name, width, height)
-            if overlay:
-                try:
-                    base.alpha_composite(overlay)
-                except:
-                    pass
+                background = await _load_background_image(background_url)
+                if background:
+                    background = background.resize((width, height), resample=Resampling.LANCZOS)
+                    base = Image.blend(background.convert("RGBA"), base, 0.6)
+            except Exception as e:
+                log.debug("rank card background skipped: %s", e)
 
         draw = ImageDraw.Draw(base)
 
@@ -265,7 +272,8 @@ async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, backgr
             avatar_url = getattr(member.display_avatar, "url", None)
             if avatar_url and hasattr(member.display_avatar, "replace"):
                 avatar_url = member.display_avatar.replace(size=256, format="png").url
-        except:
+        except AttributeError as e:
+            log.debug("rank card avatar URL failed: %s", e)
             avatar_url = None
 
         avatar = None
@@ -275,37 +283,40 @@ async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, backgr
             avatar = Image.new("RGBA", (160, 160), (88, 101, 242, 255))
 
         avatar = avatar.convert("RGBA").resize((160, 160), resample=Resampling.LANCZOS)
-        mask = Image.new("L", (160, 160), 0)
-        ImageDraw.Draw(mask).ellipse((0, 0, 159, 159), fill=255)
-        avatar.putalpha(mask)
-        base.alpha_composite(avatar, dest=(50, 100))
+        journal.sketch_frame(base, (64, 120, 224, 280), avatar, seed=seed)
+        journal.ink_border(draw, (width, height), seed=seed)
 
-        font_main = _load_asset_font(46, bold=True)
-        font_sub = _load_asset_font(28, bold=False)
-        font_small = _load_asset_font(18, bold=False)
+        font_main = _load_asset_font(44, bold=True)
+        font_sub = _load_asset_font(26, bold=False)
+        font_small = _load_asset_font(17, bold=False)
+        font_seal = _load_asset_font(24, bold=True)
 
-        title = member.display_name[:24]
-        draw_text_with_fallback(draw, (240, 80), title, font_main, fill=(255, 255, 255, 255), size=46, bold=True)
-        draw.text((240, 150), f"Түвшин {level}", font=font_sub, fill=(234, 179, 8, 255))
-        draw.text((240, 190), f"Байр #{rank_pos}", font=font_sub, fill=(200, 200, 200, 255))
+        journal.banner(draw, (268, 36, 650, 84), member.display_name[:24], font_main, seed=seed)
+        journal.wax_seal(draw, (772, 92), 58, f"LVL {level}", font_seal, seed=seed)
 
-        bar_x, bar_y, bar_w, bar_h = 240, 250, 580, 32
-        draw.rounded_rectangle((bar_x, bar_y, bar_x + bar_w, bar_y + bar_h), radius=14, fill=(60, 67, 82, 255))
-        fill_w = int(bar_w * min(1.0, current_xp / max(1, needed_xp)))
-        if fill_w > 0:
-            draw.rounded_rectangle((bar_x, bar_y, bar_x + fill_w, bar_y + bar_h), radius=14, fill=(114, 137, 218, 255))
+        journal.patch(draw, (636, 168, 856, 204))
+        rank_txt = f"Rank #{rank_pos}"
+        try:
+            rtw = draw.textlength(rank_txt, font=font_sub)
+        except AttributeError:
+            rtw = draw.textsize(rank_txt, font=font_sub)[0]
+        draw.text(((636 + 856 - rtw) / 2, 172), rank_txt, font=font_sub, fill=journal.INK)
 
+        progress = current_xp / max(1, needed_xp)
+        journal.watercolor_bar(draw, (268, 232, 800, 264), progress,
+                               journal.LEAF, journal.RIVER, seed=seed)
         xp_text = f"{current_xp:,}/{needed_xp:,} XP"
         try:
-            bbox = draw.textbbox((0, 0), xp_text, font=font_small)
-            tx_w = bbox[2] - bbox[0]
-            tx_h = bbox[3] - bbox[1]
+            tx_w = draw.textlength(xp_text, font=font_small)
         except AttributeError:
-            tx_w, tx_h = draw.textsize(xp_text, font=font_small)
-        draw.text((bar_x + (bar_w - tx_w) // 2, bar_y + (bar_h - tx_h) // 2), xp_text, font=font_small, fill=(255, 255, 255, 255))
+            tx_w = draw.textsize(xp_text, font=font_small)[0]
+        draw.text((268 + (532 - tx_w) / 2, 238), xp_text, font=font_small, fill=journal.CHALK)
 
-        footer_text = f"{member.name} • {BOT_NAME}-ээр бүтээгдсэн"
-        draw_text_with_fallback(draw, (240, 310), footer_text, font_small, fill=(170, 170, 170, 255), size=18, bold=False)
+        footer_text = f"{member.name} • {BOT_NAME}-ийн аялагчийн тэмдэглэл"
+        draw_text_with_fallback(draw, (268, 300), footer_text, font_small, fill=journal.INK_SOFT, size=17, bold=False)
+
+        if stamp_text:
+            journal.stamp_burst(base, draw, (140, 62), 50, stamp_text, font_sub, seed=seed)
 
         buffer = io.BytesIO()
         base.save(buffer, "PNG")
@@ -443,21 +454,25 @@ class Leveling(SupabaseCog):
                         try: await ch.send(embed=embed)
                         except: pass
         except: pass
-        # Level role
+        # Level role (Supabase may return IDs as str — coerce to int)
         try:
             role_row = await self.bot.db_manager.fetch_one(
                 "level_roles", {"guild_id": str(guild.id), "level": new}
             )
             if role_row:
-                role = guild.get_role(role_row.get("role_id"))
+                try:
+                    role = guild.get_role(int(role_row.get("role_id")))
+                except (TypeError, ValueError):
+                    role = None
                 if role and role not in member.roles: await member.add_roles(role, reason=f"Level {new}")
-        except: pass
+        except Exception as e:
+            log.debug("level role grant skipped: %s", e)
         channel = guild.get_channel(cfg.get("announce_channel")) if cfg.get("announce_channel") else source_channel
         if not channel: return
         needed = xp_for_level(new, cfg)
         rank_pos = await self.get_rank_position(member.id, guild.id)
         try:
-            buf = await render_dlc_card(member, new, current_xp, needed, rank_pos, cfg.get("background_url"))
+            buf = await render_dlc_card(member, new, current_xp, needed, rank_pos, cfg.get("background_url"), stamp_text="LEVEL UP!")
             if buf:
                 file = discord.File(buf, filename="levelup.png")
                 try: await channel.send(content=member.mention, file=file)
