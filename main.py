@@ -13,6 +13,7 @@ from config_manager import load_config
 from database.supabase_manager import SupabaseManager as DatabaseManager
 from utils.branding import BOT_NAME, BOT_FOOTER
 from utils.constants import DEFAULT_PREFIX
+from utils.cog_loader import discover_cogs
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -128,15 +129,7 @@ class MyBot(commands.Bot):
 
         # Load Cogs
         logger.info("📂 Loading Cogs...")
-        cogs_to_load = [
-            "admin", "avatar_check", "cafe", "carts", "confessions",
-            "counting", "economy", "fun", "games", "giveaway",
-            "help", "invite_tracker",             "level", "level_admin", "mafia", "mines",
-            "lang", "moderation", "pvp", "roles", "shop", "stock",
-            "stick", "marriage", "announcement", "tempvoice", "trade",
-            "quests", "leaderboard", "casino", "greetings", "presence",
-            "reaction_roles", "automod", "menu"
-        ]
+        cogs_to_load = discover_cogs(Path(__file__).parent / "cogs")
 
         for cog in cogs_to_load:
             start = time.perf_counter()

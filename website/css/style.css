@@ -600,13 +600,13 @@ section {
   align-items: center;
   gap: 0.5rem;
   padding: 0.65rem 1.1rem;
-  background: rgba(30, 30, 47, 0.85);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(24, 31, 54, 0.86), rgba(12, 16, 31, 0.72));
+  border: 1px solid rgba(137, 180, 250, 0.22);
+  border-radius: 16px;
   font-size: 0.85rem;
   font-weight: 600;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 45px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
   transform-style: preserve-3d;
   /* Mouse parallax offset (independent from keyframe transform) */
   translate: calc(var(--mx, 0) * var(--fx, 0px)) calc(var(--my, 0) * var(--fy, 0px));

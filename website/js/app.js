@@ -378,7 +378,7 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
 /* ---------------- Invite button: real Discord invite link ---------------- */
 (() => {
   // Set your actual invite URL in js/config.js or here.
-  const INVITE_URL = window.AETHER_CONFIG?.INVITE_URL || 'https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=8&scope=bot%20applications.commands';
+  const INVITE_URL = window.AETHER_CONFIG?.INVITE_URL || 'https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=0&scope=bot%20applications.commands';
   const setInvite = (a) => {
     if (!a) return;
     a.href = INVITE_URL;
@@ -396,12 +396,8 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
 /* ---------------- Bot heartbeat: жинхэнэ Online / Offline ---------------- */
 (() => {
   const cfg = window.AETHER_CONFIG || {};
-  const HEARTBEAT_URL = cfg.HEARTBEAT_URL || '';
-  const APIKEY = cfg.HEARTBEAT_APIKEY || '';
-  const TIMEOUT_MS = cfg.HEARTBEAT_TIMEOUT_MS || 6000;
   const POLL_MS = cfg.HEARTBEAT_POLL_MS || 60000;
-  // FastAPI backend (Railway). Тохируулсан бол /api/status-аас уншина,
-  // амжилтгүй бол шууд Supabase heartbeat руу fallback хийнэ.
+  // FastAPI backend (Railway). Database credentials browser-т очихгүй.
   const API_BASE_URL = (cfg.API_BASE_URL || '').replace(/\/+$/, '');
 
   const dot = document.getElementById('status-dot');
@@ -443,15 +439,12 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     }
   };
 
-  if (!HEARTBEAT_URL) {
-    // URL тохируулаагүй бол Manual mode — үргэлж Online харуулна.
-    setOnline();
-    return;
-  }
-
   // Backend API-гаас төлөв авах оролдлого. Амжилттай бол true буцаана.
   const checkViaBackend = async () => {
-    if (!API_BASE_URL) return false;
+    if (!API_BASE_URL) {
+      setOffline(null);
+      return false;
+    }
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 8000);
     try {
@@ -470,32 +463,14 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
       if (data.online) setOnline(row); else setOffline(row);
       return true;
     } catch {
-      return false; // backend унтарсан/хүлээгдэхгүй → Supabase fallback
+      return false;
     } finally {
       clearTimeout(t);
     }
   };
 
   const check = async () => {
-    if (await checkViaBackend()) return;
-    try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-      const res = await fetch(HEARTBEAT_URL, {
-        signal: ctrl.signal,
-        cache: 'no-store',
-        headers: APIKEY ? { apikey: APIKEY, Authorization: `Bearer ${APIKEY}` } : undefined,
-      });
-      clearTimeout(t);
-      if (!res.ok) { setOffline(null); return; }
-      const rows = await res.json();
-      const row = Array.isArray(rows) ? rows[0] : null;
-      if (!row?.last_ping) { setOffline(row); return; }
-      const age = Date.now() - new Date(row.last_ping).getTime();
-      if (age <= TIMEOUT_MS) setOnline(row); else setOffline(row);
-    } catch {
-      setOffline(null);
-    }
+    if (!(await checkViaBackend())) setOffline(null);
   };
   check();
   setInterval(check, POLL_MS);
@@ -568,27 +543,50 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     camera.position.z = 3.2;
 
     // Brand палитр: blue #89B4FA · cyan #94E2D5 · gold #FAB387
-    const geometry = new THREE.SphereGeometry(1.15, seg(), seg());
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x2b3f6e,
-      emissive: 0x89b4fa,        // brand blue glow
-      emissiveIntensity: 0.55,
-      roughness: 0.25,
-      metalness: 0.75,
+    const geometry = new THREE.SphereGeometry(1.08, seg(), seg());
+    const material = new THREE.MeshPhysicalMaterial({
+      color: 0x16264d,
+      emissive: 0x315a9c,
+      emissiveIntensity: 0.28,
+      roughness: 0.18,
+      metalness: 0.48,
+      clearcoat: 1,
+      clearcoatRoughness: 0.12,
+      transparent: true,
+      opacity: 0.88,
     });
     const orb = new THREE.Mesh(geometry, material);
     scene.add(orb);
 
+    // Дотроосоо гэрэлтдэг жижиг energy core — өмнөх хавтгай бөмбөрцгийг
+    // илүү гүн, амьтай харагдуулна.
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.62, seg(), seg()),
+      new THREE.MeshBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.24 })
+    );
+    scene.add(core);
+
+    const atmosphere = new THREE.Mesh(
+      new THREE.SphereGeometry(1.18, wireSeg(), wireSeg()),
+      new THREE.MeshBasicMaterial({
+        color: 0x94e2d5,
+        transparent: true,
+        opacity: 0.07,
+        side: THREE.BackSide,
+      })
+    );
+    scene.add(atmosphere);
+
     // Гадна талын сууцит wireframe (holographic circuit мэдрэмж)
     const wire = new THREE.Mesh(
-      new THREE.SphereGeometry(1.22, wireSeg(), wireSeg()),
-      new THREE.MeshBasicMaterial({ color: 0x94e2d5, wireframe: true, transparent: true, opacity: 0.14 })
+      new THREE.SphereGeometry(1.13, wireSeg(), wireSeg()),
+      new THREE.MeshBasicMaterial({ color: 0x89b4fa, wireframe: true, transparent: true, opacity: 0.10 })
     );
     scene.add(wire);
 
     // Эргэлдэх holographic ring-үүд (CSS orb-ring-ийн 3D хувилбар)
     const rings = [];
-    [[1.55, 0x89b4fa, 0.5, 1.25, 0.35], [1.75, 0x94e2d5, 0.35, 1.1, -0.5], [1.95, 0xfab387, 0.25, 1.4, 0.9]].forEach(([r, color, op, tiltX, tiltY]) => {
+    [[1.43, 0x89b4fa, 0.42, 1.22, 0.25], [1.62, 0x94e2d5, 0.28, 1.05, -0.62], [1.78, 0xcba6f7, 0.20, 1.48, 0.82]].forEach(([r, color, op, tiltX, tiltY]) => {
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(r, 0.012, 8, ringSeg()),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op })
@@ -653,6 +651,9 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
       my += (m.y - my) * 0.06;
       orb.rotation.y = t * 0.4 + mx * 0.7;
       orb.rotation.x = my * 0.5;
+      core.scale.setScalar(1 + Math.sin(t * 2.2) * 0.07);
+      core.material.opacity = 0.22 + Math.sin(t * 2.2) * 0.05;
+      atmosphere.rotation.y = t * 0.12;
       wire.rotation.y = -t * 0.25;
       wire.rotation.x = t * 0.12;
       rings[0].rotation.z = t * 0.5;
@@ -1035,7 +1036,7 @@ const AETHER_I18N = {
     'cl.v24_t': 'v2.4 — Reaction roles &amp; Auto-moderation',
     'cl.v24_d': 'Emoji дарж үүрэг авах систем (`/rr setup`), анти-спам, антиссылка, анти-райд хамгаалалт (`/automod`), хэл солиход бүрэн хариу өгөх rotating presence.',
     'cl.v25_t': 'v2.5 — Вэбсайт бүрэн шинэчлэл',
-    'cl.v25_d': 'Командын каталог бодит боттой бүрэн нийцүүлэгдсэн — 153 команд, 35 cog, 63 хүснэгт. Ангилал 7 хэсэгт тэнцүү хуваагдсан, тоо баримт болон framework хувилбарууд (Python 3.13, discord.py 2.6) шинэчлэгдлээ.',
+    'cl.v25_d': 'Командын каталог бодит боттой бүрэн нийцүүлэгдсэн — 153 команд, 35 cog, 61 хүснэгт. Ангилал 7 хэсэгт тэнцүү хуваагдсан, тоо баримт болон framework хувилбарууд (Python 3.13, discord.py 2.6) шинэчлэгдлээ.',
     'cl.v23_t': 'Бүтэн dark/light горим',
     'cl.v23_d': 'Вэбсайт бүрэн dark/light горимтой болж, шинэ лого болон favicon, OG banner нэмэгдлээ. i18n 217 түлхүүр (MN = EN).',
     'cl.v22_t': 'Mobile бүрэн засвар',
@@ -1275,7 +1276,7 @@ const AETHER_I18N = {
     'cl.v24_t': 'v2.4 — Reaction roles &amp; Auto-moderation',
     'cl.v24_d': 'Emoji-reaction role system (`/rr setup`), anti-spam, anti-link, anti-raid protection (`/automod`), rotating presence with language-aware member count.',
     'cl.v25_t': 'v2.5 — Website renewal',
-    'cl.v25_d': 'Command catalog fully synced with the real bot — 153 commands, 35 cogs, 63 tables. Categories balanced across 7 groups; stats and framework versions (Python 3.13, discord.py 2.6) updated.',
+    'cl.v25_d': 'Command catalog fully synced with the real bot — 153 commands, 35 cogs, 61 tables. Categories balanced across 7 groups; stats and framework versions (Python 3.13, discord.py 2.6) updated.',
     'cl.v23_t': 'Full dark/light theme',
     'cl.v23_d': 'Website now has complete dark/light modes, new logo and favicon set, OG banner. i18n 217 keys (MN = EN).',
     'cl.v22_t': 'Mobile fully polished',

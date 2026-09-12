@@ -617,24 +617,27 @@ BEGIN
     LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
         EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'allow_all_' || t, t);
-        EXECUTE format(
-            'CREATE POLICY %I ON %I FOR ALL USING (true) WITH CHECK (true)',
-            'allow_all_' || t, t
-        );
+        EXECUTE format('REVOKE ALL PRIVILEGES ON TABLE %I FROM anon, authenticated', t);
+        EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I TO service_role', t);
     END LOOP;
 END;
 $$;
 
 -- ── Grants for anon/authenticated (required for anon key access) ──
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+GRANT SELECT ON TABLE public.bot_status TO anon;
+DROP POLICY IF EXISTS anon_read_bot_status ON public.bot_status;
+CREATE POLICY anon_read_bot_status ON public.bot_status
+  FOR SELECT TO anon USING (id = 1);
+REVOKE ALL ON FUNCTION public.increment(TEXT, TEXT, TEXT, TEXT, BIGINT)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.increment(TEXT, TEXT, TEXT, TEXT, BIGINT)
+  TO service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  GRANT ALL ON TABLES TO anon, authenticated;
+  REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM anon, authenticated;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  GRANT ALL ON SEQUENCES TO anon, authenticated;
+  REVOKE USAGE, SELECT ON SEQUENCES FROM anon, authenticated;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  GRANT EXECUTE ON FUNCTIONS TO anon, authenticated;
+  REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
 
 -- Tell PostgREST to refresh its schema cache after applying grants
 NOTIFY pgrst, 'reload schema';

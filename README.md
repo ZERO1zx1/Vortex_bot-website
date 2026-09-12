@@ -69,7 +69,7 @@ cp .env.example .env
 Edit `.env` and fill in:
 
 - `DISCORD_TOKEN` — your bot token
-- `SUPABASE_URL` / `SUPABASE_KEY` — your Supabase project credentials
+- `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — server-only Supabase credentials
 - `OWNER_ID` / `CO_OWNERS` — your Discord user IDs
 
 ### 3. Set up the database
@@ -135,9 +135,9 @@ await self.bot.db_manager.increment("economy", {"user_id": "123"}, "balance", 10
 
 ## Website
 
-`website/` хавтас — ботын албан ёсны вэбсайт (3D animated UI, цэвэр статик HTML/CSS/JS, backend шаардлагагүй).
+`website/` хавтас — ботын албан ёсны статик UI. Командын каталог зэрэг хэсэг backend-гүй ажиллана; live status нь нууц database key-г browser-т гаргахгүйн тулд `backend/` API шаарддаг.
 
-- Hero (3D orb + particles), Онцлогууд, 94 командын хайлттай жагсаалт, Статистик, Статус, About Us, Premium (3 төлөвлөгөө), Invite CTA
+- Hero (3D orb + particles), Онцлогууд, 153 командын хайлттай жагсаалт, Статистик, Статус, About Us, Premium (3 төлөвлөгөө), Invite CTA
 - Hosting: Vercel / Netlify / GitHub Pages дээр `website/` хавтсыг publish directory болгох (нарийвчилсан заавар: `website/README.md`)
 - Тохиргоо: `website/js/config.js`-с invite холбоосоо тохируулна (`INVITE_URL`)
 ## Branding

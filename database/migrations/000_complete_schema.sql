@@ -586,7 +586,7 @@ CREATE TABLE IF NOT EXISTS reaction_roles (
 
 -- ── Bot heartbeat (website status page) ──────────────────
 -- supabase_manager.ping_bot() upserts id=1 with status/last_ping/uptime_since;
--- website/js/config.js reads it via HEARTBEAT_URL (anon key).
+-- The bot writes this row; the FastAPI backend exposes a sanitized status.
 CREATE TABLE IF NOT EXISTS bot_status (
     id INT PRIMARY KEY DEFAULT 1,
     status TEXT DEFAULT 'offline',
@@ -627,14 +627,8 @@ CREATE INDEX IF NOT EXISTS idx_game_stats_guild ON game_stats (guild_id, total_w
 CREATE INDEX IF NOT EXISTS idx_shop_stock_guild ON shop_stock (guild_id);
 
 -- ── Row-level security ─────────────────────────────────
--- The bot and the static status page operate with the anon (public)
--- key, so every public table enables RLS with an explicit "allow all"
--- policy (USING(true) / WITH CHECK(true)). This matches the existing
--- conventions on `user_equips` and `bot_status` and resolves the
--- database-linter findings (0013_rls_disabled_in_public,
--- 0007_policy_exists_rls_disabled). RLS is ON so the access contract
--- is declarative and can be tightened without breaking the bot.
--- This fragment is idempotent.
+-- Server processes use a service-role/secret key. Public roles are denied
+-- by default; only the sanitized bot heartbeat is intentionally readable.
 DO $$
 DECLARE
     t TEXT;
@@ -648,33 +642,31 @@ BEGIN
     LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
         EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'allow_all_' || t, t);
-        EXECUTE format(
-            'CREATE POLICY %I ON %I FOR ALL USING (true) WITH CHECK (true)',
-            'allow_all_' || t, t
-        );
+        EXECUTE format('REVOKE ALL PRIVILEGES ON TABLE %I FROM anon, authenticated', t);
+        EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I TO service_role', t);
     END LOOP;
 END;
 $$;
 
 -- ============================================================================
--- SECTION 4: Grant full access to anon and authenticated roles
+-- SECTION 4: Least-privilege Data API grants
 -- -----------------------------------------------------------------------------
--- REQUIRED: Supabase applies per-role grants at object creation. Dashboard SQL
--- Editor runs as 'postgres', whose default privileges do NOT include SELECT for
--- 'anon'. Without these grants the bot (anon key) receives HTTP 401 / SQLSTATE
--- 42501 (permission denied) on every table even with the allow-all RLS policies.
--- We also fix default privileges so any future table created by the dashboard
--- SQL Editor automatically grants anon/authenticated the same access.
+-- New tables/functions remain private until explicitly exposed.
 -- ============================================================================
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+GRANT SELECT ON TABLE public.bot_status TO anon;
+DROP POLICY IF EXISTS anon_read_bot_status ON public.bot_status;
+CREATE POLICY anon_read_bot_status ON public.bot_status
+  FOR SELECT TO anon USING (id = 1);
+REVOKE ALL ON FUNCTION public.increment(TEXT, TEXT, TEXT, TEXT, BIGINT)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.increment(TEXT, TEXT, TEXT, TEXT, BIGINT)
+  TO service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  GRANT ALL ON TABLES TO anon, authenticated;
+  REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM anon, authenticated;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  GRANT ALL ON SEQUENCES TO anon, authenticated;
+  REVOKE USAGE, SELECT ON SEQUENCES FROM anon, authenticated;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  GRANT EXECUTE ON FUNCTIONS TO anon, authenticated;
+  REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
 
 -- Tell PostgREST to refresh its schema cache after applying grants
 NOTIFY pgrst, 'reload schema';

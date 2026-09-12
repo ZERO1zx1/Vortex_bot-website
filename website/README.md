@@ -1,6 +1,6 @@
 # 𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Website
 
-Ботын албан ёсны вэбсайт. **Хүснэгт бүхий backend шаардлагагүй** — цэвэр статик (HTML/CSS/JS). Vercel, Netlify, GitHub Pages, Cloudflare Pages гэх мэт дурын статик hosting дээр шууд ажиллана.
+Ботын албан ёсны статик HTML/CSS/JS вэбсайт. UI болон командын каталог нь дурын статик hosting дээр ажиллана. Live status-д Supabase key-г browser-т гаргахгүйн тулд `backend/` FastAPI сервисийн `API_BASE_URL` шаардлагатай.
 
 ## Хэсгүүд
 
@@ -9,7 +9,7 @@
 | Hero | 3D orb + floating feature cards + canvas particle фон |
 | Онцлогууд | Ботын 8 үндсэн ангилал (Economy, Leveling, Гэр бүл, Shop & Stock, Casino, Mafia, Модерац, Fun) |
 | Командууд | 153 командыг (47 slash / 106 text) хайлт болон ангиллын фильтрээр |
-| Статистик | 35 cog · 153 команд · 63 database таблиц · 24/7 (count-up animation) |
+| Статистик | 35 cog · 153 команд · 61 database хүснэгт · 24/7 (count-up animation) |
 | Статус | Ботын технологийн стек (Python 3.13, discord.py 2.6, Supabase) |
 | About Us | Ботын тухай, технологи, чанарын тестийн мэдээлэл |
 | Premium | 3 төлөвлөгөөний үнэ (Free / Premium / Server) |
@@ -21,11 +21,13 @@
 
 ```js
 window.AETHER_CONFIG = {
-  INVITE_URL: 'https://discord.com/oauth2/authorize?client_id=ТӨРИЙН_CLIENT_ID&permissions=8&scope=bot%20applications.commands',
+  BOT_INVITE_URL: 'https://discord.com/oauth2/authorize?client_id=ТӨРИЙН_CLIENT_ID&permissions=0&scope=bot%20applications.commands',
 };
 ```
 
-Client ID-ээ [Discord Developer Portal](https://discord.com/developers/applications)-оос аваарай. `permissions=8` нь administrator эрх — бусад эрх хэрэгтэй бол OAuth2 permissions calculator-аар солино уу.
+Мөн backend-ээ deploy хийсний дараа `API_BASE_URL`-г тохируулна. Хоосон үед сайт database руу fallback хийхгүй бөгөөд status-ийг offline/unavailable гэж үзнэ.
+
+Client ID-ээ Discord Developer Portal-оос аваарай. Invite холбоос нь серверийн эрх автоматаар шаардахгүй. Серверийн эзэмшигч зөвхөн ашиглах feature-д хэрэгтэй эрхийг ботын role-д өгнө.
 
 ## Local-д турших
 

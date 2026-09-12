@@ -12,7 +12,7 @@ Endpoints:
     GET /api/commands     — командын каталог (?cat=&q=)
 
 Deploy (Railway): backend/Dockerfile эсвэл Root Directory=backend.
-Env: SUPABASE_URL, SUPABASE_KEY, ALLOWED_ORIGINS (optional), PORT.
+Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ALLOWED_ORIGINS (optional), PORT.
 """
 
 from __future__ import annotations
@@ -28,12 +28,10 @@ import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from db import cache_get, cache_set, fetch_rows, is_configured
+from db import cache_backend, cache_get, cache_set, fetch_rows, is_configured
+from observability import configure_logging, install_observability, metrics_snapshot
 
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO").upper(),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+configure_logging()
 log = logging.getLogger("aether.backend")
 
 # ------------------------------------------------------------------
@@ -73,6 +71,7 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+install_observability(app)
 
 
 # ------------------------------------------------------------------
@@ -98,7 +97,35 @@ async def health() -> Dict[str, Any]:
         "ok": True,
         "service": "aether-backend",
         "db_configured": is_configured(),
+        "cache": cache_backend(),
         "time": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/health/ready")
+async def readiness() -> Dict[str, Any]:
+    if not is_configured():
+        raise HTTPException(status_code=503, detail="database_not_configured")
+    return {"ok": True, "database": "configured", "cache": cache_backend()}
+
+
+@app.get("/metrics")
+async def metrics() -> Dict[str, Any]:
+    """Dependency-free operational counters for uptime monitoring."""
+    return metrics_snapshot()
+
+
+@app.get("/api/premium/plans")
+async def premium_plans() -> Dict[str, Any]:
+    """Stable product contract; checkout remains disabled until a provider is configured."""
+    return {
+        "ok": True,
+        "checkout_enabled": False,
+        "plans": [
+            {"id": "free", "name": "Free", "price_mnt": 0, "interval": "month"},
+            {"id": "premium", "name": "Premium", "price_mnt": 5000, "interval": "month"},
+            {"id": "server", "name": "Server Premium", "price_mnt": 15000, "interval": "month"},
+        ],
     }
 
 
@@ -112,7 +139,7 @@ async def bot_status() -> Dict[str, Any]:
     if not is_configured():
         raise HTTPException(status_code=503, detail="database_not_configured")
 
-    cached = cache_get("status", STATUS_CACHE_TTL)
+    cached = await cache_get("status", STATUS_CACHE_TTL)
     if cached is not None:
         return cached
 
@@ -138,7 +165,7 @@ async def bot_status() -> Dict[str, Any]:
         "last_ping_age_secs": round(age_secs) if age_secs is not None else None,
         "uptime_secs": round(uptime_secs),
     }
-    cache_set("status", result, STATUS_CACHE_TTL)
+    await cache_set("status", result, STATUS_CACHE_TTL)
     return result
 
 
@@ -153,7 +180,7 @@ async def leaderboard(
         raise HTTPException(status_code=503, detail="database_not_configured")
 
     cache_key = f"lb:{guild_id}:{limit}"
-    cached = cache_get(cache_key, LIST_CACHE_TTL)
+    cached = await cache_get(cache_key, LIST_CACHE_TTL)
     if cached is not None:
         return cached
 
@@ -175,7 +202,7 @@ async def leaderboard(
             {"rank": i + 1, **r} for i, r in enumerate(rows)
         ],
     }
-    cache_set(cache_key, result, LIST_CACHE_TTL)
+    await cache_set(cache_key, result, LIST_CACHE_TTL)
     return result
 
 
@@ -189,7 +216,7 @@ async def giveaways(
         raise HTTPException(status_code=503, detail="database_not_configured")
 
     cache_key = f"gw:{guild_id}:{active}"
-    cached = cache_get(cache_key, LIST_CACHE_TTL)
+    cached = await cache_get(cache_key, LIST_CACHE_TTL)
     if cached is not None:
         return cached
 
@@ -214,7 +241,7 @@ async def giveaways(
         r["is_live"] = (not r.get("ended")) and (r.get("end_time") or 0) > now_ts
 
     result = {"ok": True, "giveaways": rows}
-    cache_set(cache_key, result, LIST_CACHE_TTL)
+    await cache_set(cache_key, result, LIST_CACHE_TTL)
     return result
 
 
@@ -227,14 +254,14 @@ async def commands(
     if not COMMANDS_PATH.exists():
         raise HTTPException(status_code=404, detail="commands.json байхгүй.")
 
-    cached = cache_get("commands_all", 3600)
+    cached = await cache_get("commands_all", 3600)
     if cached is None:
         try:
             cached = json.loads(COMMANDS_PATH.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as e:
             log.error("commands.json уншигдсангүй: %s", e)
             raise HTTPException(status_code=500, detail="commands_parse_error")
-        cache_set("commands_all", cached, 3600)
+        await cache_set("commands_all", cached, 3600)
 
     items: List[Dict[str, Any]] = cached
     if cat:

@@ -23,7 +23,8 @@ Interactive docs: `/docs` (Swagger UI).
 cd backend
 pip install -r requirements.txt
 $env:SUPABASE_URL = "https://onpxpvemmjesobxpilgd.supabase.co"
-$env:SUPABASE_KEY = "<anon эсвэл service key>"
+$env:SUPABASE_SERVICE_ROLE_KEY = "<server-only service role key>"
+$env:REDIS_URL = "redis://localhost:6379/0" # production multi-worker үед
 uvicorn main:app --reload --port 8080
 ```
 
@@ -36,7 +37,8 @@ uvicorn main:app --reload --port 8080
    (backend/Dockerfile автоматаар ашиглагдана)
 3. **Variables** хэсэгт нэмнэ:
    - `SUPABASE_URL` — боттой ижил
-   - `SUPABASE_KEY` — боттой ижил (anon key хангалттай)
+   - `SUPABASE_SERVICE_ROLE_KEY` — server-only secret; frontend-д огт тавихгүй
+   - `REDIS_URL` — олон worker хооронд cache хуваалцах Redis
    - `ALLOWED_ORIGINS` — нэмэлт домэйн байвал (таслалаар)
 4. **Settings → Networking → Generate Domain** — жишээ:
    `https://aether-backend.up.railway.app`
@@ -62,7 +64,8 @@ const { online, uptime_secs } = await res.json();
 | Нэр | Заавал | Default | Тайлбар |
 |-----|--------|---------|---------|
 | `SUPABASE_URL` | ✅ | — | Supabase project URL |
-| `SUPABASE_KEY` | ✅ | — | anon/service key |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | — | server-only elevated key |
+| `REDIS_URL` | Production | — | олон worker-ийн shared cache |
 | `ALLOWED_ORIGINS` | — | Firebase + localhost | CORS нэмэлт origin-ууд |
 | `HEARTBEAT_FRESH_SECS` | — | `120` | Бот offline гэж тооцох босго |
 | `STATUS_CACHE_TTL` | — | `20` | Status cache (сек) |
@@ -74,4 +77,6 @@ const { online, uptime_secs } = await res.json();
 - `data/commands.json` нь `website/js/commands.js`-ээс үүсгэгдсэн.
   Команд нэмэх бүрд дахин generate хийнэ (tools/sync_website_commands.py
   ажиллуулсны дараа).
-- Бүх endpoint зөвхөн **уншдаг** (GET only) — бичилт, auth одохондоо байхгүй.
+- Бүх endpoint зөвхөн **уншдаг** (GET only). `/api/premium/plans` нь product contract өгнө; төлбөрийн provider тохируулаагүй үед checkout зориудаар хаалттай.
+- `/health/ready` readiness probe, `/metrics` process-ийн uptime/request counter өгнө.
+- Production-д `REDIS_URL` заавал тохируулбал бүх worker нэг cache ашиглана; тохируулаагүй үед development memory fallback ажиллана.
