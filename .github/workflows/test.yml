@@ -25,7 +25,7 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q main.py config_manager.py cogs database utils backend
       - name: Run unit tests
-        run: python -m pytest -q
+        run: python -m pytest tests -q
       - name: Validate website command catalog
         working-directory: website
         run: node validate_commands.js
