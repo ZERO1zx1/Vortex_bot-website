@@ -250,12 +250,15 @@ class TradeView(View):
         self.finished = True
         guild_id = interaction.guild_id
         success = await self.shop.transfer_items(guild_id, self.from_user.id, self.to_user.id, self.item_id, self.quantity)
+        item = self.shop.get_item_sync(self.item_id)
+        item_str = f"{item['emoji']} **{item['name']}**" if item else f"`{self.item_id}`"
         if success:
-            embed = discord.Embed(title="🔄 СОЛИЛЦОО АМЖИЛТТАЙ", description=f"{self.from_user.mention} → {self.to_user.mention}\n**{self.quantity}x** `{self.item_id}` ID-тай барааг шилжүүллээ.", color=SUCCESS_COLOR)
+            embed = discord.Embed(title="🔄 СОЛИЛЦОО АМЖИЛТТАЙ", description=f"{self.from_user.mention} → {self.to_user.mention}\n**{item_str}** x{self.quantity} шилжүүллээ.", color=SUCCESS_COLOR)
         else:
             embed = discord.Embed(title="❌ СОЛИЛЦОО БҮТЭЛГҮЙ", description="Бараа хүрэлцэхгүй эсвэл системийн алдаа гарлаа.", color=ERROR_COLOR)
         for child in self.children: child.disabled = True
         await interaction.response.edit_message(embed=embed, view=self)
+        if self.trade_id in self.shop.pending_trades: del self.shop.pending_trades[self.trade_id]
 
     @discord.ui.button(label="❌ Татгалзах", style=discord.ButtonStyle.danger)
     async def decline(self, interaction: discord.Interaction, button: Button):
@@ -271,6 +274,195 @@ class TradeView(View):
             for child in self.children: child.disabled = True
             if self.message: await self.message.edit(view=self)
             if self.trade_id in self.shop.pending_trades: del self.shop.pending_trades[self.trade_id]
+
+class TradeQuantityModal(Modal, title="Солилцооны тоо"):
+    """Барааны тоог модалаар оруулах."""
+
+    def __init__(self, builder):
+        super().__init__()
+        self.builder = builder
+        self.qty_input = TextInput(
+            label="Хэдэн ширхэг шилжүүлэх вэ?",
+            placeholder="Жишээ: 3",
+            default="1",
+            min_length=1,
+            max_length=4,
+        )
+        self.add_item(self.qty_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        builder = self.builder
+        if builder.item_id is None:
+            return await interaction.response.send_message("❌ Эхлээд бараагаа сонгоно уу.", ephemeral=True)
+        try:
+            qty = int(self.qty_input.value.strip())
+        except ValueError:
+            return await interaction.response.send_message("❌ Тоо бичнэ үү.", ephemeral=True)
+        if qty <= 0:
+            return await interaction.response.send_message("❌ Эерэг тоо оруулна уу.", ephemeral=True)
+
+        inv = await builder.shop.get_user_inventory(builder.from_user.id, builder.guild_id)
+        owned = inv.get(builder.item_id, 0)
+        if owned < qty:
+            return await interaction.response.send_message(f"❌ Энэ бараа танд **{owned}** ширхэг л байна.", ephemeral=True)
+
+        builder.quantity = qty
+        await interaction.response.defer(ephemeral=True)
+        await builder.refresh()
+        await interaction.followup.send(f"✅ Тоо: **{qty}**", ephemeral=True)
+
+
+class TradeBuilderView(View):
+    """A!trade <найз> — бараа, тоог select/modal-аар сонгоод илгээнэ."""
+
+    def __init__(self, shop_cog, ctx, from_user: discord.Member, to_user: discord.Member, inventory):
+        super().__init__(timeout=120)
+        self.shop = shop_cog
+        self.ctx = ctx
+        self.from_user = from_user
+        self.to_user = to_user
+        self.guild_id = ctx.guild.id
+        self.item_id = None
+        self.item = None
+        self.quantity = None
+        self.message = None
+        self.truncated = False
+
+        item_options = []
+        items = sorted(inventory.items())
+        if len(items) > 25:
+            self.truncated = True
+            items = items[:25]
+        for iid, qty in items:
+            it = shop_cog.get_item_sync(iid)
+            if not it:
+                continue
+            label = f"{it['emoji']} {it['name']}"
+            if len(label) > 100:
+                label = label[:97] + "..."
+            item_options.append(discord.SelectOption(
+                label=label,
+                value=str(iid),
+                description=f"Таных: {qty} | ID: {iid}",
+            ))
+
+        self.item_select = Select(placeholder="🏷️ Солилцох бараагаа сонго...", options=item_options, row=0)
+        self.item_select.callback = self.on_item_select
+        self.add_item(self.item_select)
+
+        qty_options = [
+            discord.SelectOption(label=f"{n} ширхэг", value=str(n)) for n in (1, 2, 3, 5, 10, 25)
+        ]
+        qty_options.append(discord.SelectOption(label="✏️ Өөр тоо оруулах", value="custom"))
+        self.qty_select = Select(placeholder="🔢 Тоог сонго...", options=qty_options, row=1)
+        self.qty_select.callback = self.on_qty_select
+        self.add_item(self.qty_select)
+
+        self.send_btn = Button(label="✅ Илгээх", style=discord.ButtonStyle.success, disabled=True, row=2)
+        self.send_btn.callback = self.on_send
+        self.add_item(self.send_btn)
+
+        self.cancel_btn = Button(label="❌ Цуцлах", style=discord.ButtonStyle.danger, row=2)
+        self.cancel_btn.callback = self.on_cancel
+        self.add_item(self.cancel_btn)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.from_user.id:
+            await interaction.response.send_message("❌ Энэ цэс танд зориулагдаагүй!", ephemeral=True)
+            return False
+        return True
+
+    async def on_item_select(self, interaction: discord.Interaction):
+        self.item_id = int(self.item_select.values[0])
+        self.item = self.shop.get_item_sync(self.item_id)
+        await interaction.response.defer(ephemeral=True)
+        await self.refresh()
+        await interaction.followup.send(f"✅ Бараа: {self.item['emoji']} **{self.item['name']}**", ephemeral=True)
+
+    async def on_qty_select(self, interaction: discord.Interaction):
+        value = self.qty_select.values[0]
+        if value == "custom":
+            if self.item_id is None:
+                return await interaction.response.send_message("❌ Эхлээд бараагаа сонгоно уу.", ephemeral=True)
+            return await interaction.response.send_modal(TradeQuantityModal(self))
+        if self.item_id is None:
+            return await interaction.response.send_message("❌ Эхлээд бараагаа сонгоно уу.", ephemeral=True)
+        qty = int(value)
+        inv = await self.shop.get_user_inventory(self.from_user.id, self.guild_id)
+        if inv.get(self.item_id, 0) < qty:
+            owned = inv.get(self.item_id, 0)
+            return await interaction.response.send_message(f"❌ Танд **{owned}** ширхэг л байна.", ephemeral=True)
+        self.quantity = qty
+        await interaction.response.defer(ephemeral=True)
+        await self.refresh()
+        await interaction.followup.send(f"✅ Тоо: **{qty}**", ephemeral=True)
+
+    async def on_send(self, interaction: discord.Interaction):
+        if self.item_id is None or self.quantity is None:
+            return await interaction.response.send_message("❌ Бараа, тоогоо сонгоно уу.", ephemeral=True)
+
+        # Илгээх мөчид бараа үлдсэн эсэхийг дахин шалгана (чанаг баталгаа).
+        inv = await self.shop.get_user_inventory(self.from_user.id, self.guild_id)
+        if inv.get(self.item_id, 0) < self.quantity:
+            owned = inv.get(self.item_id, 0)
+            return await interaction.response.send_message(f"❌ Танд **{owned}** ширхэг л байна.", ephemeral=True)
+
+        item = self.shop.get_item_sync(self.item_id)
+        if not item:
+            return await interaction.response.send_message("❌ Бараа олдсонгүй.", ephemeral=True)
+
+        trade_id = self.shop.get_trade_id()
+        view = TradeView(self.shop, trade_id, self.from_user, self.to_user, self.item_id, self.quantity)
+        embed = discord.Embed(
+            title="🔄 СОЛИЛЦОО",
+            description=f"{self.from_user.mention} → {self.to_user.mention}\n**{item['emoji']} {item['name']}** x{self.quantity} шилжүүлэх санал илгээлээ.",
+            color=GOLD_COLOR,
+        )
+        embed.set_footer(text="Хүлээн авагч зөвшөөрөх эсвэл татгалзах товч дарна уу.")
+        msg = await self.ctx.send(content=self.to_user.mention, embed=embed, view=view)
+        view.message = msg
+        self.shop.pending_trades[trade_id] = view
+
+        for child in self.children:
+            child.disabled = True
+        sent_embed = discord.Embed(
+            title="📨 СОЛИЛЦООНЫ САВАЛ ИЛГЭЭГДЛЭЭ",
+            description=f"{self.to_user.mention} руу **{item['emoji']} {item['name']}** x{self.quantity} шилжүүлэх санал илгээлээ.",
+            color=SUCCESS_COLOR,
+        )
+        await interaction.response.edit_message(embed=sent_embed, view=self)
+
+    async def on_cancel(self, interaction: discord.Interaction):
+        for child in self.children:
+            child.disabled = True
+        embed = discord.Embed(title="❌ СОЛИЛЦОО ЦУЦАЛСАН", color=ERROR_COLOR)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.message:
+            embed = discord.Embed(title="⏰ ХУГАЦАА ДУУССАН", description="Солилцооны цэс цаг дууссан.", color=ERROR_COLOR)
+            await self.message.edit(embed=embed, view=self)
+
+    async def refresh(self):
+        """Мессежийг одоогийн төлөвөөр шинэчилнэ."""
+        lines = [f"**{self.from_user.mention} → {self.to_user.mention}**"]
+        if self.item:
+            lines.append(f"**Бараа:** {self.item['emoji']} {self.item['name']} (ID: `{self.item_id}`)")
+        if self.quantity:
+            lines.append(f"**Тоо:** {self.quantity}")
+        if self.truncated:
+            lines.append("\n_⚠️ 25-аас дээш бараатай бол эхний 25-ыг харуулна._")
+        embed = discord.Embed(
+            title="🔄 СОЛИЛЦОО",
+            description="\n".join(lines),
+            color=GOLD_COLOR,
+        )
+        embed.set_footer(text="Бараа, тоогоо сонгоод Илгээх товч дарна уу.")
+        self.send_btn.disabled = not (self.item_id is not None and self.quantity is not None)
+        if self.message:
+            await self.message.edit(embed=embed, view=self)
 
 class ShopCog(commands.Cog):
     def __init__(self, bot):
@@ -915,24 +1107,25 @@ class ShopCog(commands.Cog):
 
 # ==================== СОЛИЛЦОО ====================
     @commands.command(name='trade')
-    async def trade(self, ctx, member: discord.Member, item_id: int, quantity: int = 1):
+    async def trade(self, ctx, member: discord.Member):
         if member.bot or member.id == ctx.author.id:
             return await ctx.send(embed=discord.Embed(title="❌ АЛДАА", description="Буруу хэрэглэгч.", color=ERROR_COLOR))
-        if quantity <= 0:
-            return await ctx.send(embed=discord.Embed(title="❌ АЛДАА", description="Тоо хэмжээ эерэг байх ёстой.", color=ERROR_COLOR))
-        guild_id = ctx.guild.id
-        inv = await self.get_user_inventory(ctx.author.id, guild_id)
-        if inv.get(item_id, 0) < quantity:
-            return await ctx.send(embed=discord.Embed(title="❌ БАРАА ХҮРЭЛЦЭХГҮЙ", description=f"Танд `{item_id}` ID-тай бараа хангалтгүй байна.", color=ERROR_COLOR))
-        item = await self.get_item(item_id)
-        if not item: return await ctx.send(embed=discord.Embed(title="❌ БАРАА ОЛДСОНГҮЙ", color=ERROR_COLOR))
-        trade_id = self.get_trade_id()
-        view = TradeView(self, trade_id, ctx.author, member, item_id, quantity)
-        embed = discord.Embed(title="🔄 СОЛИЛЦОО", description=f"{ctx.author.mention} → {member.mention}\n**{item['emoji']} {item['name']}** x{quantity} шилжүүлэх санал илгээлээ.", color=GOLD_COLOR)
-        embed.set_footer(text="Хүлээн авагч зөвшөөрөх эсвэл татгалзах товч дарна уу.")
-        msg = await ctx.send(content=member.mention, embed=embed, view=view)
+        inv = await self.get_user_inventory(ctx.author.id, ctx.guild.id)
+        if not inv:
+            return await ctx.send(embed=discord.Embed(
+                title="❌ БАРАА БАЙХГҮЙ",
+                description="Танд солилцох бараа алга. `A!shop` командаар зүйл худалдаж аваарай.",
+                color=ERROR_COLOR,
+            ))
+        view = TradeBuilderView(self, ctx, ctx.author, member, inv)
+        embed = discord.Embed(
+            title="🔄 СОЛИЛЦОО",
+            description=f"**{ctx.author.mention} → {member.mention}**\nБараагаа жагсаалтаас сонгоод, тоог нь оруулна уу.",
+            color=GOLD_COLOR,
+        )
+        embed.set_footer(text="Бараа, тоогоо сонгоод Илгээх товч дарна уу.")
+        msg = await ctx.send(embed=embed, view=view)
         view.message = msg
-        self.pending_trades[trade_id] = view
 
 async def setup(bot):
     await bot.add_cog(ShopCog(bot))

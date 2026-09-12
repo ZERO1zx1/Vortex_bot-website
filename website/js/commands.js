@@ -81,7 +81,7 @@ const COMMANDS = [
   { name: 'roulettegame', cat: 'Games', icon: '🎲', desc: "Рулетт тоглоом — өнгө/тойрог тавина.", descEN: "Roulette game", args: [{"key": "amount_str", "req": true}], example: 'A!roulettegame <amount_str>' },
   { name: 'rps', cat: 'Games', icon: '✊', desc: "rps команд", descEN: "rps", args: [{"key": "amount_str", "req": true}], example: 'A!rps <amount_str>' },
   { name: 'slot', cat: 'Games', icon: '🔧', desc: "slot команд", descEN: "slot", args: [{"key": "amount_str", "req": true}], example: 'A!slot <amount_str>' },
-  { name: 'trade', cat: 'Games', icon: '🔄', desc: "Нөхөртэйгөө зүйл солилцох.", descEN: "Trade items with a user", args: [{"key": "user", "req": true}, {"key": "item", "req": true}, {"key": "amount", "req": true}, {"key": "target", "req": true}], example: 'A!trade <user> <item> <amount> <target>' },
+  { name: 'trade', cat: 'Games', icon: '🔄', desc: "Найздаа зүйл бэлэглэх — бараа, тоог цэснээс сонгоно.", descEN: "Trade/give items to a user", args: [{"key": "найз", "req": true}], example: 'A!trade <найз>' },
   { name: 'trivia', cat: 'Games', icon: '🔧', desc: "trivia команд", descEN: "trivia", args: [], example: 'A!trivia' },
   { name: 'avatar_config', cat: 'Moderation', icon: '🖼️', desc: "Avatar шалгалт/лог системийн тохиргоо.", descEN: "Avatar check config", args: [], example: 'A!avatar_config' },
   { name: 'ban', cat: 'Moderation', icon: '🔨', desc: "ban команд", descEN: "ban", args: [{"key": "member", "req": true}, {"key": "reason", "req": true}], example: '/ban <member> <reason>' },
