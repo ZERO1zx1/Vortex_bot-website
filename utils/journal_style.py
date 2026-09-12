@@ -193,9 +193,10 @@ def watercolor_bar(draw: ImageDraw.ImageDraw, box, progress: float,
             sx0 = x0 + int(fill_w * t0)
             sx1 = x0 + max(int(fill_w * t1), int(fill_w * t0) + 1)
             draw.rectangle([sx0, y0 + 2, min(sx1, x0 + fill_w), y1 - 2], fill=col)
-        # Highlight streak (wet-ink shine).
-        draw.rounded_rectangle([x0 + 4, y0 + 3, x0 + fill_w - 4, y0 + h // 3],
-                               radius=4, fill=(255, 255, 255, 70))
+        # Highlight streak (wet-ink shine) — skip when the rect would invert.
+        if fill_w >= 8:
+            draw.rounded_rectangle([x0 + 4, y0 + 3, x0 + fill_w - 4, y0 + h // 3],
+                                   radius=4, fill=(255, 255, 255, 70))
         # Speckles.
         rng = _rng(seed)
         for _ in range(fill_w // 6):

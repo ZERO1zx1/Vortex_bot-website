@@ -130,7 +130,10 @@ class Sticky(commands.Cog):
         guild = message.guild
         channel = message.channel
 
-        sticky = await self.get_sticky(guild.id, channel.id)
+        try:
+            sticky = await self.get_sticky(guild.id, channel.id)
+        except Exception:
+            return
         if not sticky:
             return
 

@@ -11,11 +11,13 @@ from typing import Optional
 import asyncio
 import io
 import os
+import math
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont
 
 # ---------- Centralized Unicode-aware font management ----------
-from utils.fonts import load_font as _load_font
+from utils.fonts import load_font as _load_font, draw_text_with_fallback
+from utils import journal_style as journal
 
 # ══════════════ ӨНГӨНҮҮД ══════════════
 EMBED_COLOR = 0x1e1e2f
@@ -962,52 +964,148 @@ class Marriage(SupabaseCog):
 
     # ═════════ ЗУРГИЙН ФУНКЦУУД ═════════
     def _render_family_card(self, member, spouses_ids, children_ids, parents_ids, ava_main, spouse_avas, child_avas, parent_avas):
-        W, H = 1100, 650
-        img = Image.new("RGBA", (W, H), (30, 30, 30, 255))
+        W, H = 1150, 780
+        seed = int(getattr(member, "id", 7)) % 100000
+        img = journal.parchment((W, H), seed=seed)
         draw = ImageDraw.Draw(img)
-        font_main = _load_font(32, True)
-        font_small = _load_font(18, False)
-        main_size = 130
-        main_x = W//2 - main_size//2
-        main_y = 140
-        img.paste(ava_main, (main_x, main_y), ava_main)
-        draw.text((W//2, main_y + main_size + 15), member.display_name[:18], font=font_main, fill=(255,255,255), anchor="mt")
-        def draw_avatar(ava, name, x, y, size=70):
-            img.paste(ava, (x, y), ava)
-            draw.text((x + size//2, y + size + 5), name[:10], font=font_small, fill=(200,200,200), anchor="mt")
-        if spouse_avas:
-            for i, (ava, name) in enumerate(spouse_avas[:2]):
-                sx = W//2 - 220 if i == 0 else W//2 + 120
-                draw_avatar(ava, name, sx, main_y + 30, 70)
-        if child_avas:
-            child_y = H - 160
-            for i, (ava, name) in enumerate(child_avas[:5]):
-                cx = 80 + i * 180
-                draw_avatar(ava, name, cx, child_y, 65)
-        if parent_avas:
-            for i, (ava, name) in enumerate(parent_avas[:2]):
-                px = W//2 - 160 if i == 0 else W//2 + 60
-                draw_avatar(ava, name, px, 30, 70)
-        draw.text((W//2, H-30), "🌳", font=font_main, fill=(255,255,255), anchor="mm")
+        journal.ink_border(draw, (W, H), seed=seed + 1)
+
+        font_title = _load_font(32, True)
+        font_name = _load_font(20, True)
+        font_main_name = _load_font(28, True)
+        font_small = _load_font(15, False)
+
+        journal.banner(draw, (190, 32, 960, 88), "ГЭР БҮЛИЙН МОД", font_title, seed=seed + 2)
+
+        def draw_person(cx, y, size, ava, name, name_font=font_name, nsize=20):
+            bx = cx - size // 2
+            journal.sketch_frame(img, (bx, y, bx + size, y + size), ava, seed=seed + cx % 97)
+            if name:
+                nm = str(name)[:18]
+                w = draw.textlength(nm, font=name_font)
+                draw_text_with_fallback(draw, (cx - w / 2, y + size + 8), nm, name_font,
+                                        fill=journal.INK, size=nsize, bold=True)
+
+        def link(x0, y0, x1, y1, seedk=70):
+            journal.wobble_line(draw, (x0, y0), (x1, y1), journal.INK_FAINT, 2, seed + seedk, amp=2.2, segs=18)
+
+        mx = W // 2
+
+        parent_positions = (mx - 210, mx + 130)
+        spouse_positions = (mx - 380, mx + 380)
+        children = list(child_avas)[:5]
+
+        for i, (ava, name) in enumerate(parent_avas[:2]):
+            draw_person(parent_positions[i], 116, 78, ava, name, font_name, 16)
+            link(parent_positions[i], 194, mx, 232, 80 + i)
+
+        draw_person(mx, 232, 176, ava_main, member.display_name[:22], font_main_name, 26)
+
+        for i, (ava, name) in enumerate(spouse_avas[:2]):
+            draw_person(spouse_positions[i], 272, 86, ava, name, font_name, 16)
+            dirn = -1 if i == 0 else 1
+            link(spouse_positions[i] - dirn * 43, 315, mx + dirn * 88, 320, 90 + i)
+
+        if children:
+            gap = (W - 220) // len(children)
+            for i, (ava, name) in enumerate(children):
+                cx = 110 + gap * i + gap // 2
+                draw_person(cx, 610, 86, ava, name, font_name, 15)
+                link(cx, 610, mx, 408, 100 + i)
+
+        footer = "💞 " + member.display_name[:16]
+        journal.twine_tag(draw, 60, H - 42, footer, font_small, color=(150, 148, 140, 255))
         buf = io.BytesIO(); img.save(buf, format="PNG", optimize=True); buf.seek(0)
         return buf
 
     def _render_marriage_card(self, member, partner, love, ring, anniv, ava1, ava2):
-        W, H = 1200, 500
-        img = Image.new("RGBA", (W, H), (25, 27, 35, 255))
+        W, H = 1200, 660
+        seed = int(getattr(member, "id", 7)) % 100000
+        img = journal.parchment((W, H), seed=seed)
         draw = ImageDraw.Draw(img)
-        font_title = _load_font(60, True); font_sub = _load_font(42, True); font_info = _load_font(32, False)
-        ava_size = 180
-        left_x, right_x, center_y = 120, W - 120 - ava_size, 190
-        img.paste(ava1, (left_x, center_y - ava_size//2), ava1)
-        if ava2: img.paste(ava2, (right_x, center_y - ava_size//2), ava2)
-        draw.text((left_x + ava_size//2, center_y + ava_size//2 + 35), member.display_name[:18], font=font_sub, fill=(255,255,255), anchor="mt")
-        if partner: draw.text((right_x + ava_size//2, center_y + ava_size//2 + 35), partner.display_name[:18], font=font_sub, fill=(255,255,255), anchor="mt")
-        draw.text((W//2, center_y - 60), "❤️", font=font_title, fill=(255,105,180), anchor="mm")
+        journal.ink_border(draw, (W, H), seed=seed + 1)
+
+        font_title = _load_font(32, True)
+        font_name = _load_font(30, True)
+        font_cap = _load_font(20, False)
+        font_big = _load_font(44, True)
+        font_mid = _load_font(30, True)
+        font_small = _load_font(19, False)
+        font_tiny = _load_font(15, False)
+
+        def ctext(text, y, font, fill=journal.INK):
+            w = draw.textlength(text, font=font)
+            x0 = W // 2 - w / 2
+            draw_text_with_fallback(draw, (x0, y), text, font, fill=fill,
+                                    size=font.size, bold=True)
+            return x0
+
+        def sub_text(text, cx, y, font, fill=journal.INK_SOFT):
+            w = draw.textlength(text, font=font)
+            draw_text_with_fallback(draw, (cx - w / 2, y), text, font, fill=fill,
+                                    size=font.size, bold=False)
+
+        # ── Title banner ──
+        journal.banner(draw, (150, 34, 1050, 92), "ГЭРЛЭЛТИЙН ГЭРЧИЛГЭЭ", font_title, seed=seed + 2)
+
+        # ── Portraits ──
+        journal.sketch_frame(img, (108, 160, 298, 350), ava1, seed=seed + 3)
+        name1 = member.display_name[:20]
+        w1 = draw.textlength(name1, font=font_name)
+        draw_text_with_fallback(draw, (203 - w1 / 2, 362), name1, font_name,
+                                fill=journal.INK, size=30, bold=True)
+        date_str = ""
+        if anniv:
+            date_str = str(anniv.get("date", "")).replace("-", ".")
+        sub_text("Гэрлэсэн: " + date_str, 203, 404, font_cap)
+
+        if ava2:
+            journal.sketch_frame(img, (902, 160, 1092, 350), ava2, seed=seed + 4)
+        if partner:
+            name2 = partner.display_name[:20]
+            w2 = draw.textlength(name2, font=font_name)
+            draw_text_with_fallback(draw, (997 - w2 / 2, 362), name2, font_name,
+                                    fill=journal.INK, size=30, bold=True)
+        sub_text(str(ring) if ring else "Бөгжгүй", 997, 404, font_cap)
+
+        journal.wobble_line(draw, (360, 148), (360, 505), journal.INK_SOFT, 2, seed + 5, amp=1.4)
+        journal.wobble_line(draw, (840, 148), (840, 505), journal.INK_SOFT, 2, seed + 6, amp=1.4)
+
+        # ── Heart ──
+        cx, cy, s = 600, 215, 5.2
+        pts = []
+        for i in range(72):
+            t = 2 * math.pi * i / 72
+            x = 16 * math.sin(t) ** 3
+            y = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
+            pts.append((cx + x * s, cy - y * s))
+        draw.polygon(pts, fill=(232, 92, 112, 255), outline=journal.WAX_DARK)
+        draw.ellipse([cx - 28, cy - 46, cx - 12, cy - 30], fill=(255, 182, 189, 180))
+
+        # ── Love level ──
         love_level = max(1, love // 100 + 1)
-        draw.text((W//2, center_y + 70), f"⚡ Lv. {love_level} Love", font=font_title, fill=(255,215,0), anchor="mm")
-        days_text = f"✨ {anniv['days']} хоног хамт" if anniv else "✨ Дөнгөж гэрлэсэн"
-        draw.text((W//2, center_y + 120), days_text, font=font_info, fill=(255,255,255), anchor="mm")
+        ctext(f"⚡ Love Lv. {love_level}", 330, font_big)
+        progress = (love % 100) / 100.0
+        journal.watercolor_bar(draw, (400, 392, 800, 412), progress,
+                               fill_from=(238, 184, 96, 255), fill_to=(226, 92, 112, 255), seed=seed + 7)
+        rem = 100 - (love % 100)
+        ctext(f"{rem} XP  →  Lv. {love_level + 1}", 420, font_tiny, fill=journal.INK_FAINT)
+
+        # ── Married time ──
+        if anniv:
+            ctext(f"✨ {anniv['days']} хоног хамт", 458, font_mid)
+            ctext(f"Дараагийн ой — {anniv['next_days']} өдрийн дараа", 496, font_small, fill=journal.INK_SOFT)
+        else:
+            ctext("✨ Дөнгөж гэрлэсэн", 458, font_mid)
+
+        # ── Interlocking rings emblem ──
+        ring_y = 590
+        rbox_a = [600 - 30 - 6, ring_y - 30, 600 + 30 - 6, ring_y + 30]
+        rbox_b = [600 - 30 + 6, ring_y - 30, 600 + 30 + 6, ring_y + 30]
+        draw.ellipse(rbox_a, outline=journal.GOLD, width=9)
+        draw.ellipse(rbox_b, outline=(226, 92, 112, 255), width=9)
+        draw.arc(rbox_a, 40, 140, fill=journal.GOLD, width=9)
+
         buf = io.BytesIO(); img.save(buf, format="PNG", optimize=True); buf.seek(0)
         return buf
 

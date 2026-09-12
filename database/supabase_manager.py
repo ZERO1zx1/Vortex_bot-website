@@ -31,6 +31,30 @@ except ImportError:
 _NETWORK_EXCEPTIONS = tuple({t for t in _NETWORK_EXCEPTIONS})
 
 
+def _is_retryable(exc: BaseException) -> bool:
+    """True when a failure is transient and safe to retry with backoff.
+
+    Covers socket-level network errors (``_NETWORK_EXCEPTIONS``) plus
+    PostgREST API failures caused by transient server-side conditions
+    (HTTP 5xx, most notably the 504 Gateway Timeout the bot sees when
+    Supabase occasionally stalls).  Non-transient errors (4xx, auth,
+    missing tables, bad data) are never retried and propagate immediately.
+    """
+    if isinstance(exc, _NETWORK_EXCEPTIONS):
+        return True
+    code = getattr(exc, "code", None)
+    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    try:
+        code = int(code)
+    except (TypeError, ValueError):
+        code = None
+    try:
+        status = int(status)
+    except (TypeError, ValueError):
+        status = None
+    return code in (500, 502, 503, 504) or status in (500, 502, 503, 504)
+
+
 class SupabaseManager:
     """Async-first data access layer for Supabase."""
 
@@ -104,14 +128,17 @@ class SupabaseManager:
     async def _run(self, fn, *args, **kwargs):
         if self.client is None:
             raise RuntimeError("Supabase client is not connected.")
-        # Retry wrapper: transient network errors (e.g. [WinError 10035])
+        # Retry wrapper: transient network errors (e.g. [WinError 10035]) and
+        # server-side 5xx responses (e.g. 504 Gateway Timeout from PostgREST)
         # are retried with exponential backoff instead of failing outright.
         attempt = 0
         last_exc = None
         while attempt <= 3:
             try:
                 return await asyncio.to_thread(fn, *args, **kwargs)
-            except _NETWORK_EXCEPTIONS as exc:
+            except Exception as exc:
+                if not _is_retryable(exc):
+                    raise
                 last_exc = exc
                 attempt += 1
                 if attempt <= 3:

@@ -458,7 +458,10 @@ class Moderation(SupabaseCog):
     async def on_message(self, message):
         if message.author.bot or not message.guild:
             return
-        await self.increment_staff_activity(message.author.id, message.guild.id, "messages")
+        try:
+            await self.increment_staff_activity(message.author.id, message.guild.id, "messages")
+        except Exception as e:
+            logger.debug("staff activity increment skipped: %s", e)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -747,7 +750,7 @@ class Moderation(SupabaseCog):
     @app_commands.command(name='warn', description="Анхааруулга өгөх")
     @app_commands.checks.has_permissions(kick_members=True)
     @app_commands.describe(member="Анхааруулга өгөх хэрэглэгч", reason="Шалтгаан")
-    async def warn(self, interaction, member: discord.Member, *, reason: str):
+    async def warn(self, interaction, member: discord.User, *, reason: str):
         ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         now_ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
@@ -779,7 +782,7 @@ class Moderation(SupabaseCog):
         member="Анхааруулга хасах хэрэглэгч",
         amount="Хасах тоо (хоосон бол жагсаалтаас сонгоно)"
     )
-    async def unwarn(self, interaction, member: discord.Member, amount: Optional[int] = None):
+    async def unwarn(self, interaction, member: discord.User, amount: Optional[int] = None):
         ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         warning_rows = await self.bot.db_manager.fetch_all(
@@ -934,7 +937,7 @@ class Moderation(SupabaseCog):
     @app_commands.command(name='warnings', description="Хэрэглэгчийн анхааруулгыг харах")
     @app_commands.checks.has_permissions(kick_members=True)
     @app_commands.describe(member="Анхааруулгыг харах хэрэглэгч")
-    async def warnings(self, interaction, member: discord.Member):
+    async def warnings(self, interaction, member: discord.User):
         ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         warning_rows = await self.bot.db_manager.fetch_all(
