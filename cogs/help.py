@@ -15,6 +15,20 @@ COMMAND_INFO = {
         "usage": "A!admin-panel",
         "examples": []
     },
+    "balance": {
+        "description_mn": "Үлдэгдэл мөнгө болон банкны дүнг харуулна.",
+        "description_en": "Check your balance",
+        "category": "Эдийн засаг",
+        "usage": "A!balance <member>",
+        "examples": []
+    },
+    "bankprotect": {
+        "description_mn": "Мөнгөө шилжүүлэг/дээрэмд өртөхөөс хамгаална.",
+        "description_en": "Protect your balance",
+        "category": "Эдийн засаг",
+        "usage": "A!bankprotect",
+        "examples": []
+    },
     "bail": {
         "description_mn": "Баривчлагдаас мөнгөөр гарч чөлөөлөгдөнө.",
         "description_en": "Pay bail to be released",
@@ -29,11 +43,39 @@ COMMAND_INFO = {
         "usage": "A!crime",
         "examples": []
     },
+    "daily": {
+        "description_mn": "Өдрийн урамшууллаа авах (цатгалан/сэтгэл санаагаар).",
+        "description_en": "Claim your daily reward",
+        "category": "Эдийн засаг",
+        "usage": "A!daily",
+        "examples": []
+    },
+    "deposit": {
+        "description_mn": "Банк руу мөнгө байршуулна.",
+        "description_en": "Deposit money to bank",
+        "category": "Эдийн засаг",
+        "usage": "A!deposit <amount_str>",
+        "examples": []
+    },
+    "eat": {
+        "description_mn": "Инвентариас хоол идэж цатгалан болон сэтгэл санаагаа сэргээнэ.",
+        "description_en": "Eat food from inventory",
+        "category": "Эдийн засаг",
+        "usage": "A!eat",
+        "examples": []
+    },
     "jobs": {
         "description_mn": "Ажлын систем харах/ажиллах.",
-        "description_en": "Job system",
+        "description_en": "View and work jobs",
         "category": "Эдийн засаг",
         "usage": "A!jobs",
+        "examples": []
+    },
+    "relax": {
+        "description_mn": "Амарч цатгалан/сэтгэл санаагаа сэргээнэ.",
+        "description_en": "Relax to recover stats",
+        "category": "Эдийн засаг",
+        "usage": "A!relax",
         "examples": []
     },
     "taxinfo": {
@@ -43,25 +85,60 @@ COMMAND_INFO = {
         "usage": "A!taxinfo",
         "examples": []
     },
+    "transfer": {
+        "description_mn": "Өөр хэрэглэгчид мөнгө шилжүүлнэ.",
+        "description_en": "Send money to a user",
+        "category": "Эдийн засаг",
+        "usage": "A!transfer <member> <amount_str>",
+        "examples": []
+    },
+    "withdraw": {
+        "description_mn": "Банкнаас мөнгө гаргаж авна.",
+        "description_en": "Withdraw money from bank",
+        "category": "Эдийн засаг",
+        "usage": "A!withdraw <amount_str>",
+        "examples": []
+    },
+    "work": {
+        "description_mn": "Ажиллаж мөнгө олох (нэмэлт текст зааж болно).",
+        "description_en": "Work to earn money",
+        "category": "Эдийн засаг",
+        "usage": "A!work <custom_text>",
+        "examples": []
+    },
     "workphrase": {
-        "description_mn": "Ажлын хэллэгийн систем.",
-        "description_en": "Work phrase system",
+        "description_mn": "Ажлын өгүүлбэрийн тохиргоо (embed+button+modal).",
+        "description_en": "Work phrase settings",
         "category": "Эдийн засаг",
         "usage": "A!workphrase",
         "examples": []
     },
     "coinflipgame": {
-        "description_mn": "Талбайн тоглоом — зоогийн мөнгөнээр тал руу чихэгдэнэ.",
+        "description_mn": "Зоо шидэлтийн мөрийтэй тоглоом — тал тавиад бооцоо тавина.",
         "description_en": "Coinflip gambling game",
         "category": "Тоглоом",
         "usage": "A!coinflipgame <amount_str>",
         "examples": []
     },
     "crash": {
-        "description_mn": "Crash тоглоом — өсөлт зогсоохоос өмнө гарч ав.",
+        "description_mn": "Crash тоглоом — өсөлт зогсохоос өмнө гарч ав.",
         "description_en": "Crash betting game",
         "category": "Тоглоом",
         "usage": "A!crash <amount_str>",
+        "examples": []
+    },
+    "dice": {
+        "description_mn": "Шоо шидэлтийн мөрийтэй тоглоом.",
+        "description_en": "Dice gambling game",
+        "category": "Тоглоом",
+        "usage": "A!dice <amount_str>",
+        "examples": []
+    },
+    "gamble": {
+        "description_mn": "Мөрийтэй тоглоом — бооцоо тавин үржүүлэх боломж.",
+        "description_en": "Gambling game",
+        "category": "Тоглоом",
+        "usage": "A!gamble <amount_str>",
         "examples": []
     },
     "gamestats": {
@@ -72,45 +149,101 @@ COMMAND_INFO = {
         "examples": []
     },
     "highcard": {
-        "description_mn": "Өндөр карт тоглоом — эсрэгтэйгээ өрсөлд.",
+        "description_mn": "Өндөр карт тоглоом — эсрэгтэйгээ өрсөлдөж карт зүүнэ.",
         "description_en": "High-card duel game",
         "category": "Тоглоом",
         "usage": "A!highcard <amount_str>",
         "examples": []
     },
+    "numberguess": {
+        "description_mn": "Тоо таах мөрийтэй тоглоом.",
+        "description_en": "Number guessing game",
+        "category": "Тоглоом",
+        "usage": "A!numberguess <amount_str>",
+        "examples": []
+    },
+    "roulettegame": {
+        "description_mn": "Рулет тоглоом — өнгө/тоо тавина.",
+        "description_en": "Roulette game",
+        "category": "Тоглоом",
+        "usage": "A!roulettegame <amount_str>",
+        "examples": []
+    },
+    "rps": {
+        "description_mn": "Чулуу-цаас-хайч мөрийтэй тоглоом.",
+        "description_en": "Rock-paper-scissors game",
+        "category": "Тоглоом",
+        "usage": "A!rps <amount_str>",
+        "examples": []
+    },
+    "trivia": {
+        "description_mn": "Асуулт хариултын мөрийтэй тоглоом.",
+        "description_en": "Trivia quiz game",
+        "category": "Тоглоом",
+        "usage": "A!trivia",
+        "examples": []
+    },
+    "mines": {
+        "description_mn": "Mines тоглоом — найдваргүй талбай нээж урамшуулал цуглуул.",
+        "description_en": "Mines mining game",
+        "category": "Тоглоом",
+        "usage": "A!mines <bet>",
+        "examples": []
+    },
+    "pvp": {
+        "description_mn": "Хэрэглэгчтэй тулаан хийх (бооцоотой).",
+        "description_en": "PvP duel with a user",
+        "category": "Тоглоом",
+        "usage": "A!pvp <opponent> <amount>",
+        "examples": []
+    },
     "mafia_setup": {
-        "description_mn": "Mafia тоглоомын суваг/дүрэм тохируулах.",
+        "description_mn": "Мафи тоглоомын суваг/дүрэм тохируулах.",
         "description_en": "Setup mafia game",
         "category": "Тоглоом",
         "usage": "/mafia_setup",
         "examples": []
     },
     "mafiacreate": {
-        "description_mn": "Шинэ Mafia наалт үүсгэнэ.",
+        "description_mn": "Шинэ мафи тоглоом үүсгэнэ.",
         "description_en": "Create a mafia session",
         "category": "Тоглоом",
         "usage": "A!mafiacreate",
         "examples": []
     },
-    "mafiaend": {
-        "description_mn": "Идэвхтэй Mafia наалтыг дуусгана.",
-        "description_en": "End mafia session",
-        "category": "Тоглоом",
-        "usage": "A!mafiaend",
-        "examples": []
-    },
     "mafiastart": {
-        "description_mn": "Mafia наалт эхлүүлж тоглогчдыг хуваарилна.",
+        "description_mn": "Мафи тоглоомыг эхлүүлж тоглогчдыг хуваарилна.",
         "description_en": "Start mafia session",
         "category": "Тоглоом",
         "usage": "A!mafiastart",
         "examples": []
     },
-    "roulettegame": {
-        "description_mn": "Рулетт тоглоом — өнгө/тойрог тавина.",
-        "description_en": "Roulette game",
+    "mafiaend": {
+        "description_mn": "Идэвхтэй мафи тоглоомыг дуусгана.",
+        "description_en": "End mafia session",
         "category": "Тоглоом",
-        "usage": "A!roulettegame <amount_str>",
+        "usage": "A!mafiaend",
+        "examples": []
+    },
+    "blackjack": {
+        "description_mn": "Blackjack картын мөрийтэй тоглоом — дилерийг ял.",
+        "description_en": "Blackjack card game",
+        "category": "Казино",
+        "usage": "A!blackjack <amount_str>",
+        "examples": []
+    },
+    "rob": {
+        "description_mn": "Өөр хэрэглэгчийг дээрэмдэж мөнгө авах (эрсдэлтэй).",
+        "description_en": "Rob another user",
+        "category": "Казино",
+        "usage": "A!rob <target>",
+        "examples": []
+    },
+    "hack": {
+        "description_mn": "Хэрэглэгчийн данс руу хакдах (маш эрсдэлтэй).",
+        "description_en": "Hack a user account",
+        "category": "Казино",
+        "usage": "A!hack <target>",
         "examples": []
     },
     "cgive": {
@@ -120,22 +253,239 @@ COMMAND_INFO = {
         "usage": "A!cgive <target> <amount>",
         "examples": []
     },
+    "highlow": {
+        "description_mn": "Өндөр/бага мөрийтэй тоглоом — дараагийн тоог таа.",
+        "description_en": "High-low betting game",
+        "category": "Казино",
+        "usage": "A!highlow <amount_str> <choice>",
+        "examples": []
+    },
+    "slot": {
+        "description_mn": "Оромын машины мөрийтэй тоглоом.",
+        "description_en": "Slot machine game",
+        "category": "Казино",
+        "usage": "A!slot <amount_str>",
+        "examples": []
+    },
     "8ball": {
-        "description_mn": "Магадлалтай 8 тост хариулт өгнө.",
+        "description_mn": "Магик 8-бөмбөг санамсаргүй хариулт өгнө.",
         "description_en": "Magic 8-ball answer",
         "category": "Хөгжилтэй",
         "usage": "A!8ball <question>",
         "examples": []
     },
+    "angry": {
+        "description_mn": "Уурласан гиф илгээнэ.",
+        "description_en": "Angry reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!angry",
+        "examples": []
+    },
+    "avatar": {
+        "description_mn": "Хэрэглэгчийн аватарыг харуулна.",
+        "description_en": "Show a user avatar",
+        "category": "Хөгжилтэй",
+        "usage": "A!avatar <member>",
+        "examples": []
+    },
+    "bite": {
+        "description_mn": "Хазах гиф илгээнэ.",
+        "description_en": "Bite reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!bite <target>",
+        "examples": []
+    },
+    "boop": {
+        "description_mn": "Boop хийх гиф илгээнэ.",
+        "description_en": "Boop reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!boop <target>",
+        "examples": []
+    },
+    "bully": {
+        "description_mn": "Дээрэлхэх гиф илгээнэ.",
+        "description_en": "Bully reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!bully <target>",
+        "examples": []
+    },
+    "cat": {
+        "description_mn": "Санамсаргүй муурын зураг илгээнэ.",
+        "description_en": "Random cat image",
+        "category": "Хөгжилтэй",
+        "usage": "A!cat",
+        "examples": []
+    },
     "coin": {
-        "description_mn": "Зоогийн мөнгө хаяж үр дүнг харуулна.",
+        "description_mn": "Зоо шидэж үр дүнг харуулна.",
         "description_en": "Flip a coin",
         "category": "Хөгжилтэй",
         "usage": "A!coin",
         "examples": []
     },
+    "cry": {
+        "description_mn": "Уйлах гиф илгээнэ.",
+        "description_en": "Cry reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!cry",
+        "examples": []
+    },
+    "cuddle": {
+        "description_mn": "Тэврэх гиф илгээнэ.",
+        "description_en": "Cuddle reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!cuddle <target>",
+        "examples": []
+    },
+    "dance": {
+        "description_mn": "Бүжиглэх гиф илгээнэ.",
+        "description_en": "Dance reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!dance",
+        "examples": []
+    },
+    "dog": {
+        "description_mn": "Санамсаргүй нохойны зураг илгээнэ.",
+        "description_en": "Random dog image",
+        "category": "Хөгжилтэй",
+        "usage": "A!dog",
+        "examples": []
+    },
+    "fox": {
+        "description_mn": "Санамсаргүй үнэгний зураг илгээнэ.",
+        "description_en": "Random fox image",
+        "category": "Хөгжилтэй",
+        "usage": "A!fox",
+        "examples": []
+    },
+    "gif": {
+        "description_mn": "Хайлтанд тохирох гиф илгээнэ.",
+        "description_en": "Search and send a gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!gif <query>",
+        "examples": []
+    },
+    "happy": {
+        "description_mn": "Баярлах гиф илгээнэ.",
+        "description_en": "Happy reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!happy",
+        "examples": []
+    },
+    "handhold": {
+        "description_mn": "Гар барьсан гиф илгээнэ.",
+        "description_en": "Handhold reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!handhold <target>",
+        "examples": []
+    },
+    "highfive": {
+        "description_mn": "Гар алгадсан гиф илгээнэ.",
+        "description_en": "High-five reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!highfive <target>",
+        "examples": []
+    },
+    "hug": {
+        "description_mn": "Тэврэх гиф илгээнэ.",
+        "description_en": "Hug reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!hug <target>",
+        "examples": []
+    },
+    "kiss": {
+        "description_mn": "Үнсэх гиф илгээнэ.",
+        "description_en": "Kiss reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!kiss <target>",
+        "examples": []
+    },
+    "laugh": {
+        "description_mn": "Инээх гиф илгээнэ.",
+        "description_en": "Laugh reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!laugh",
+        "examples": []
+    },
+    "meme": {
+        "description_mn": "Санамсаргүй meme илгээнэ.",
+        "description_en": "Random meme",
+        "category": "Хөгжилтэй",
+        "usage": "A!meme",
+        "examples": []
+    },
+    "pat": {
+        "description_mn": "Толгой илэх гиф илгээнэ.",
+        "description_en": "Pat reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!pat <target>",
+        "examples": []
+    },
+    "poke": {
+        "description_mn": "Цохих гиф илгээнэ.",
+        "description_en": "Poke reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!poke <target>",
+        "examples": []
+    },
+    "punch": {
+        "description_mn": "Нүдэх гиф илгээнэ.",
+        "description_en": "Punch reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!punch <target>",
+        "examples": []
+    },
+    "roll": {
+        "description_mn": "1-ээс өгөгдсөн тоо хүртэл санамсаргүй тоо шиднэ.",
+        "description_en": "Roll a random number",
+        "category": "Хөгжилтэй",
+        "usage": "A!roll <maximum>",
+        "examples": []
+    },
+    "slap": {
+        "description_mn": "Алгадах гиф илгээнэ.",
+        "description_en": "Slap reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!slap <target>",
+        "examples": []
+    },
+    "sleep": {
+        "description_mn": "Унтах гиф илгээнэ.",
+        "description_en": "Sleep reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!sleep",
+        "examples": []
+    },
+    "snuggle": {
+        "description_mn": "Тусалдсан гиф илгээнэ.",
+        "description_en": "Snuggle reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!snuggle <target>",
+        "examples": []
+    },
+    "stare": {
+        "description_mn": "Харж зогсох гиф илгээнэ.",
+        "description_en": "Stare reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!stare <target>",
+        "examples": []
+    },
+    "think": {
+        "description_mn": "Бодож байгаа гиф илгээнэ.",
+        "description_en": "Think reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!think",
+        "examples": []
+    },
+    "wave": {
+        "description_mn": "Дав хийн вий.",
+        "description_en": "Wave reaction gif",
+        "category": "Хөгжилтэй",
+        "usage": "A!wave <target>",
+        "examples": []
+    },
     "count_save": {
-        "description_mn": "Тооллогын оноо хадгалах.",
+        "description_mn": "Тооллогын оноо хадгална.",
         "description_en": "Save counting score",
         "category": "Хөгжилтэй",
         "usage": "/count_save",
@@ -156,24 +506,45 @@ COMMAND_INFO = {
         "examples": []
     },
     "counting_setup": {
-        "description_mn": "Тооллого тоглоомын тохиргоо.",
-        "description_en": "Counting setup",
+        "description_mn": "Тооллого тоглоомын тохиргооны самбар.",
+        "description_en": "Counting setup panel",
         "category": "Хөгжилтэй",
         "usage": "/counting_setup",
         "examples": []
     },
-    "roll": {
-        "description_mn": "1-ээс өгөгдсөн хүртэлх тоо шиднэ.",
-        "description_en": "Roll a random number",
-        "category": "Хөгжилтэй",
-        "usage": "A!roll <maximum>",
+    "lock": {
+        "description_mn": "Сувгийг түгжинэ (гишүүд мессеж бичих боломжгүй).",
+        "description_en": "Lock a channel",
+        "category": "Модераци",
+        "usage": "/lock <channel> <reason>",
         "examples": []
     },
-    "avatar_config": {
-        "description_mn": "Avatar шалгалт/лог системийн тохиргоо.",
-        "description_en": "Avatar check config",
+    "unlock": {
+        "description_mn": "Сувгийн түгжээг тайлна.",
+        "description_en": "Unlock a channel",
         "category": "Модераци",
-        "usage": "A!avatar_config",
+        "usage": "/unlock <channel> <reason>",
+        "examples": []
+    },
+    "kick": {
+        "description_mn": "Хэрэглэгчийг серверээс хөөнө.",
+        "description_en": "Kick a member",
+        "category": "Модераци",
+        "usage": "/kick <member> <reason>",
+        "examples": []
+    },
+    "ban": {
+        "description_mn": "Хэрэглэгчийг бан хийнэ.",
+        "description_en": "Ban a member",
+        "category": "Модераци",
+        "usage": "/ban <member> <reason>",
+        "examples": []
+    },
+    "unban": {
+        "description_mn": "Хэрэглэгчийн баныг цуцлана.",
+        "description_en": "Unban a user",
+        "category": "Модераци",
+        "usage": "/unban <user_id> <reason>",
         "examples": []
     },
     "banlist": {
@@ -183,60 +554,214 @@ COMMAND_INFO = {
         "usage": "/banlist",
         "examples": []
     },
-    "rrlist": {
-        "description_mn": "Reaction-role холболтууд харах.",
-        "description_en": "List reaction roles",
+    "clear": {
+        "description_mn": "Сувгийн мессежүүдийг устгана.",
+        "description_en": "Delete messages",
         "category": "Модераци",
-        "usage": "A!rrlist",
+        "usage": "/clear <amount>",
         "examples": []
     },
-    "staff_counts": {
-        "description_mn": "Ажилчдын үйл ажиллагааны тооллого.",
-        "description_en": "Staff activity counts",
+    "timeout": {
+        "description_mn": "Хэрэглэгчийг түр хаана (timeout).",
+        "description_en": "Timeout a member",
         "category": "Модераци",
-        "usage": "/staff_counts",
+        "usage": "/timeout <member> <duration> <reason>",
         "examples": []
     },
-    "staff_setup": {
-        "description_mn": "Стaff (ажилчин) систем тохируулах.",
-        "description_en": "Setup staff system",
+    "untimeout": {
+        "description_mn": "Түр хаалтыг цуцална.",
+        "description_en": "Remove a timeout",
         "category": "Модераци",
-        "usage": "/staff_setup",
+        "usage": "/untimeout <member>",
         "examples": []
     },
-    "staff_status": {
-        "description_mn": "Ажилчны төлөв/статистик.",
-        "description_en": "Staff status",
+    "warn": {
+        "description_mn": "Хэрэглэгчид анхааруулга өгнө.",
+        "description_en": "Warn a member",
         "category": "Модераци",
-        "usage": "/staff_status <member>",
+        "usage": "/warn <member> <reason>",
         "examples": []
     },
-    "temprole_config": {
-        "description_mn": "Түр роль системийн тохиргоо.",
-        "description_en": "Temp role config",
+    "unwarn": {
+        "description_mn": "Хэрэглэгчийн анхааруулгыг хасана.",
+        "description_en": "Remove a warning",
         "category": "Модераци",
-        "usage": "/temprole_config",
+        "usage": "/unwarn <member> <amount>",
         "examples": []
     },
     "unwarnid": {
-        "description_mn": "Анхааруулгыг ID-гаар нь цуцлана.",
+        "description_mn": "Анхааруулгыг ID-гаар нь цуцална.",
         "description_en": "Remove warning by ID",
         "category": "Модераци",
         "usage": "/unwarnid <warning_id>",
         "examples": []
     },
     "warned": {
-        "description_mn": "Өөрт огдсон анхааруулгууд.",
-        "description_en": "Your warnings",
+        "description_mn": "Танд өгсөн анхааруулгуудыг харна.",
+        "description_en": "View your warnings",
         "category": "Модераци",
         "usage": "/warned",
         "examples": []
     },
+    "warnings": {
+        "description_mn": "Хэрэглэгчийн анхааруулгыг харна.",
+        "description_en": "View user warnings",
+        "category": "Модераци",
+        "usage": "/warnings <member>",
+        "examples": []
+    },
     "warnedusers": {
-        "description_mn": "Анхааруулга авсан хэрэглэгчид.",
+        "description_mn": "Анхааруулга авсан хэрэглэгчдийн жагсаалт.",
         "description_en": "List warned users",
         "category": "Модераци",
         "usage": "/warnedusers",
+        "examples": []
+    },
+    "staff_setup": {
+        "description_mn": "Staff (ажилчин) систем тохируулах.",
+        "description_en": "Setup staff system",
+        "category": "Модераци",
+        "usage": "/staff_setup",
+        "examples": []
+    },
+    "staff_counts": {
+        "description_mn": "Долоо хоногийн staff онооны эрэмбэ.",
+        "description_en": "Weekly staff ranking",
+        "category": "Модераци",
+        "usage": "/staff_counts",
+        "examples": []
+    },
+    "staff_status": {
+        "description_mn": "Тухайн staff-ийн дэлгэрэнгүй үзүүлэлт.",
+        "description_en": "Staff member status",
+        "category": "Модераци",
+        "usage": "/staff_status <member>",
+        "examples": []
+    },
+    "temprole_config": {
+        "description_mn": "Түр үүргийн системийн тохиргооны самбар.",
+        "description_en": "Temp role config",
+        "category": "Модераци",
+        "usage": "/temprole_config",
+        "examples": []
+    },
+    "avatar_config": {
+        "description_mn": "Avatar шалгалт/лог системийн тохиргоо.",
+        "description_en": "Avatar check config",
+        "category": "Модераци",
+        "usage": "A!avatar_config",
+        "examples": []
+    },
+    "automod": {
+        "description_mn": "Auto-moderation тохиргоо (холбоос/спам/үг).",
+        "description_en": "Auto-moderation settings",
+        "category": "Модераци",
+        "usage": "/automod <action> <feature>",
+        "examples": []
+    },
+    "rr": {
+        "description_mn": "Reaction role тохиргооны самбар.",
+        "description_en": "Reaction role setup",
+        "category": "Модераци",
+        "usage": "/rr <action> <emoji>",
+        "examples": []
+    },
+    "rrlist": {
+        "description_mn": "Reaction-role холболтуудыг харуулна.",
+        "description_en": "List reaction roles",
+        "category": "Модераци",
+        "usage": "A!rrlist",
+        "examples": []
+    },
+    "role give": {
+        "description_mn": "Хэрэглэгчид байнгын үүрэг өгнө.",
+        "description_en": "Give a permanent role",
+        "category": "Модераци",
+        "usage": "A!role give <user> <role>",
+        "examples": []
+    },
+    "role remove": {
+        "description_mn": "Хэрэглэгчээс байнгын үүрэг хасна.",
+        "description_en": "Remove a permanent role",
+        "category": "Модераци",
+        "usage": "A!role remove <user> <role>",
+        "examples": []
+    },
+    "role info": {
+        "description_mn": "Үүргийн дэлгэрэнгүй мэдээлэл.",
+        "description_en": "Role details",
+        "category": "Модераци",
+        "usage": "A!role info <role>",
+        "examples": []
+    },
+    "role members": {
+        "description_mn": "Тухайн үүрэгтэй гишүүдийн жагсаалт.",
+        "description_en": "Members with a role",
+        "category": "Модераци",
+        "usage": "A!role members <role>",
+        "examples": []
+    },
+    "temprole give": {
+        "description_mn": "Хугацаатай түр үүрэг өгнө.",
+        "description_en": "Give a temporary role",
+        "category": "Модераци",
+        "usage": "A!temprole give <user> <role> <duration>",
+        "examples": []
+    },
+    "temprole remove": {
+        "description_mn": "Түр үүргийг хугацаанаас өмнө хасна.",
+        "description_en": "Remove a temp role",
+        "category": "Модераци",
+        "usage": "A!temprole remove <user> <role>",
+        "examples": []
+    },
+    "temprole list": {
+        "description_mn": "Идэвхтэй түр үүргүүдийн жагсаалт.",
+        "description_en": "List active temp roles",
+        "category": "Модераци",
+        "usage": "A!temprole list <user>",
+        "examples": []
+    },
+    "temprole clear": {
+        "description_mn": "Хэрэглэгчийн бүх түр үүргийг цуцална.",
+        "description_en": "Clear temp roles",
+        "category": "Модераци",
+        "usage": "A!temprole clear <user>",
+        "examples": []
+    },
+    "rank": {
+        "description_mn": "Хэрэглэгчийн түвшин, XP болон эрэмбэ.",
+        "description_en": "Rank, XP and position",
+        "category": "Түвшин",
+        "usage": "A!rank <user>",
+        "examples": []
+    },
+    "serveractivity": {
+        "description_mn": "Серверийн идэвхтэй байдлын статистик.",
+        "description_en": "Server activity ranking",
+        "category": "Түвшин",
+        "usage": "A!serveractivity",
+        "examples": []
+    },
+    "leaderboard": {
+        "description_mn": "Серверийн эрэмбийн самбар.",
+        "description_en": "Server leaderboard",
+        "category": "Түвшин",
+        "usage": "A!leaderboard",
+        "examples": []
+    },
+    "addxp": {
+        "description_mn": "Хэрэглэгчид XP нэмэх (эзэмшигч/co-owner).",
+        "description_en": "Add XP to a user",
+        "category": "Түвшин",
+        "usage": "A!addxp <user> <amount>",
+        "examples": []
+    },
+    "removexp": {
+        "description_mn": "Хэрэглэгчээс XP хасах (эзэмшигч/co-owner).",
+        "description_en": "Remove XP from a user",
+        "category": "Түвшин",
+        "usage": "A!removexp <user> <amount>",
         "examples": []
     },
     "leveling_setup": {
@@ -246,46 +771,165 @@ COMMAND_INFO = {
         "usage": "A!leveling_setup",
         "examples": []
     },
-    "serveractivity": {
-        "description_mn": "Серверийн хамгийн идэвхтэй гишүүдийн жагсаалт.",
-        "description_en": "Server activity ranking",
-        "category": "Түвшин",
-        "usage": "A!serveractivity",
+    "propose": {
+        "description_mn": "Гэрлэх санал тавих (хуримын карттай).",
+        "description_en": "Propose marriage",
+        "category": "Гэр бүл",
+        "usage": "A!propose <user>",
+        "examples": []
+    },
+    "marriage marry": {
+        "description_mn": "Гэрлэх санал тавих (слаш).",
+        "description_en": "Propose marriage (slash)",
+        "category": "Гэр бүл",
+        "usage": "/marriage marry <user>",
+        "examples": []
+    },
+    "marriage makeparent": {
+        "description_mn": "Эцэг эх болох санал тавих.",
+        "description_en": "Offer to become a parent",
+        "category": "Гэр бүл",
+        "usage": "/marriage makeparent <parent>",
+        "examples": []
+    },
+    "marriage runaway": {
+        "description_mn": "Эцэг эхээсээ зугтах.",
+        "description_en": "Run away from parents",
+        "category": "Гэр бүл",
+        "usage": "/marriage runaway",
+        "examples": []
+    },
+    "marriage partners": {
+        "description_mn": "Хамтрагч(ид)-аа харах.",
+        "description_en": "View your partners",
+        "category": "Гэр бүл",
+        "usage": "/marriage partners",
+        "examples": []
+    },
+    "marriage parent": {
+        "description_mn": "Эцэг эхээ харах.",
+        "description_en": "View your parents",
+        "category": "Гэр бүл",
+        "usage": "/marriage parent",
+        "examples": []
+    },
+    "marriage children": {
+        "description_mn": "Хүүхдүүдээ харах.",
+        "description_en": "View your children",
+        "category": "Гэр бүл",
+        "usage": "/marriage children",
+        "examples": []
+    },
+    "marriage tree": {
+        "description_mn": "Гэр бүлийн мод (зураг).",
+        "description_en": "Family tree image",
+        "category": "Гэр бүл",
+        "usage": "/marriage tree <member>",
+        "examples": []
+    },
+    "marriage fulltree": {
+        "description_mn": "Бүрэн гэр бүлийн мод (хамтрагчийн гэр бүл орно).",
+        "description_en": "Full family tree",
+        "category": "Гэр бүл",
+        "usage": "/marriage fulltree <member>",
+        "examples": []
+    },
+    "marriage relationship": {
+        "description_mn": "Хоёр хэрэглэгчийн хоорондын харилцаа.",
+        "description_en": "Relationship between two users",
+        "category": "Гэр бүл",
+        "usage": "/marriage relationship <user1> <user2>",
+        "examples": []
+    },
+    "marriage familysize": {
+        "description_mn": "Гэр бүлийн гишүүдийн тоо.",
+        "description_en": "Family size",
+        "category": "Гэр бүл",
+        "usage": "/marriage familysize",
+        "examples": []
+    },
+    "divorce": {
+        "description_mn": "Гэрлэлтийг цуцлах.",
+        "description_en": "Divorce your partner",
+        "category": "Гэр бүл",
+        "usage": "A!divorce <user>",
+        "examples": []
+    },
+    "adopt": {
+        "description_mn": "Хүүхэд үрчлэх.",
+        "description_en": "Adopt a child",
+        "category": "Гэр бүл",
+        "usage": "A!adopt <child>",
+        "examples": []
+    },
+    "disown": {
+        "description_mn": "Үрчлэсэн хүүхдээ хаях.",
+        "description_en": "Disown a child",
+        "category": "Гэр бүл",
+        "usage": "A!disown <child>",
+        "examples": []
+    },
+    "spouse": {
+        "description_mn": "Ханьтайгаа холбоотой мэдээлэл.",
+        "description_en": "Spouse information",
+        "category": "Гэр бүл",
+        "usage": "A!spouse",
+        "examples": []
+    },
+    "love": {
+        "description_mn": "Хэрэглэгчтэйгээ хайрын хувь харах.",
+        "description_en": "Check love percentage",
+        "category": "Гэр бүл",
+        "usage": "A!love <target>",
+        "examples": []
+    },
+    "gift": {
+        "description_mn": "Хамтрагчдаа бэлэг өгөх.",
+        "description_en": "Gift your partner",
+        "category": "Гэр бүл",
+        "usage": "A!gift <gift_type>",
+        "examples": []
+    },
+    "familytree": {
+        "description_mn": "Гэр бүлийн модыг харах.",
+        "description_en": "View family tree",
+        "category": "Гэр бүл",
+        "usage": "A!familytree <member>",
+        "examples": []
+    },
+    "marriagepro": {
+        "description_mn": "Гэрлэлтийн карт үүсгэх.",
+        "description_en": "Create marriage card",
+        "category": "Гэр бүл",
+        "usage": "A!marriagepro <member>",
         "examples": []
     },
     "autoaccept": {
-        "description_mn": "Гэрлэх саналыг автоматаар зөвшөөрөх эсэх.",
-        "description_en": "Auto-accept marriage",
+        "description_mn": "Гэрлэх саналыг автоматаар хүлээн авах эсэх.",
+        "description_en": "Auto-accept proposals",
         "category": "Гэр бүл",
         "usage": "/autoaccept <enabled>",
         "examples": []
     },
     "marriage_setup": {
-        "description_mn": "Гэр бүлийн системийн тохиргоо.",
+        "description_mn": "Гэр бүлийн системийн тохиргооны самбар.",
         "description_en": "Marriage setup",
         "category": "Гэр бүл",
         "usage": "/marriage_setup",
         "examples": []
     },
-    "addmoney": {
-        "description_mn": "Хэрэглэгчид мөнгө нэмнэ.",
-        "description_en": "Add money to a user",
+    "status": {
+        "description_mn": "Ботын төлөв болон эрүүл мэндийг шалгах.",
+        "description_en": "Bot status and health",
         "category": "Админ",
-        "usage": "/addmoney <member> <amount>",
+        "usage": "/status",
         "examples": []
     },
     "info": {
         "description_mn": "Бот/серверийн ерөнхий мэдээлэл.",
-        "description_en": "Bot/server info",
+        "description_en": "Bot and server info",
         "category": "Админ",
         "usage": "/info",
-        "examples": []
-    },
-    "removemoney": {
-        "description_mn": "Хэрэглэгчээс мөнгө хасна.",
-        "description_en": "Remove money from a user",
-        "category": "Админ",
-        "usage": "/removemoney <member> <amount>",
         "examples": []
     },
     "rolelist": {
@@ -295,270 +939,53 @@ COMMAND_INFO = {
         "usage": "/rolelist <member>",
         "examples": []
     },
-    "status": {
-        "description_mn": "Ботын ажиллагааны төлөв.",
-        "description_en": "Bot status",
+    "addmoney": {
+        "description_mn": "Хэрэглэгчид мөнгө нэмэх.",
+        "description_en": "Add money to a user",
         "category": "Админ",
-        "usage": "/status",
+        "usage": "/addmoney <member> <amount>",
         "examples": []
     },
-    "addxp": {
-        "description_mn": "addxp команд",
-        "description_en": "addxp",
-        "category": "Хэрэгсэл",
-        "usage": "A!addxp <user> <amount>",
+    "removemoney": {
+        "description_mn": "Хэрэглэгчээс мөнгө хасах.",
+        "description_en": "Remove money from a user",
+        "category": "Админ",
+        "usage": "/removemoney <member> <amount>",
         "examples": []
     },
-    "adopt": {
-        "description_mn": "adopt команд",
-        "description_en": "adopt",
-        "category": "Хэрэгсэл",
-        "usage": "A!adopt <child>",
+    "stock set": {
+        "description_mn": "Барааны нөөцийг тогтоох (админ).",
+        "description_en": "Set item stock",
+        "category": "Админ",
+        "usage": "A!stock set <item_id> <amount>",
         "examples": []
     },
-    "angry": {
-        "description_mn": "angry команд",
-        "description_en": "angry",
-        "category": "Хэрэгсэл",
-        "usage": "A!angry",
+    "stock add": {
+        "description_mn": "Барааны нөөц нэмэх (админ).",
+        "description_en": "Add item stock",
+        "category": "Админ",
+        "usage": "A!stock add <item_id> <amount>",
         "examples": []
     },
-    "announce": {
-        "description_mn": "Серверт зар мэдээ тараах.",
-        "description_en": "Send announcement",
-        "category": "Хэрэгсэл",
-        "usage": "/announce",
+    "stock remove": {
+        "description_mn": "Барааны нөөц хасах (админ).",
+        "description_en": "Remove item stock",
+        "category": "Админ",
+        "usage": "A!stock remove <item_id> <amount>",
         "examples": []
     },
-    "avatar": {
-        "description_mn": "avatar команд",
-        "description_en": "avatar",
-        "category": "Хэрэгсэл",
-        "usage": "A!avatar <member>",
+    "stock reset": {
+        "description_mn": "Бүх нөөцийг даруй санамсаргүй болгох (админ).",
+        "description_en": "Reset all stock",
+        "category": "Админ",
+        "usage": "A!stock reset",
         "examples": []
     },
-    "balance": {
-        "description_mn": "balance команд",
-        "description_en": "balance",
-        "category": "Хэрэгсэл",
-        "usage": "A!balance <member>",
-        "examples": []
-    },
-    "ban": {
-        "description_mn": "ban команд",
-        "description_en": "ban",
-        "category": "Хэрэгсэл",
-        "usage": "/ban <member> <reason>",
-        "examples": []
-    },
-    "bankprotect": {
-        "description_mn": "bankprotect команд",
-        "description_en": "bankprotect",
-        "category": "Хэрэгсэл",
-        "usage": "A!bankprotect",
-        "examples": []
-    },
-    "bite": {
-        "description_mn": "bite команд",
-        "description_en": "bite",
-        "category": "Хэрэгсэл",
-        "usage": "A!bite <target>",
-        "examples": []
-    },
-    "blackjack": {
-        "description_mn": "blackjack команд",
-        "description_en": "blackjack",
-        "category": "Хэрэгсэл",
-        "usage": "A!blackjack <amount_str>",
-        "examples": []
-    },
-    "boop": {
-        "description_mn": "boop команд",
-        "description_en": "boop",
-        "category": "Хэрэгсэл",
-        "usage": "A!boop <target>",
-        "examples": []
-    },
-    "bully": {
-        "description_mn": "bully команд",
-        "description_en": "bully",
-        "category": "Хэрэгсэл",
-        "usage": "A!bully <target>",
-        "examples": []
-    },
-    "cafe": {
-        "description_mn": "cafe команд",
-        "description_en": "cafe",
-        "category": "Хэрэгсэл",
-        "usage": "A!cafe",
-        "examples": []
-    },
-    "cat": {
-        "description_mn": "cat команд",
-        "description_en": "cat",
-        "category": "Хэрэгсэл",
-        "usage": "A!cat",
-        "examples": []
-    },
-    "clear": {
-        "description_mn": "clear команд",
-        "description_en": "clear",
-        "category": "Хэрэгсэл",
-        "usage": "/clear <amount>",
-        "examples": []
-    },
-    "confess": {
-        "description_mn": "confess команд",
-        "description_en": "confess",
-        "category": "Хэрэгсэл",
-        "usage": "/confess",
-        "examples": []
-    },
-    "cry": {
-        "description_mn": "cry команд",
-        "description_en": "cry",
-        "category": "Хэрэгсэл",
-        "usage": "A!cry",
-        "examples": []
-    },
-    "cuddle": {
-        "description_mn": "cuddle команд",
-        "description_en": "cuddle",
-        "category": "Хэрэгсэл",
-        "usage": "A!cuddle <target>",
-        "examples": []
-    },
-    "daily": {
-        "description_mn": "daily команд",
-        "description_en": "daily",
-        "category": "Хэрэгсэл",
-        "usage": "A!daily",
-        "examples": []
-    },
-    "dance": {
-        "description_mn": "dance команд",
-        "description_en": "dance",
-        "category": "Хэрэгсэл",
-        "usage": "A!dance",
-        "examples": []
-    },
-    "deposit": {
-        "description_mn": "deposit команд",
-        "description_en": "deposit",
-        "category": "Хэрэгсэл",
-        "usage": "A!deposit <amount_str>",
-        "examples": []
-    },
-    "dice": {
-        "description_mn": "dice команд",
-        "description_en": "dice",
-        "category": "Хэрэгсэл",
-        "usage": "A!dice <amount_str>",
-        "examples": []
-    },
-    "dine": {
-        "description_mn": "dine команд",
-        "description_en": "dine",
-        "category": "Хэрэгсэл",
-        "usage": "A!dine <number>",
-        "examples": []
-    },
-    "disown": {
-        "description_mn": "disown команд",
-        "description_en": "disown",
-        "category": "Хэрэгсэл",
-        "usage": "A!disown <child>",
-        "examples": []
-    },
-    "divorce": {
-        "description_mn": "divorce команд",
-        "description_en": "divorce",
-        "category": "Хэрэгсэл",
-        "usage": "A!divorce <user>",
-        "examples": []
-    },
-    "dog": {
-        "description_mn": "dog команд",
-        "description_en": "dog",
-        "category": "Хэрэгсэл",
-        "usage": "A!dog",
-        "examples": []
-    },
-    "eat": {
-        "description_mn": "eat команд",
-        "description_en": "eat",
-        "category": "Хэрэгсэл",
-        "usage": "A!eat",
-        "examples": []
-    },
-    "familytree": {
-        "description_mn": "familytree команд",
-        "description_en": "familytree",
-        "category": "Хэрэгсэл",
-        "usage": "A!familytree <member>",
-        "examples": []
-    },
-    "fox": {
-        "description_mn": "fox команд",
-        "description_en": "fox",
-        "category": "Хэрэгсэл",
-        "usage": "A!fox",
-        "examples": []
-    },
-    "gamble": {
-        "description_mn": "gamble команд",
-        "description_en": "gamble",
-        "category": "Хэрэгсэл",
-        "usage": "A!gamble <amount_str>",
-        "examples": []
-    },
-    "gif": {
-        "description_mn": "gif команд",
-        "description_en": "gif",
-        "category": "Хэрэгсэл",
-        "usage": "A!gif <query>",
-        "examples": []
-    },
-    "gift": {
-        "description_mn": "gift команд",
-        "description_en": "gift",
-        "category": "Хэрэгсэл",
-        "usage": "A!gift <gift_type>",
-        "examples": []
-    },
-    "greeting_reset": {
-        "description_mn": "Мэндчилгээний тохиргоо цэвэрлэх.",
-        "description_en": "Reset greetings",
-        "category": "Хэрэгсэл",
-        "usage": "/greeting_reset",
-        "examples": []
-    },
-    "greeting_status": {
-        "description_mn": "Мэндчилгээний төлөв харах.",
-        "description_en": "Greeting status",
-        "category": "Хэрэгсэл",
-        "usage": "/greeting_status",
-        "examples": []
-    },
-    "hack": {
-        "description_mn": "hack команд",
-        "description_en": "hack",
-        "category": "Хэрэгсэл",
-        "usage": "A!hack <target>",
-        "examples": []
-    },
-    "handhold": {
-        "description_mn": "handhold команд",
-        "description_en": "handhold",
-        "category": "Хэрэгсэл",
-        "usage": "A!handhold <target>",
-        "examples": []
-    },
-    "happy": {
-        "description_mn": "happy команд",
-        "description_en": "happy",
-        "category": "Хэрэгсэл",
-        "usage": "A!happy",
+    "stock refresh": {
+        "description_mn": "Бүх серверийн нөөцийг дахин дүүргэх.",
+        "description_en": "Refresh shop stock",
+        "category": "Админ",
+        "usage": "A!stock refresh",
         "examples": []
     },
     "help": {
@@ -568,403 +995,165 @@ COMMAND_INFO = {
         "usage": "A!help <command>",
         "examples": []
     },
-    "highfive": {
-        "description_mn": "highfive команд",
-        "description_en": "highfive",
-        "category": "Хэрэгсэл",
-        "usage": "A!highfive <target>",
-        "examples": []
-    },
-    "highlow": {
-        "description_mn": "highlow команд",
-        "description_en": "highlow",
-        "category": "Хэрэгсэл",
-        "usage": "A!highlow <amount_str> <choice>",
-        "examples": []
-    },
-    "hug": {
-        "description_mn": "hug команд",
-        "description_en": "hug",
-        "category": "Хэрэгсэл",
-        "usage": "A!hug <target>",
-        "examples": []
-    },
-    "inventory": {
-        "description_mn": "inventory команд",
-        "description_en": "inventory",
-        "category": "Хэрэгсэл",
-        "usage": "A!inventory <member>",
-        "examples": []
-    },
-    "kick": {
-        "description_mn": "kick команд",
-        "description_en": "kick",
-        "category": "Хэрэгсэл",
-        "usage": "/kick <member> <reason>",
-        "examples": []
-    },
-    "kiss": {
-        "description_mn": "kiss команд",
-        "description_en": "kiss",
-        "category": "Хэрэгсэл",
-        "usage": "A!kiss <target>",
-        "examples": []
-    },
-    "lang": {
-        "description_mn": "Ботын хэл солих.",
-        "description_en": "Change language",
-        "category": "Хэрэгсэл",
-        "usage": "A!lang <new_lang>",
-        "examples": []
-    },
-    "laugh": {
-        "description_mn": "laugh команд",
-        "description_en": "laugh",
-        "category": "Хэрэгсэл",
-        "usage": "A!laugh",
-        "examples": []
-    },
-    "leaderboard": {
-        "description_mn": "leaderboard команд",
-        "description_en": "leaderboard",
-        "category": "Хэрэгсэл",
-        "usage": "A!leaderboard",
-        "examples": []
-    },
-    "lock": {
-        "description_mn": "lock команд",
-        "description_en": "lock",
-        "category": "Хэрэгсэл",
-        "usage": "/lock <channel> <reason>",
-        "examples": []
-    },
-    "love": {
-        "description_mn": "love команд",
-        "description_en": "love",
-        "category": "Хэрэгсэл",
-        "usage": "A!love <target>",
-        "examples": []
-    },
-    "marriagepro": {
-        "description_mn": "marriagepro команд",
-        "description_en": "marriagepro",
-        "category": "Хэрэгсэл",
-        "usage": "A!marriagepro <member>",
-        "examples": []
-    },
-    "meme": {
-        "description_mn": "meme команд",
-        "description_en": "meme",
-        "category": "Хэрэгсэл",
-        "usage": "A!meme",
-        "examples": []
-    },
-    "mines": {
-        "description_mn": "mines команд",
-        "description_en": "mines",
-        "category": "Хэрэгсэл",
-        "usage": "A!mines <bet>",
-        "examples": []
-    },
-    "numberguess": {
-        "description_mn": "numberguess команд",
-        "description_en": "numberguess",
-        "category": "Хэрэгсэл",
-        "usage": "A!numberguess <amount_str>",
-        "examples": []
-    },
-    "pat": {
-        "description_mn": "pat команд",
-        "description_en": "pat",
-        "category": "Хэрэгсэл",
-        "usage": "A!pat <target>",
-        "examples": []
-    },
     "ping": {
-        "description_mn": "ping команд",
-        "description_en": "ping",
+        "description_mn": "Ботын ping/удаашралыг харуулна.",
+        "description_en": "Bot latency",
         "category": "Хэрэгсэл",
         "usage": "A!ping",
         "examples": []
     },
-    "placeholders": {
-        "description_mn": "Мэндчилгээний боломжит тэмдэгтүүд.",
-        "description_en": "Greeting placeholders",
+    "announce": {
+        "description_mn": "Зарлал үүсгэх самбар нээх.",
+        "description_en": "Create an announcement",
         "category": "Хэрэгсэл",
-        "usage": "/placeholders",
+        "usage": "/announce",
         "examples": []
     },
-    "poke": {
-        "description_mn": "poke команд",
-        "description_en": "poke",
+    "lang": {
+        "description_mn": "Ботын хэл солих (mn/en).",
+        "description_en": "Change server language",
         "category": "Хэрэгсэл",
-        "usage": "A!poke <target>",
+        "usage": "A!lang <new_lang>",
         "examples": []
     },
-    "profile": {
-        "description_mn": "profile команд",
-        "description_en": "profile",
+    "menu": {
+        "description_mn": "Интерактив цэс нээх.",
+        "description_en": "Open interactive menu",
         "category": "Хэрэгсэл",
-        "usage": "A!profile <member>",
-        "examples": []
-    },
-    "propose": {
-        "description_mn": "propose команд",
-        "description_en": "propose",
-        "category": "Хэрэгсэл",
-        "usage": "A!propose <user>",
-        "examples": []
-    },
-    "punch": {
-        "description_mn": "punch команд",
-        "description_en": "punch",
-        "category": "Хэрэгсэл",
-        "usage": "A!punch <target>",
-        "examples": []
-    },
-    "quest": {
-        "description_mn": "quest команд",
-        "description_en": "quest",
-        "category": "Хэрэгсэл",
-        "usage": "A!quest",
-        "examples": []
-    },
-    "rank": {
-        "description_mn": "rank команд",
-        "description_en": "rank",
-        "category": "Хэрэгсэл",
-        "usage": "A!rank <user>",
-        "examples": []
-    },
-    "relax": {
-        "description_mn": "relax команд",
-        "description_en": "relax",
-        "category": "Хэрэгсэл",
-        "usage": "A!relax",
-        "examples": []
-    },
-    "removexp": {
-        "description_mn": "removexp команд",
-        "description_en": "removexp",
-        "category": "Хэрэгсэл",
-        "usage": "A!removexp <user> <amount>",
-        "examples": []
-    },
-    "rob": {
-        "description_mn": "rob команд",
-        "description_en": "rob",
-        "category": "Хэрэгсэл",
-        "usage": "A!rob <target>",
-        "examples": []
-    },
-    "rps": {
-        "description_mn": "rps команд",
-        "description_en": "rps",
-        "category": "Хэрэгсэл",
-        "usage": "A!rps <amount_str>",
-        "examples": []
-    },
-    "set_log_channel": {
-        "description_mn": "Лог бичих суваг тохируулах.",
-        "description_en": "Set log channel",
-        "category": "Хэрэгсэл",
-        "usage": "/set_log_channel <channel>",
-        "examples": []
-    },
-    "shop": {
-        "description_mn": "shop команд",
-        "description_en": "shop",
-        "category": "Хэрэгсэл",
-        "usage": "A!shop",
-        "examples": []
-    },
-    "slap": {
-        "description_mn": "slap команд",
-        "description_en": "slap",
-        "category": "Хэрэгсэл",
-        "usage": "A!slap <target>",
-        "examples": []
-    },
-    "sleep": {
-        "description_mn": "sleep команд",
-        "description_en": "sleep",
-        "category": "Хэрэгсэл",
-        "usage": "A!sleep",
-        "examples": []
-    },
-    "slot": {
-        "description_mn": "slot команд",
-        "description_en": "slot",
-        "category": "Хэрэгсэл",
-        "usage": "A!slot <amount_str>",
-        "examples": []
-    },
-    "snuggle": {
-        "description_mn": "snuggle команд",
-        "description_en": "snuggle",
-        "category": "Хэрэгсэл",
-        "usage": "A!snuggle <target>",
-        "examples": []
-    },
-    "spouse": {
-        "description_mn": "spouse команд",
-        "description_en": "spouse",
-        "category": "Хэрэгсэл",
-        "usage": "A!spouse",
-        "examples": []
-    },
-    "stare": {
-        "description_mn": "stare команд",
-        "description_en": "stare",
-        "category": "Хэрэгсэл",
-        "usage": "A!stare <target>",
+        "usage": "A!menu",
         "examples": []
     },
     "stick": {
-        "description_mn": "Статик мессеж бэхлэх.",
-        "description_en": "Pin a sticky message",
+        "description_mn": "Sticky мессеж тохируулах.",
+        "description_en": "Set a sticky message",
         "category": "Хэрэгсэл",
-        "usage": "/stick <content>",
+        "usage": "A!stick <content>",
+        "examples": []
+    },
+    "unstick": {
+        "description_mn": "Sticky мессежийг цуцлах.",
+        "description_en": "Remove a sticky message",
+        "category": "Хэрэгсэл",
+        "usage": "A!unstick",
+        "examples": []
+    },
+    "voicesetup": {
+        "description_mn": "Түр дуут сувгийн тохиргооны самбар нээх.",
+        "description_en": "Temp voice setup",
+        "category": "Хэрэгсэл",
+        "usage": "/voicesetup",
+        "examples": []
+    },
+    "voicesettings": {
+        "description_mn": "Одоогийн түр сувгийн тохиргоог харах.",
+        "description_en": "Temp voice settings",
+        "category": "Хэрэгсэл",
+        "usage": "/voicesettings",
+        "examples": []
+    },
+    "greeting_set": {
+        "description_mn": "Welcome/Goodbye/Boost сувгийг тохируулах.",
+        "description_en": "Set a greeting channel",
+        "category": "Хэрэгсэл",
+        "usage": "/greeting_set <event> <channel> <template_id> <dm>",
+        "examples": []
+    },
+    "greeting_toggle": {
+        "description_mn": "Мэдэгдлийг идэвхжүүлэх/унтраах.",
+        "description_en": "Toggle greetings",
+        "category": "Хэрэгсэл",
+        "usage": "/greeting_toggle <event>",
+        "examples": []
+    },
+    "greeting_status": {
+        "description_mn": "Одоогийн тохиргоог харах.",
+        "description_en": "Greeting status",
+        "category": "Хэрэгсэл",
+        "usage": "/greeting_status",
+        "examples": []
+    },
+    "greeting_reset": {
+        "description_mn": "Бүх мэндчилгээний тохиргоог устгах (болгоомжтой!).",
+        "description_en": "Reset all greetings",
+        "category": "Хэрэгсэл",
+        "usage": "/greeting_reset",
         "examples": []
     },
     "template_create": {
-        "description_mn": "Мэндчилгээний загвар үүсгэх.",
-        "description_en": "Create template",
+        "description_mn": "Шинэ embed загвар үүсгэх.",
+        "description_en": "Create a template",
         "category": "Хэрэгсэл",
         "usage": "/template_create",
         "examples": []
     },
-    "template_delete": {
-        "description_mn": "Загвар устгах.",
-        "description_en": "Delete template",
-        "category": "Хэрэгсэл",
-        "usage": "/template_delete <template_id>",
-        "examples": []
-    },
     "template_edit": {
-        "description_mn": "Загвар засварлах.",
-        "description_en": "Edit template",
+        "description_mn": "Загварыг засварлах.",
+        "description_en": "Edit a template",
         "category": "Хэрэгсэл",
         "usage": "/template_edit <template_id>",
         "examples": []
     },
+    "template_delete": {
+        "description_mn": "Загвар устгах.",
+        "description_en": "Delete a template",
+        "category": "Хэрэгсэл",
+        "usage": "/template_delete <template_id>",
+        "examples": []
+    },
     "template_list": {
-        "description_mn": "Загваруудын жагсаалт.",
+        "description_mn": "Бүх загваруудыг харах.",
         "description_en": "List templates",
         "category": "Хэрэгсэл",
         "usage": "/template_list",
         "examples": []
     },
     "template_preview": {
-        "description_mn": "Загварыг урьдчилж харах.",
-        "description_en": "Preview template",
+        "description_mn": "Загварыг урьдчилан харах.",
+        "description_en": "Preview a template",
         "category": "Хэрэгсэл",
         "usage": "/template_preview <template_id> <member>",
         "examples": []
     },
-    "think": {
-        "description_mn": "think команд",
-        "description_en": "think",
+    "placeholders": {
+        "description_mn": "Мэндчилгээний бүх хувьсагчдыг харах.",
+        "description_en": "Greeting placeholders",
         "category": "Хэрэгсэл",
-        "usage": "A!think",
+        "usage": "/placeholders",
         "examples": []
     },
-    "transfer": {
-        "description_mn": "transfer команд",
-        "description_en": "transfer",
+    "set_log_channel": {
+        "description_mn": "Алдааны лог сувгийг тохируулах.",
+        "description_en": "Set log channel",
         "category": "Хэрэгсэл",
-        "usage": "A!transfer <member> <amount_str>",
+        "usage": "/set_log_channel <channel>",
         "examples": []
     },
-    "trivia": {
-        "description_mn": "trivia команд",
-        "description_en": "trivia",
-        "category": "Хэрэгсэл",
-        "usage": "A!trivia",
-        "examples": []
-    },
-    "unban": {
-        "description_mn": "unban команд",
-        "description_en": "unban",
-        "category": "Хэрэгсэл",
-        "usage": "/unban <user_id> <reason>",
-        "examples": []
-    },
-    "unlock": {
-        "description_mn": "unlock команд",
-        "description_en": "unlock",
-        "category": "Хэрэгсэл",
-        "usage": "/unlock <channel> <reason>",
-        "examples": []
-    },
-    "unstick": {
-        "description_mn": "Бэхэлсэн мессеж цуцлах.",
-        "description_en": "Unpin sticky message",
-        "category": "Хэрэгсэл",
-        "usage": "A!unstick",
-        "examples": []
-    },
-    "untimeout": {
-        "description_mn": "untimeout команд",
-        "description_en": "untimeout",
-        "category": "Хэрэгсэл",
-        "usage": "/untimeout <member>",
-        "examples": []
-    },
-    "voicesettings": {
-        "description_mn": "Түр дуут сувагны тохиргоо.",
-        "description_en": "Temp voice settings",
-        "category": "Хэрэгсэл",
-        "usage": "/voicesettings",
-        "examples": []
-    },
-    "voicesetup": {
-        "description_mn": "voicesetup команд",
-        "description_en": "voicesetup",
-        "category": "Хэрэгсэл",
-        "usage": "/voicesetup",
-        "examples": []
-    },
-    "warn": {
-        "description_mn": "warn команд",
-        "description_en": "warn",
-        "category": "Хэрэгсэл",
-        "usage": "/warn <member> <reason>",
-        "examples": []
-    },
-    "warnings": {
-        "description_mn": "warnings команд",
-        "description_en": "warnings",
-        "category": "Хэрэгсэл",
-        "usage": "/warnings <member>",
-        "examples": []
-    },
-    "wave": {
-        "description_mn": "wave команд",
-        "description_en": "wave",
-        "category": "Хэрэгсэл",
-        "usage": "A!wave <target>",
-        "examples": []
-    },
-    "withdraw": {
-        "description_mn": "withdraw команд",
-        "description_en": "withdraw",
-        "category": "Хэрэгсэл",
-        "usage": "A!withdraw <amount_str>",
-        "examples": []
-    },
-    "work": {
-        "description_mn": "work команд",
-        "description_en": "work",
-        "category": "Хэрэгсэл",
-        "usage": "A!work <custom_text>",
-        "examples": []
-    },
-    "accessories": {
-        "description_mn": "Гоёл чимэглэлийн зүйлс харах.",
-        "description_en": "View accessories",
+    "marketplace panel": {
+        "description_mn": "Зах зээлийн самбар нээх (слаш).",
+        "description_en": "Marketplace panel",
         "category": "Дэлгүүр",
-        "usage": "A!accessories",
+        "usage": "/marketplace panel",
+        "examples": []
+    },
+    "cafe": {
+        "description_mn": "Кафе цэс харж, хоол захиалах.",
+        "description_en": "Order food at the cafe",
+        "category": "Хоол",
+        "usage": "A!cafe",
+        "examples": []
+    },
+    "dine": {
+        "description_mn": "Инвентариас хоол идэж buff авах.",
+        "description_en": "Eat food for buffs",
+        "category": "Хоол",
+        "usage": "A!dine <number>",
+        "examples": []
+    },
+    "shop": {
+        "description_mn": "Дэлгүүр нээж зүйл худалдаж авах.",
+        "description_en": "Open the shop",
+        "category": "Дэлгүүр",
+        "usage": "A!shop",
         "examples": []
     },
     "buy": {
@@ -974,25 +1163,11 @@ COMMAND_INFO = {
         "usage": "A!buy <item_input> <quantity>",
         "examples": []
     },
-    "drink": {
-        "description_mn": "Уух зүйл ашиглаж согтуур болно.",
-        "description_en": "Drink an item",
+    "vape": {
+        "description_mn": "Вейп ашиглан согтуурлыг арилгах.",
+        "description_en": "Use a vape",
         "category": "Дэлгүүр",
-        "usage": "A!drink <item_id>",
-        "examples": []
-    },
-    "equip": {
-        "description_mn": "Зүйлээ зүүж авна.",
-        "description_en": "Equip an item",
-        "category": "Дэлгүүр",
-        "usage": "A!equip <item_input>",
-        "examples": []
-    },
-    "equipped": {
-        "description_mn": "Хэрэглэгчийн зүүсэн зүйлс харах.",
-        "description_en": "View equipped items",
-        "category": "Дэлгүүр",
-        "usage": "A!equipped <member>",
+        "usage": "A!vape",
         "examples": []
     },
     "iteminfo": {
@@ -1002,39 +1177,11 @@ COMMAND_INFO = {
         "usage": "A!iteminfo <item_id>",
         "examples": []
     },
-    "market": {
-        "description_mn": "Зах зээлийн зарыг харах.",
-        "description_en": "View marketplace",
+    "drink": {
+        "description_mn": "Уух зүйл ашиглаж согтуурна.",
+        "description_en": "Drink an item",
         "category": "Дэлгүүр",
-        "usage": "A!market",
-        "examples": []
-    },
-    "mp": {
-        "description_mn": "Зах зээл командын товчлол.",
-        "description_en": "Marketplace shortcut",
-        "category": "Дэлгүүр",
-        "usage": "A!mp",
-        "examples": []
-    },
-    "sogtol": {
-        "description_mn": "Согтуу байдлын төлөв харах.",
-        "description_en": "Drunk status",
-        "category": "Дэлгүүр",
-        "usage": "A!sogtol",
-        "examples": []
-    },
-    "trade": {
-        "description_mn": "Нөхөртэйгөө зүйл солилцох.",
-        "description_en": "Trade items with a user",
-        "category": "Дэлгүүр",
-        "usage": "A!trade <user> <item> <amount> <target>",
-        "examples": []
-    },
-    "unequip": {
-        "description_mn": "Зүүсэн зүйлээ тайрч хасна.",
-        "description_en": "Unequip an item",
-        "category": "Дэлгүүр",
-        "usage": "A!unequip <slot_input>",
+        "usage": "A!drink <item_id>",
         "examples": []
     },
     "use": {
@@ -1044,39 +1191,251 @@ COMMAND_INFO = {
         "usage": "A!use <item_input>",
         "examples": []
     },
-    "vape": {
-        "description_mn": "Вейп ашиглан согтуурээ арилгана.",
-        "description_en": "Use a vape",
+    "equip": {
+        "description_mn": "Зүйлээ зүүж авна.",
+        "description_en": "Equip an item",
         "category": "Дэлгүүр",
-        "usage": "A!vape",
+        "usage": "A!equip <item_input>",
+        "examples": []
+    },
+    "unequip": {
+        "description_mn": "Зүүсэн зүйлээ тайлж хасна.",
+        "description_en": "Unequip an item",
+        "category": "Дэлгүүр",
+        "usage": "A!unequip <slot_input>",
+        "examples": []
+    },
+    "equipped": {
+        "description_mn": "Хэрэглэгчийн зүүсэн зүйлс.",
+        "description_en": "View equipped items",
+        "category": "Дэлгүүр",
+        "usage": "A!equipped <member>",
+        "examples": []
+    },
+    "accessories": {
+        "description_mn": "Гоёл чимэглэлийн зүйлс харах.",
+        "description_en": "View accessories",
+        "category": "Дэлгүүр",
+        "usage": "A!accessories",
+        "examples": []
+    },
+    "sogtol": {
+        "description_mn": "Согтуу/мансууралын төлөв харах.",
+        "description_en": "Drunk status",
+        "category": "Дэлгүүр",
+        "usage": "A!sogtol",
+        "examples": []
+    },
+    "trade": {
+        "description_mn": "Найздаа зүйл бэлэглэх — бараа, тоог цэснээс сонгоно.",
+        "description_en": "Trade/give items to a user",
+        "category": "Дэлгүүр",
+        "usage": "A!trade <найз>",
+        "examples": [
+            "A!trade @friend   → бараа, тоогоо товч/жагсаалтаар сонгоно"
+        ]
+    },
+    "market": {
+        "description_mn": "Зах зээлийн интерактив самбар нээх.",
+        "description_en": "Open the marketplace",
+        "category": "Дэлгүүр",
+        "usage": "A!market",
+        "examples": []
+    },
+    "mp": {
+        "description_mn": "Зах зээлийн тусламж.",
+        "description_en": "Marketplace help",
+        "category": "Дэлгүүр",
+        "usage": "A!mp",
+        "examples": []
+    },
+    "profile": {
+        "description_mn": "Профайл картаа харах.",
+        "description_en": "View your profile card",
+        "category": "Дэлгүүр",
+        "usage": "A!profile <member>",
+        "examples": []
+    },
+    "inventory": {
+        "description_mn": "Инвентар картаа харах.",
+        "description_en": "View inventory card",
+        "category": "Дэлгүүр",
+        "usage": "A!inventory <member>",
+        "examples": []
+    },
+    "confess": {
+        "description_mn": "Нууц захиа илгээх (модал).",
+        "description_en": "Send a confession",
+        "category": "Нууц",
+        "usage": "/confess",
+        "examples": []
+    },
+    "confess_setup": {
+        "description_mn": "Нууц захианы тохиргооны самбар нээх.",
+        "description_en": "Confession setup",
+        "category": "Нууц",
+        "usage": "/confess_setup",
         "examples": []
     },
     "confess_blacklist": {
-        "description_mn": "Нууц мессежид хориглосон үг жагсаах.",
+        "description_mn": "Хориотой үгийн жагсаалт удирдах.",
         "description_en": "Confession blacklist",
         "category": "Нууц",
         "usage": "/confess_blacklist <action> <word>",
         "examples": []
     },
     "confess_delete": {
-        "description_mn": "Нууц мессежийг ID-гаар устгах.",
+        "description_mn": "Нууц захиаг ID-гаар устгах (админ).",
         "description_en": "Delete a confession",
         "category": "Нууц",
         "usage": "/confess_delete <confession_id>",
         "examples": []
     },
-    "confess_setup": {
-        "description_mn": "Нууц мессежийн суваг тохируулах.",
-        "description_en": "Confession setup",
-        "category": "Нууц",
-        "usage": "/confess_setup",
-        "examples": []
-    },
     "confess_stats": {
-        "description_mn": "Нууц мессежийн статистик.",
+        "description_mn": "Нууц захианы системийн статистик.",
         "description_en": "Confession stats",
         "category": "Нууц",
         "usage": "/confess_stats",
+        "examples": []
+    },
+    "quest": {
+        "description_mn": "Даалгаврын систем — тусламж/төлөв харах.",
+        "description_en": "Quest system help",
+        "category": "Даалгавар",
+        "usage": "A!quest",
+        "examples": []
+    },
+    "quest new": {
+        "description_mn": "Шинэ даалгавар авах (хамгийн ихдээ 5).",
+        "description_en": "Get a new quest",
+        "category": "Даалгавар",
+        "usage": "A!quest new",
+        "examples": []
+    },
+    "quest status": {
+        "description_mn": "Одоогийн идэвхтэй даалгаварууд.",
+        "description_en": "Current quests",
+        "category": "Даалгавар",
+        "usage": "A!quest status",
+        "examples": []
+    },
+    "quest claim": {
+        "description_mn": "Даалгавраа биелүүлж, шагнал авах.",
+        "description_en": "Claim quest reward",
+        "category": "Даалгавар",
+        "usage": "A!quest claim <quest_id>",
+        "examples": []
+    },
+    "quest refresh": {
+        "description_mn": "Даалгаврыг сольж, шинэчлэх.",
+        "description_en": "Refresh a quest",
+        "category": "Даалгавар",
+        "usage": "A!quest refresh <quest_id>",
+        "examples": []
+    },
+    "quest history": {
+        "description_mn": "Сүүлд биелүүлсэн даалгаврын түүх.",
+        "description_en": "Completed quest history",
+        "category": "Даалгавар",
+        "usage": "A!quest history",
+        "examples": []
+    },
+    "invites setup": {
+        "description_mn": "Урилгын систем тохируулах.",
+        "description_en": "Invite tracking setup",
+        "category": "Урилга",
+        "usage": "/invites setup",
+        "examples": []
+    },
+    "invites stats": {
+        "description_mn": "Урилгын статистик.",
+        "description_en": "Invite statistics",
+        "category": "Урилга",
+        "usage": "/invites stats <member>",
+        "examples": []
+    },
+    "invites codes": {
+        "description_mn": "Идэвхтэй урилгын кодууд.",
+        "description_en": "Active invite codes",
+        "category": "Урилга",
+        "usage": "/invites codes <member>",
+        "examples": []
+    },
+    "invites list": {
+        "description_mn": "Урьсан хэрэглэгчдийн жагсаалт.",
+        "description_en": "List invited users",
+        "category": "Урилга",
+        "usage": "/invites list <user>",
+        "examples": []
+    },
+    "invites inviter": {
+        "description_mn": "Хэрэглэгчийг хэн урьсныг харах.",
+        "description_en": "Who invited a user",
+        "category": "Урилга",
+        "usage": "/invites inviter <member>",
+        "examples": []
+    },
+    "invites addlabel": {
+        "description_mn": "Урилгын шошго нэмэх.",
+        "description_en": "Add an invite label",
+        "category": "Урилга",
+        "usage": "/invites addlabel <invite_code> <label> <role>",
+        "examples": []
+    },
+    "invites removelabel": {
+        "description_mn": "Урилгын шошго устгах.",
+        "description_en": "Remove an invite label",
+        "category": "Урилга",
+        "usage": "/invites removelabel <invite_code>",
+        "examples": []
+    },
+    "invites graph": {
+        "description_mn": "Урилгын статистик график.",
+        "description_en": "Invite statistics graph",
+        "category": "Урилга",
+        "usage": "/invites graph <days>",
+        "examples": []
+    },
+    "giveaway setup": {
+        "description_mn": "Giveaway тохиргооны самбар нээх.",
+        "description_en": "Giveaway setup",
+        "category": "Giveaway",
+        "usage": "/giveaway setup",
+        "examples": []
+    },
+    "giveaway end": {
+        "description_mn": "Giveaway дуусгах.",
+        "description_en": "End a giveaway",
+        "category": "Giveaway",
+        "usage": "/giveaway end <message_id>",
+        "examples": []
+    },
+    "giveaway reroll": {
+        "description_mn": "Giveaway-гийн ялагчийг дахин сонгох.",
+        "description_en": "Reroll giveaway winner",
+        "category": "Giveaway",
+        "usage": "/giveaway reroll <message_id>",
+        "examples": []
+    },
+    "giveaway cancel": {
+        "description_mn": "Giveaway цуцлах.",
+        "description_en": "Cancel a giveaway",
+        "category": "Giveaway",
+        "usage": "/giveaway cancel <message_id>",
+        "examples": []
+    },
+    "giveaway entries": {
+        "description_mn": "Giveaway-гийн оролцогчдын тоо.",
+        "description_en": "Giveaway entries",
+        "category": "Giveaway",
+        "usage": "/giveaway entries <message_id>",
+        "examples": []
+    },
+    "giveaway list": {
+        "description_mn": "Идэвхтэй giveaway-үүдийн жагсаалт.",
+        "description_en": "List active giveaways",
+        "category": "Giveaway",
+        "usage": "/giveaway list",
         "examples": []
     },
 }
@@ -1214,6 +1573,8 @@ CATEGORY_EMOJIS = {
     "Дэлгүүр": "🛍️",
     "Нууц": "🤫",
     "Даалгавар": "📜",
+    "Урилга": "🧲",
+    "Giveaway": "🎁",
 }
 
 CATEGORY_ICONS = {
@@ -1230,22 +1591,26 @@ CATEGORY_ICONS = {
     "Дэлгүүр": "🏪",
     "Нууц": "📝",
     "Даалгавар": "🗒️",
+    "Урилга": "💌",
+    "Giveaway": "🎁",
 }
 
 CATEGORY_COLORS = {
-    "Эдийн засаг": 0xfab387,
-    "Тоглоом": 0xf9e2af,
-    "Казино": 0xcba6f7,
-    "Хөгжилтэй": 0xff69b4,
-    "Модераци": 0xf38ba8,
-    "Түвшин": 0xa6e3a1,
-    "Гэр бүл": 0xff10f0,
-    "Админ": 0x89b4fa,
-    "Хэрэгсэл": 0x6c7086,
-    "Хоол": 0xffa500,
-    "Дэлгүүр": 0x00ffcc,
-    "Нууц": 0x9b59b6,
-    "Даалгавар": 0xfab387,
+    "Эдийн засаг": "16429959",
+    "Тоглоом": "16376495",
+    "Казино": "13346551",
+    "Хөгжилтэй": "16738740",
+    "Модераци": "15961000",
+    "Түвшин": "10937249",
+    "Гэр бүл": "16716016",
+    "Админ": "9024762",
+    "Хэрэгсэл": "7106694",
+    "Хоол": "16753920",
+    "Дэлгүүр": "65484",
+    "Нууц": "10181046",
+    "Даалгавар": "16429959",
+    "Урилга": "7653356",
+    "Giveaway": "16376495",
 }
 
 CATEGORY_COUNT_INFO = f"{len(CATEGORY_EMOJIS)} ангилал · нийт {len(COMMAND_INFO)} тушаал"
