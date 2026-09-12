@@ -161,17 +161,16 @@ class FontManager:
             if not os.path.isdir(sdir):
                 continue
             try:
-                for fname in os.listdir(sdir):
-                    fpath = os.path.normpath(os.path.join(sdir, fname))
-                    if fpath in seen_paths:
-                        continue
-                    if not fname.lower().endswith((".ttf", ".otf", ".ttc")):
-                        continue
-                    if not os.path.isfile(fpath):
-                        continue
-                    seen_paths.add(fpath)
-                    is_bold = "bold" in fname.lower() or "bd" in fname.lower()
-                    found.append((fpath, is_bold))
+                for root, _dirs, files in os.walk(sdir):
+                    for fname in files:
+                        fpath = os.path.normpath(os.path.join(root, fname))
+                        if fpath in seen_paths:
+                            continue
+                        if not fname.lower().endswith((".ttf", ".otf", ".ttc")):
+                            continue
+                        seen_paths.add(fpath)
+                        is_bold = "bold" in fname.lower() or "bd" in fname.lower()
+                        found.append((fpath, is_bold))
             except (PermissionError, OSError):
                 continue
 
@@ -291,13 +290,14 @@ class FontManager:
             except Exception:
                 pass
 
-        # Try any font that can render the bot name
-        from utils.branding import BOT_NAME
+        # A single font rarely covers both Mathematical Script and CJK.
+        # Pick one that renders at least one distinctive branding glyph;
+        # mixed-script drawing uses the per-glyph fallback renderer.
         fonts = self._discover_fonts()
         for path, _ in fonts:
             try:
                 font = ImageFont.truetype(path, size)
-                if self._font_has_glyph(font, BOT_NAME):
+                if any(self._font_has_glyph(font, ch) for ch in ("𝓐", "蒼", "穹")):
                     self._font_cache[key] = font
                     return font
             except Exception:
