@@ -771,18 +771,25 @@ COMMAND_INFO = {
         "usage": "A!leveling_setup",
         "examples": []
     },
-    "propose": {
+    "marriage marry": {
         "description_mn": "Гэрлэх санал тавих (хуримын карттай).",
         "description_en": "Propose marriage",
         "category": "Гэр бүл",
-        "usage": "A!propose <user>",
+        "usage": "/marriage marry <user>",
         "examples": []
     },
-    "marriage marry": {
-        "description_mn": "Гэрлэх санал тавих (слаш).",
-        "description_en": "Propose marriage (slash)",
+    "marriage divorce": {
+        "description_mn": "Гэрлэлтийг цуцлах.",
+        "description_en": "Divorce your partner",
         "category": "Гэр бүл",
-        "usage": "/marriage marry <user>",
+        "usage": "/marriage divorce <user?>",
+        "examples": []
+    },
+    "marriage adopt": {
+        "description_mn": "Хүүхэд үрчлэх санал тавих.",
+        "description_en": "Adopt a child",
+        "category": "Гэр бүл",
+        "usage": "/marriage adopt <child>",
         "examples": []
     },
     "marriage makeparent": {
@@ -848,74 +855,46 @@ COMMAND_INFO = {
         "usage": "/marriage familysize",
         "examples": []
     },
-    "divorce": {
-        "description_mn": "Гэрлэлтийг цуцлах.",
-        "description_en": "Divorce your partner",
-        "category": "Гэр бүл",
-        "usage": "A!divorce <user>",
-        "examples": []
-    },
-    "adopt": {
-        "description_mn": "Хүүхэд үрчлэх.",
-        "description_en": "Adopt a child",
-        "category": "Гэр бүл",
-        "usage": "A!adopt <child>",
-        "examples": []
-    },
-    "disown": {
-        "description_mn": "Үрчлэсэн хүүхдээ хаях.",
+    "marriage disown": {
+        "description_mn": "Үрчлэсэн хүүхдээсээ татгалзах.",
         "description_en": "Disown a child",
         "category": "Гэр бүл",
-        "usage": "A!disown <child>",
+        "usage": "/marriage disown <child>",
         "examples": []
     },
-    "spouse": {
-        "description_mn": "Ханьтайгаа холбоотой мэдээлэл.",
-        "description_en": "Spouse information",
+    "marriage love": {
+        "description_mn": "Хэрэглэгчид өдөр тутмын love оноо өгөх.",
+        "description_en": "Give daily love points",
         "category": "Гэр бүл",
-        "usage": "A!spouse",
+        "usage": "/marriage love <target>",
         "examples": []
     },
-    "love": {
-        "description_mn": "Хэрэглэгчтэйгээ хайрын хувь харах.",
-        "description_en": "Check love percentage",
-        "category": "Гэр бүл",
-        "usage": "A!love <target>",
-        "examples": []
-    },
-    "gift": {
+    "marriage gift": {
         "description_mn": "Хамтрагчдаа бэлэг өгөх.",
         "description_en": "Gift your partner",
         "category": "Гэр бүл",
-        "usage": "A!gift <gift_type>",
+        "usage": "/marriage gift <gift_type>",
         "examples": []
     },
-    "familytree": {
-        "description_mn": "Гэр бүлийн модыг харах.",
-        "description_en": "View family tree",
+    "marriage profile": {
+        "description_mn": "Гэрлэлтийн зурагт карт үүсгэх.",
+        "description_en": "Create a marriage profile card",
         "category": "Гэр бүл",
-        "usage": "A!familytree <member>",
+        "usage": "/marriage profile <member?>",
         "examples": []
     },
-    "marriagepro": {
-        "description_mn": "Гэрлэлтийн карт үүсгэх.",
-        "description_en": "Create marriage card",
-        "category": "Гэр бүл",
-        "usage": "A!marriagepro <member>",
-        "examples": []
-    },
-    "autoaccept": {
+    "marriage autoaccept": {
         "description_mn": "Гэрлэх саналыг автоматаар хүлээн авах эсэх.",
-        "description_en": "Auto-accept proposals",
+        "description_en": "Toggle automatic proposal acceptance",
         "category": "Гэр бүл",
-        "usage": "/autoaccept <enabled>",
+        "usage": "/marriage autoaccept <enabled>",
         "examples": []
     },
-    "marriage_setup": {
-        "description_mn": "Гэр бүлийн системийн тохиргооны самбар.",
-        "description_en": "Marriage setup",
+    "marriage setup": {
+        "description_mn": "Гэр бүлийн системийн админ тохиргооны самбар.",
+        "description_en": "Configure the marriage system",
         "category": "Гэр бүл",
-        "usage": "/marriage_setup",
+        "usage": "/marriage setup",
         "examples": []
     },
     "status": {

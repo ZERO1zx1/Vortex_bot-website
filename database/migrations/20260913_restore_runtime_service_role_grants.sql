@@ -14,7 +14,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public.leveling_config,
   public.leveling_exceptions,
   public.staff_config,
-  public.marriages
+  public.marriages,
+  public.adoptions
 TO service_role;
 
 NOTIFY pgrst, 'reload schema';

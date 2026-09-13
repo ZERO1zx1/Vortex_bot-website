@@ -13,7 +13,7 @@ Firebase дээрх static сайтад зориулсан API сервис. Dis
 | GET | `/api/status` | Бот online/offline + uptime (`bot_status` хүснэгт) |
 | GET | `/api/leaderboard?guild_id=...&limit=10` | XP топ жагсаалт (`levels`) |
 | GET | `/api/giveaways?guild_id=...&active=1` | Giveaway жагсаалт (`giveaways`) |
-| GET | `/api/commands?cat=Economy&q=...` | Командын каталог (153 команд) |
+| GET | `/api/commands?cat=Economy&q=...` | Командын каталог (201 команд) |
 
 Interactive docs: `/docs` (Swagger UI).
 

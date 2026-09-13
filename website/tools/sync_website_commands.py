@@ -23,6 +23,7 @@ WEB = os.path.dirname(HERE)                                 # website
 REPO = os.path.dirname(WEB)                                # repo root
 HELP = os.path.join(REPO, "cogs", "help.py")
 WEB_JS = os.path.join(WEB, "js", "commands.js")
+BACKEND_JSON = os.path.join(REPO, "backend", "data", "commands.json")
 
 CAT_ORDER = ["Economy", "Leveling", "Social", "Games", "Moderation", "Admin", "Utility"]
 CAT_ICON = {
@@ -49,6 +50,15 @@ WEB_CAT = {
     "adopt": "Social", "disown": "Social", "divorce": "Social", "familytree": "Social",
     "gift": "Social", "marriage_setup": "Social", "marriagepro": "Social",
     "propose": "Social", "spouse": "Social", "love": "Social", "tree": "Social",
+    "marriage marry": "Social", "marriage divorce": "Social", "marriage adopt": "Social",
+    "marriage makeparent": "Social", "marriage runaway": "Social",
+    "marriage partners": "Social", "marriage parent": "Social",
+    "marriage children": "Social", "marriage tree": "Social",
+    "marriage fulltree": "Social", "marriage relationship": "Social",
+    "marriage familysize": "Social", "marriage disown": "Social",
+    "marriage love": "Social", "marriage gift": "Social",
+    "marriage profile": "Social", "marriage autoaccept": "Social",
+    "marriage setup": "Social",
     "confess": "Social", "confess_setup": "Social", "confess_stats": "Social",
     "confess_delete": "Social", "confess_blacklist": "Social",
     # Games
@@ -85,6 +95,21 @@ WEB_CAT = {
     "snuggle": "Utility", "stare": "Utility", "think": "Utility", "wave": "Utility",
 }
 
+HELP_CAT_FALLBACK = {
+    "Эдийн засаг": "Economy",
+    "Түвшин": "Leveling",
+    "Гэр бүл": "Social",
+    "Тоглоом": "Games",
+    "Модераци": "Moderation",
+    "Админ": "Admin",
+    "Хэрэгсэл": "Utility",
+    "Бусад": "Utility",
+    "Дэлгүүр": "Economy",
+    "Даалгавар": "Utility",
+    "Урилга": "Admin",
+    "Giveaway": "Games",
+}
+
 def load_help():
     src = open(HELP, encoding="utf-8").read()
     tree = ast.parse(src)
@@ -117,13 +142,16 @@ def main():
     info = load_help()
     icons = existing_icons()
 
-    missing = [n for n in info if n not in WEB_CAT]
+    missing = [
+        n for n, d in info.items()
+        if n not in WEB_CAT and d.get("category") not in HELP_CAT_FALLBACK
+    ]
     if missing:
         raise SystemExit("Unmapped commands (add to WEB_CAT): " + ", ".join(missing))
 
     rows = []
     for name, d in info.items():
-        wcat = WEB_CAT[name]
+        wcat = WEB_CAT.get(name) or HELP_CAT_FALLBACK[d.get("category")]
         usage = d.get("usage", f"A!{name}")
         icon = icons.get(name) or CAT_ICON[wcat]
         rows.append({
@@ -194,6 +222,11 @@ window.CAT_META = {{
 """
     open(WEB_JS, "w", encoding="utf-8").write(out)
     print(f"Wrote {WEB_JS} ({total} commands)")
+    backend_rows = [{k: v for k, v in row.items() if k != "_order"} for row in rows]
+    with open(BACKEND_JSON, "w", encoding="utf-8") as fh:
+        json.dump(backend_rows, fh, ensure_ascii=False, indent=4)
+        fh.write("\n")
+    print(f"Wrote {BACKEND_JSON} ({total} commands)")
 
 if __name__ == "__main__":
     main()

@@ -553,61 +553,81 @@ class Marriage(SupabaseCog):
     async def slash_familysize(self, interaction: discord.Interaction):
         await self._familysize(interaction, is_slash=True)
 
-    # ═════════ HYBRID COMMANDS ═════════
-    @commands.hybrid_command(name='propose', description="Гэрлэх санал тавих")
-    @app_commands.describe(user="Гэрлэх санал тавих хэрэглэгч")
-    async def propose(self, ctx, user: discord.Member):
-        await self._propose(ctx, user)
+    @marriage_group.command(name="disown", description="Хүүхдээсээ татгалзах")
+    @app_commands.describe(child="Татгалзах хүүхэд")
+    async def slash_disown(self, interaction: discord.Interaction, child: discord.Member):
+        await self._disown(interaction, child, is_slash=True)
 
-    @commands.hybrid_command(name='divorce', description="Гэрлэлтийг цуцлах")
-    @app_commands.describe(user="Цуцлах хэрэглэгч (хоосон бол бүх гэрлэлтийг цуцална)")
-    async def divorce(self, ctx, user: discord.Member = None):
-        await self._divorce(ctx, user)
+    @marriage_group.command(name="love", description="Хэрэглэгчид love оноо өгөх")
+    @app_commands.describe(target="Love оноо өгөх хэрэглэгч")
+    async def slash_love(self, interaction: discord.Interaction, target: discord.Member):
+        await self._love(interaction, target, is_slash=True)
 
-    @commands.hybrid_command(name='adopt', description="Хүүхэд үрчлэх")
-    @app_commands.describe(child="Хүүхэд")
-    async def adopt(self, ctx, child: discord.Member):
-        await self._adopt(ctx, child)
-
-    @commands.hybrid_command(name='disown', description="Хүүхдээ хаях")
-    @app_commands.describe(child="Хүүхэд")
-    async def disown(self, ctx, child: discord.Member):
-        await self._disown(ctx, child)
-
-    @commands.hybrid_command(name='spouse', description="Ханьтайгаа холбоотой мэдээлэл харах")
-    async def spouse(self, ctx):
-        await self._spouse(ctx)
-
-    @commands.hybrid_command(name='love', description="Хэрэглэгчтэйгээ хайрын хувь харах")
-    async def love(self, ctx, target: discord.Member):
-        await self._love(ctx, target)
-
-    @commands.hybrid_command(name='gift', description="Хэрэглэгчдээ бэлэг өгөх")
+    @marriage_group.command(name="gift", description="Ханьдаа бэлэг өгөх")
     @app_commands.choices(gift_type=[app_commands.Choice(name=v["name"], value=k) for k, v in GIFTS.items()])
-    async def gift(self, ctx, gift_type: str):
-        await self._gift(ctx, gift_type)
+    async def slash_gift(self, interaction: discord.Interaction, gift_type: str):
+        await self._gift(interaction, gift_type, is_slash=True)
 
-    @commands.hybrid_command(name='familytree', description="Гэр бүлийн модыг харах")
-    async def family_tree(self, ctx, member: Optional[discord.Member] = None):
-        await self._family_tree(ctx, member)
+    @marriage_group.command(name="profile", description="Гэрлэлтийн зурагт карт үүсгэх")
+    @app_commands.describe(member="Хэний карт (хоосон орхивол өөрийн)")
+    async def slash_profile(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        await self._marriage_card(interaction, member, is_slash=True)
 
-    @commands.hybrid_command(name='marriagepro', description="Гэрлэлтийн карт үүсгэх")
-    async def marriage_card(self, ctx, member: Optional[discord.Member] = None):
-        await self._marriage_card(ctx, member)
-
-    @app_commands.command(name="autoaccept", description="Гэрлэх саналыг автоматаар хүлээн авах")
-    async def autoaccept(self, interaction: discord.Interaction, enabled: bool):
+    @marriage_group.command(name="autoaccept", description="Гэрлэх саналыг автоматаар хүлээн авах")
+    async def slash_autoaccept(self, interaction: discord.Interaction, enabled: bool):
         await self.set_auto_accept(interaction.guild.id, interaction.user.id, enabled)
-        await interaction.response.send_message(f"✅ Автомат хүлээн авалт: **{'ИДЭВХТЭЙ' if enabled else 'ИДЭВХГҮЙ'}**", ephemeral=True)
+        await interaction.response.send_message(
+            f"✅ Автомат хүлээн авалт: **{'ИДЭВХТЭЙ' if enabled else 'ИДЭВХГҮЙ'}**",
+            ephemeral=True,
+        )
 
-    @app_commands.command(name="marriage_setup", description="Гэрлэлтийн тохиргооны самбар нээх")
+    @marriage_group.command(name="setup", description="Гэрлэлтийн тохиргооны самбар нээх")
     @app_commands.default_permissions(administrator=True)
-    async def marriage_setup(self, interaction: discord.Interaction):
+    async def slash_setup(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         cfg = await self.get_guild_config(interaction.guild_id)
         view = MarriageSetupView(self, interaction.guild_id, interaction.user.id)
         embed = view.build_embed(cfg, interaction.guild)
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+
+    # ═════════ PREFIX COMPATIBILITY COMMANDS ═════════
+    # Эдгээр хуучин A! команд ажилласаар байна. Slash picker дээр давхар
+    # харагдуулахгүй; slash хэрэглэгчид /marriage ... бүлгийг ашиглана.
+    @commands.command(name='propose')
+    async def propose(self, ctx, user: discord.Member):
+        await self._propose(ctx, user)
+
+    @commands.command(name='divorce')
+    async def divorce(self, ctx, user: discord.Member = None):
+        await self._divorce(ctx, user)
+
+    @commands.command(name='adopt')
+    async def adopt(self, ctx, child: discord.Member):
+        await self._adopt(ctx, child)
+
+    @commands.command(name='disown')
+    async def disown(self, ctx, child: discord.Member):
+        await self._disown(ctx, child)
+
+    @commands.command(name='spouse')
+    async def spouse(self, ctx):
+        await self._spouse(ctx)
+
+    @commands.command(name='love')
+    async def love(self, ctx, target: discord.Member):
+        await self._love(ctx, target)
+
+    @commands.command(name='gift')
+    async def gift(self, ctx, gift_type: str):
+        await self._gift(ctx, gift_type)
+
+    @commands.command(name='familytree')
+    async def family_tree(self, ctx, member: Optional[discord.Member] = None):
+        await self._family_tree(ctx, member)
+
+    @commands.command(name='marriagepro')
+    async def marriage_card(self, ctx, member: Optional[discord.Member] = None):
+        await self._marriage_card(ctx, member)
 
     # ═════════ БҮХ ҮЙЛДЛИЙН ТӨВ ФУНКЦУУД ═════════
     async def _propose(self, ctx_or_inter, user, is_slash=False):

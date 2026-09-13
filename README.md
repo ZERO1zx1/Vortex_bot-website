@@ -137,7 +137,7 @@ await self.bot.db_manager.increment("economy", {"user_id": "123"}, "balance", 10
 
 `website/` хавтас — ботын албан ёсны статик UI. Командын каталог зэрэг хэсэг backend-гүй ажиллана; live status нь нууц database key-г browser-т гаргахгүйн тулд `backend/` API шаарддаг.
 
-- Hero (3D orb + particles), Онцлогууд, 153 командын хайлттай жагсаалт, Статистик, Статус, About Us, Premium (3 төлөвлөгөө), Invite CTA
+- Hero (3D orb + particles), Онцлогууд, 201 командын хайлттай жагсаалт, Статистик, Статус, About Us, Premium (3 төлөвлөгөө), Invite CTA
 - Hosting: Vercel / Netlify / GitHub Pages дээр `website/` хавтсыг publish directory болгох (нарийвчилсан заавар: `website/README.md`)
 - Тохиргоо: `website/js/config.js`-с invite холбоосоо тохируулна (`INVITE_URL`)
 ## Branding

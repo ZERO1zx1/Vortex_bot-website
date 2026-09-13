@@ -35,6 +35,16 @@ cogs_handler.setLevel(logging.WARNING)  # WARNING+ бүгд файл руу
 cogs_handler.setFormatter(logging.Formatter(
     "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 ))
+stock_handler = RotatingFileHandler(
+    LOG_DIR / "stock.log",
+    maxBytes=5 * 1024 * 1024,
+    backupCount=3,
+    encoding="utf-8",
+)
+stock_handler.setLevel(logging.WARNING)
+stock_handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+))
 
 # TERMINAL LOG ТҮВШИН: config.json-ийн terminal_log_level-аар удирдагдана.
 # "INFO"   → INFO болон түүнээс дээш бүх лог харагдана
@@ -67,6 +77,10 @@ cogs_handler.setLevel(logging.WARNING)
 
 # Discord сангийн log-ыг WARNING+ болгох (INFO spam-аас зайлсхийх)
 logging.getLogger("discord").setLevel(logging.WARNING)
+# Supabase-ийн амжилттай хүсэлт бүрийг INFO-р хэвлэх нь stock refresh үед
+# хэдэн зуун мөр үүсгэдэг. Зөвхөн бодит HTTP warning/error-ийг үлдээнэ.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("cogs.stock").addHandler(stock_handler)
 
 # asyncio-ийн "Task exception was never retrieved" зэрэг дотоод логоос зайлсхийх
 logging.getLogger("asyncio").setLevel(logging.WARNING)

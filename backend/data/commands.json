@@ -12,7 +12,7 @@
         "name": "addmoney",
         "cat": "Economy",
         "icon": "➕",
-        "desc": "Хэрэглэгчид мөнгө нэмнэ.",
+        "desc": "Хэрэглэгчид мөнгө нэмэх.",
         "descEN": "Add money to a user",
         "args": [
             {
@@ -48,8 +48,8 @@
         "name": "balance",
         "cat": "Economy",
         "icon": "💳",
-        "desc": "balance команд",
-        "descEN": "balance",
+        "desc": "Үлдэгдэл мөнгө болон банкны дүнг харуулна.",
+        "descEN": "Check your balance",
         "args": [
             {
                 "key": "member",
@@ -62,8 +62,8 @@
         "name": "bankprotect",
         "cat": "Economy",
         "icon": "🔧",
-        "desc": "bankprotect команд",
-        "descEN": "bankprotect",
+        "desc": "Мөнгөө шилжүүлэг/дээрэмд өртөхөөс хамгаална.",
+        "descEN": "Protect your balance",
         "args": [],
         "example": "A!bankprotect"
     },
@@ -89,8 +89,8 @@
         "name": "cafe",
         "cat": "Economy",
         "icon": "☕",
-        "desc": "cafe команд",
-        "descEN": "cafe",
+        "desc": "Кафе цэс харж, хоол захиалах.",
+        "descEN": "Order food at the cafe",
         "args": [],
         "example": "A!cafe"
     },
@@ -107,8 +107,8 @@
         "name": "daily",
         "cat": "Economy",
         "icon": "📅",
-        "desc": "daily команд",
-        "descEN": "daily",
+        "desc": "Өдрийн урамшууллаа авах (цатгалан/сэтгэл санаагаар).",
+        "descEN": "Claim your daily reward",
         "args": [],
         "example": "A!daily"
     },
@@ -116,8 +116,8 @@
         "name": "deposit",
         "cat": "Economy",
         "icon": "🔧",
-        "desc": "deposit команд",
-        "descEN": "deposit",
+        "desc": "Банк руу мөнгө байршуулна.",
+        "descEN": "Deposit money to bank",
         "args": [
             {
                 "key": "amount_str",
@@ -130,8 +130,8 @@
         "name": "dine",
         "cat": "Economy",
         "icon": "🍽️",
-        "desc": "dine команд",
-        "descEN": "dine",
+        "desc": "Инвентариас хоол идэж buff авах.",
+        "descEN": "Eat food for buffs",
         "args": [
             {
                 "key": "number",
@@ -144,7 +144,7 @@
         "name": "drink",
         "cat": "Economy",
         "icon": "💰",
-        "desc": "Уух зүйл ашиглаж согтуур болно.",
+        "desc": "Уух зүйл ашиглаж согтуурна.",
         "descEN": "Drink an item",
         "args": [
             {
@@ -158,8 +158,8 @@
         "name": "eat",
         "cat": "Economy",
         "icon": "🔧",
-        "desc": "eat команд",
-        "descEN": "eat",
+        "desc": "Инвентариас хоол идэж цатгалан болон сэтгэл санаагаа сэргээнэ.",
+        "descEN": "Eat food from inventory",
         "args": [],
         "example": "A!eat"
     },
@@ -181,7 +181,7 @@
         "name": "equipped",
         "cat": "Economy",
         "icon": "💰",
-        "desc": "Хэрэглэгчийн зүүсэн зүйлс харах.",
+        "desc": "Хэрэглэгчийн зүүсэн зүйлс.",
         "descEN": "View equipped items",
         "args": [
             {
@@ -210,7 +210,7 @@
         "cat": "Economy",
         "icon": "💰",
         "desc": "Ажлын систем харах/ажиллах.",
-        "descEN": "Job system",
+        "descEN": "View and work jobs",
         "args": [],
         "example": "A!jobs"
     },
@@ -218,16 +218,25 @@
         "name": "market",
         "cat": "Economy",
         "icon": "🏪",
-        "desc": "Зах зээлийн зарыг харах.",
-        "descEN": "View marketplace",
+        "desc": "Зах зээлийн интерактив самбар нээх.",
+        "descEN": "Open the marketplace",
         "args": [],
         "example": "A!market"
+    },
+    {
+        "name": "marketplace panel",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Зах зээлийн самбар нээх (слаш).",
+        "descEN": "Marketplace panel",
+        "args": [],
+        "example": "/marketplace panel"
     },
     {
         "name": "removemoney",
         "cat": "Economy",
         "icon": "➖",
-        "desc": "Хэрэглэгчээс мөнгө хасна.",
+        "desc": "Хэрэглэгчээс мөнгө хасах.",
         "descEN": "Remove money from a user",
         "args": [
             {
@@ -245,8 +254,8 @@
         "name": "rob",
         "cat": "Economy",
         "icon": "🦹",
-        "desc": "rob команд",
-        "descEN": "rob",
+        "desc": "Өөр хэрэглэгчийг дээрэмдэж мөнгө авах (эрсдэлтэй).",
+        "descEN": "Rob another user",
         "args": [
             {
                 "key": "target",
@@ -259,8 +268,8 @@
         "name": "shop",
         "cat": "Economy",
         "icon": "🔧",
-        "desc": "shop команд",
-        "descEN": "shop",
+        "desc": "Дэлгүүр нээж зүйл худалдаж авах.",
+        "descEN": "Open the shop",
         "args": [],
         "example": "A!shop"
     },
@@ -268,7 +277,7 @@
         "name": "sogtol",
         "cat": "Economy",
         "icon": "💰",
-        "desc": "Согтуу байдлын төлөв харах.",
+        "desc": "Согтуу/мансууралын төлөв харах.",
         "descEN": "Drunk status",
         "args": [],
         "example": "A!sogtol"
@@ -286,8 +295,8 @@
         "name": "transfer",
         "cat": "Economy",
         "icon": "🔧",
-        "desc": "transfer команд",
-        "descEN": "transfer",
+        "desc": "Өөр хэрэглэгчид мөнгө шилжүүлнэ.",
+        "descEN": "Send money to a user",
         "args": [
             {
                 "key": "member",
@@ -304,7 +313,7 @@
         "name": "unequip",
         "cat": "Economy",
         "icon": "💰",
-        "desc": "Зүүсэн зүйлээ тайрч хасна.",
+        "desc": "Зүүсэн зүйлээ тайлж хасна.",
         "descEN": "Unequip an item",
         "args": [
             {
@@ -332,7 +341,7 @@
         "name": "vape",
         "cat": "Economy",
         "icon": "💰",
-        "desc": "Вейп ашиглан согтуурээ арилгана.",
+        "desc": "Вейп ашиглан согтуурлыг арилгах.",
         "descEN": "Use a vape",
         "args": [],
         "example": "A!vape"
@@ -341,8 +350,8 @@
         "name": "withdraw",
         "cat": "Economy",
         "icon": "🔧",
-        "desc": "withdraw команд",
-        "descEN": "withdraw",
+        "desc": "Банкнаас мөнгө гаргаж авна.",
+        "descEN": "Withdraw money from bank",
         "args": [
             {
                 "key": "amount_str",
@@ -355,8 +364,8 @@
         "name": "work",
         "cat": "Economy",
         "icon": "💼",
-        "desc": "work команд",
-        "descEN": "work",
+        "desc": "Ажиллаж мөнгө олох (нэмэлт текст зааж болно).",
+        "descEN": "Work to earn money",
         "args": [
             {
                 "key": "custom_text",
@@ -369,8 +378,8 @@
         "name": "workphrase",
         "cat": "Economy",
         "icon": "📝",
-        "desc": "Ажлын хэллэгийн систем.",
-        "descEN": "Work phrase system",
+        "desc": "Ажлын өгүүлбэрийн тохиргоо (embed+button+modal).",
+        "descEN": "Work phrase settings",
         "args": [],
         "example": "A!workphrase"
     },
@@ -378,8 +387,8 @@
         "name": "addxp",
         "cat": "Leveling",
         "icon": "✨",
-        "desc": "addxp команд",
-        "descEN": "addxp",
+        "desc": "Хэрэглэгчид XP нэмэх (эзэмшигч/co-owner).",
+        "descEN": "Add XP to a user",
         "args": [
             {
                 "key": "user",
@@ -396,8 +405,8 @@
         "name": "leaderboard",
         "cat": "Leveling",
         "icon": "🏆",
-        "desc": "leaderboard команд",
-        "descEN": "leaderboard",
+        "desc": "Серверийн эрэмбийн самбар.",
+        "descEN": "Server leaderboard",
         "args": [],
         "example": "A!leaderboard"
     },
@@ -414,8 +423,8 @@
         "name": "rank",
         "cat": "Leveling",
         "icon": "🏅",
-        "desc": "rank команд",
-        "descEN": "rank",
+        "desc": "Хэрэглэгчийн түвшин, XP болон эрэмбэ.",
+        "descEN": "Rank, XP and position",
         "args": [
             {
                 "key": "user",
@@ -428,8 +437,8 @@
         "name": "removexp",
         "cat": "Leveling",
         "icon": "📉",
-        "desc": "removexp команд",
-        "descEN": "removexp",
+        "desc": "Хэрэглэгчээс XP хасах (эзэмшигч/co-owner).",
+        "descEN": "Remove XP from a user",
         "args": [
             {
                 "key": "user",
@@ -446,31 +455,17 @@
         "name": "serveractivity",
         "cat": "Leveling",
         "icon": "📈",
-        "desc": "Серверийн хамгийн идэвхтэй гишүүдийн жагсаалт.",
+        "desc": "Серверийн идэвхтэй байдлын статистик.",
         "descEN": "Server activity ranking",
         "args": [],
         "example": "A!serveractivity"
     },
     {
-        "name": "adopt",
-        "cat": "Social",
-        "icon": "👶",
-        "desc": "adopt команд",
-        "descEN": "adopt",
-        "args": [
-            {
-                "key": "child",
-                "req": true
-            }
-        ],
-        "example": "A!adopt <child>"
-    },
-    {
         "name": "confess",
         "cat": "Social",
         "icon": "🤫",
-        "desc": "confess команд",
-        "descEN": "confess",
+        "desc": "Нууц захиа илгээх (модал).",
+        "descEN": "Send a confession",
         "args": [],
         "example": "/confess"
     },
@@ -478,7 +473,7 @@
         "name": "confess_blacklist",
         "cat": "Social",
         "icon": "⛔",
-        "desc": "Нууц мессежид хориглосон үг жагсаах.",
+        "desc": "Хориотой үгийн жагсаалт удирдах.",
         "descEN": "Confession blacklist",
         "args": [
             {
@@ -496,7 +491,7 @@
         "name": "confess_delete",
         "cat": "Social",
         "icon": "🗑️",
-        "desc": "Нууц мессежийг ID-гаар устгах.",
+        "desc": "Нууц захиаг ID-гаар устгах (админ).",
         "descEN": "Delete a confession",
         "args": [
             {
@@ -510,7 +505,7 @@
         "name": "confess_setup",
         "cat": "Social",
         "icon": "🕵️",
-        "desc": "Нууц мессежийн суваг тохируулах.",
+        "desc": "Нууц захианы тохиргооны самбар нээх.",
         "descEN": "Confession setup",
         "args": [],
         "example": "/confess_setup"
@@ -519,132 +514,242 @@
         "name": "confess_stats",
         "cat": "Social",
         "icon": "📊",
-        "desc": "Нууц мессежийн статистик.",
+        "desc": "Нууц захианы системийн статистик.",
         "descEN": "Confession stats",
         "args": [],
         "example": "/confess_stats"
     },
     {
-        "name": "disown",
+        "name": "marriage adopt",
         "cat": "Social",
-        "icon": "🚪",
-        "desc": "disown команд",
-        "descEN": "disown",
+        "icon": "💍",
+        "desc": "Хүүхэд үрчлэх санал тавих.",
+        "descEN": "Adopt a child",
         "args": [
             {
                 "key": "child",
                 "req": true
             }
         ],
-        "example": "A!disown <child>"
+        "example": "/marriage adopt <child>"
     },
     {
-        "name": "divorce",
+        "name": "marriage autoaccept",
         "cat": "Social",
-        "icon": "💔",
-        "desc": "divorce команд",
-        "descEN": "divorce",
+        "icon": "💍",
+        "desc": "Гэрлэх саналыг автоматаар хүлээн авах эсэх.",
+        "descEN": "Toggle automatic proposal acceptance",
         "args": [
             {
-                "key": "user",
+                "key": "enabled",
                 "req": true
             }
         ],
-        "example": "A!divorce <user>"
+        "example": "/marriage autoaccept <enabled>"
     },
     {
-        "name": "familytree",
+        "name": "marriage children",
         "cat": "Social",
-        "icon": "🌳",
-        "desc": "familytree команд",
-        "descEN": "familytree",
+        "icon": "💍",
+        "desc": "Хүүхдүүдээ харах.",
+        "descEN": "View your children",
+        "args": [],
+        "example": "/marriage children"
+    },
+    {
+        "name": "marriage disown",
+        "cat": "Social",
+        "icon": "💍",
+        "desc": "Үрчлэсэн хүүхдээсээ татгалзах.",
+        "descEN": "Disown a child",
+        "args": [
+            {
+                "key": "child",
+                "req": true
+            }
+        ],
+        "example": "/marriage disown <child>"
+    },
+    {
+        "name": "marriage divorce",
+        "cat": "Social",
+        "icon": "💍",
+        "desc": "Гэрлэлтийг цуцлах.",
+        "descEN": "Divorce your partner",
+        "args": [
+            {
+                "key": "user",
+                "req": false
+            }
+        ],
+        "example": "/marriage divorce <user?>"
+    },
+    {
+        "name": "marriage familysize",
+        "cat": "Social",
+        "icon": "💍",
+        "desc": "Гэр бүлийн гишүүдийн тоо.",
+        "descEN": "Family size",
+        "args": [],
+        "example": "/marriage familysize"
+    },
+    {
+        "name": "marriage fulltree",
+        "cat": "Social",
+        "icon": "💍",
+        "desc": "Бүрэн гэр бүлийн мод (хамтрагчийн гэр бүл орно).",
+        "descEN": "Full family tree",
         "args": [
             {
                 "key": "member",
                 "req": true
             }
         ],
-        "example": "A!familytree <member>"
+        "example": "/marriage fulltree <member>"
     },
     {
-        "name": "gift",
+        "name": "marriage gift",
         "cat": "Social",
-        "icon": "🎁",
-        "desc": "gift команд",
-        "descEN": "gift",
+        "icon": "💍",
+        "desc": "Хамтрагчдаа бэлэг өгөх.",
+        "descEN": "Gift your partner",
         "args": [
             {
                 "key": "gift_type",
                 "req": true
             }
         ],
-        "example": "A!gift <gift_type>"
+        "example": "/marriage gift <gift_type>"
     },
     {
-        "name": "love",
+        "name": "marriage love",
         "cat": "Social",
-        "icon": "❤️",
-        "desc": "love команд",
-        "descEN": "love",
+        "icon": "💍",
+        "desc": "Хэрэглэгчид өдөр тутмын love оноо өгөх.",
+        "descEN": "Give daily love points",
         "args": [
             {
                 "key": "target",
                 "req": true
             }
         ],
-        "example": "A!love <target>"
+        "example": "/marriage love <target>"
     },
     {
-        "name": "marriage_setup",
+        "name": "marriage makeparent",
         "cat": "Social",
-        "icon": "🔧",
-        "desc": "Гэр бүлийн системийн тохиргоо.",
-        "descEN": "Marriage setup",
-        "args": [],
-        "example": "/marriage_setup"
-    },
-    {
-        "name": "marriagepro",
-        "cat": "Social",
-        "icon": "🏛️",
-        "desc": "marriagepro команд",
-        "descEN": "marriagepro",
+        "icon": "💍",
+        "desc": "Эцэг эх болох санал тавих.",
+        "descEN": "Offer to become a parent",
         "args": [
             {
-                "key": "member",
+                "key": "parent",
                 "req": true
             }
         ],
-        "example": "A!marriagepro <member>"
+        "example": "/marriage makeparent <parent>"
     },
     {
-        "name": "propose",
+        "name": "marriage marry",
         "cat": "Social",
         "icon": "💍",
-        "desc": "propose команд",
-        "descEN": "propose",
+        "desc": "Гэрлэх санал тавих (хуримын карттай).",
+        "descEN": "Propose marriage",
         "args": [
             {
                 "key": "user",
                 "req": true
             }
         ],
-        "example": "A!propose <user>"
+        "example": "/marriage marry <user>"
     },
     {
-        "name": "spouse",
+        "name": "marriage parent",
         "cat": "Social",
-        "icon": "👫",
-        "desc": "spouse команд",
-        "descEN": "spouse",
+        "icon": "💍",
+        "desc": "Эцэг эхээ харах.",
+        "descEN": "View your parents",
         "args": [],
-        "example": "A!spouse"
+        "example": "/marriage parent"
+    },
+    {
+        "name": "marriage partners",
+        "cat": "Social",
+        "icon": "💍",
+        "desc": "Хамтрагч(ид)-аа харах.",
+        "descEN": "View your partners",
+        "args": [],
+        "example": "/marriage partners"
+    },
+    {
+        "name": "marriage profile",
+        "cat": "Social",
+        "icon": "💍",
+        "desc": "Гэрлэлтийн зурагт карт үүсгэх.",
+        "descEN": "Create a marriage profile card",
+        "args": [
+            {
+                "key": "member",
+                "req": false
+            }
+        ],
+        "example": "/marriage profile <member?>"
+    },
+    {
+        "name": "marriage relationship",
+        "cat": "Social",
+        "icon": "💍",
+        "desc": "Хоёр хэрэглэгчийн хоорондын харилцаа.",
+        "descEN": "Relationship between two users",
+        "args": [
+            {
+                "key": "user1",
+                "req": true
+            },
+            {
+                "key": "user2",
+                "req": true
+            }
+        ],
+        "example": "/marriage relationship <user1> <user2>"
+    },
+    {
+        "name": "marriage runaway",
+        "cat": "Social",
+        "icon": "💍",
+        "desc": "Эцэг эхээсээ зугтах.",
+        "descEN": "Run away from parents",
+        "args": [],
+        "example": "/marriage runaway"
+    },
+    {
+        "name": "marriage setup",
+        "cat": "Social",
+        "icon": "💍",
+        "desc": "Гэр бүлийн системийн админ тохиргооны самбар.",
+        "descEN": "Configure the marriage system",
+        "args": [],
+        "example": "/marriage setup"
+    },
+    {
+        "name": "marriage tree",
+        "cat": "Social",
+        "icon": "💍",
+        "desc": "Гэр бүлийн мод (зураг).",
+        "descEN": "Family tree image",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "/marriage tree <member>"
     },
     {
         "name": "8ball",
         "cat": "Games",
         "icon": "🔧",
-        "desc": "Магадлалтай 8 тост хариулт өгнө.",
+        "desc": "Магик 8-бөмбөг санамсаргүй хариулт өгнө.",
         "descEN": "Magic 8-ball answer",
         "args": [
             {
@@ -658,8 +763,8 @@
         "name": "blackjack",
         "cat": "Games",
         "icon": "🔧",
-        "desc": "blackjack команд",
-        "descEN": "blackjack",
+        "desc": "Blackjack картын мөрийтэй тоглоом — дилерийг ял.",
+        "descEN": "Blackjack card game",
         "args": [
             {
                 "key": "amount_str",
@@ -690,7 +795,7 @@
         "name": "coin",
         "cat": "Games",
         "icon": "🔧",
-        "desc": "Зоогийн мөнгө хаяж үр дүнг харуулна.",
+        "desc": "Зоо шидэж үр дүнг харуулна.",
         "descEN": "Flip a coin",
         "args": [],
         "example": "A!coin"
@@ -699,7 +804,7 @@
         "name": "coinflipgame",
         "cat": "Games",
         "icon": "🎲",
-        "desc": "Талбайн тоглоом — зоогийн мөнгөнээр тал руу чихэгдэнэ.",
+        "desc": "Зоо шидэлтийн мөрийтэй тоглоом — тал тавиад бооцоо тавина.",
         "descEN": "Coinflip gambling game",
         "args": [
             {
@@ -713,7 +818,7 @@
         "name": "count_save",
         "cat": "Games",
         "icon": "🔧",
-        "desc": "Тооллогын оноо хадгалах.",
+        "desc": "Тооллогын оноо хадгална.",
         "descEN": "Save counting score",
         "args": [],
         "example": "/count_save"
@@ -745,7 +850,7 @@
         "name": "crash",
         "cat": "Games",
         "icon": "🎲",
-        "desc": "Crash тоглоом — өсөлт зогсоохоос өмнө гарч ав.",
+        "desc": "Crash тоглоом — өсөлт зогсохоос өмнө гарч ав.",
         "descEN": "Crash betting game",
         "args": [
             {
@@ -759,8 +864,8 @@
         "name": "dice",
         "cat": "Games",
         "icon": "🎲",
-        "desc": "dice команд",
-        "descEN": "dice",
+        "desc": "Шоо шидэлтийн мөрийтэй тоглоом.",
+        "descEN": "Dice gambling game",
         "args": [
             {
                 "key": "amount_str",
@@ -773,8 +878,8 @@
         "name": "gamble",
         "cat": "Games",
         "icon": "🎰",
-        "desc": "gamble команд",
-        "descEN": "gamble",
+        "desc": "Мөрийтэй тоглоом — бооцоо тавин үржүүлэх боломж.",
+        "descEN": "Gambling game",
         "args": [
             {
                 "key": "amount_str",
@@ -793,10 +898,84 @@
         "example": "A!gamestats"
     },
     {
+        "name": "giveaway cancel",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Giveaway цуцлах.",
+        "descEN": "Cancel a giveaway",
+        "args": [
+            {
+                "key": "message_id",
+                "req": true
+            }
+        ],
+        "example": "/giveaway cancel <message_id>"
+    },
+    {
+        "name": "giveaway end",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Giveaway дуусгах.",
+        "descEN": "End a giveaway",
+        "args": [
+            {
+                "key": "message_id",
+                "req": true
+            }
+        ],
+        "example": "/giveaway end <message_id>"
+    },
+    {
+        "name": "giveaway entries",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Giveaway-гийн оролцогчдын тоо.",
+        "descEN": "Giveaway entries",
+        "args": [
+            {
+                "key": "message_id",
+                "req": true
+            }
+        ],
+        "example": "/giveaway entries <message_id>"
+    },
+    {
+        "name": "giveaway list",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Идэвхтэй giveaway-үүдийн жагсаалт.",
+        "descEN": "List active giveaways",
+        "args": [],
+        "example": "/giveaway list"
+    },
+    {
+        "name": "giveaway reroll",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Giveaway-гийн ялагчийг дахин сонгох.",
+        "descEN": "Reroll giveaway winner",
+        "args": [
+            {
+                "key": "message_id",
+                "req": true
+            }
+        ],
+        "example": "/giveaway reroll <message_id>"
+    },
+    {
+        "name": "giveaway setup",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Giveaway тохиргооны самбар нээх.",
+        "descEN": "Giveaway setup",
+        "args": [],
+        "example": "/giveaway setup"
+    },
+    {
         "name": "highcard",
         "cat": "Games",
         "icon": "🎲",
-        "desc": "Өндөр карт тоглоом — эсрэгтэйгээ өрсөлд.",
+        "desc": "Өндөр карт тоглоом — эсрэгтэйгээ өрсөлдөж карт зүүнэ.",
         "descEN": "High-card duel game",
         "args": [
             {
@@ -810,8 +989,8 @@
         "name": "highlow",
         "cat": "Games",
         "icon": "🔧",
-        "desc": "highlow команд",
-        "descEN": "highlow",
+        "desc": "Өндөр/бага мөрийтэй тоглоом — дараагийн тоог таа.",
+        "descEN": "High-low betting game",
         "args": [
             {
                 "key": "amount_str",
@@ -828,7 +1007,7 @@
         "name": "mafia_setup",
         "cat": "Games",
         "icon": "🎲",
-        "desc": "Mafia тоглоомын суваг/дүрэм тохируулах.",
+        "desc": "Мафи тоглоомын суваг/дүрэм тохируулах.",
         "descEN": "Setup mafia game",
         "args": [],
         "example": "/mafia_setup"
@@ -837,7 +1016,7 @@
         "name": "mafiacreate",
         "cat": "Games",
         "icon": "🎭",
-        "desc": "Шинэ Mafia наалт үүсгэнэ.",
+        "desc": "Шинэ мафи тоглоом үүсгэнэ.",
         "descEN": "Create a mafia session",
         "args": [],
         "example": "A!mafiacreate"
@@ -846,7 +1025,7 @@
         "name": "mafiaend",
         "cat": "Games",
         "icon": "⏹️",
-        "desc": "Идэвхтэй Mafia наалтыг дуусгана.",
+        "desc": "Идэвхтэй мафи тоглоомыг дуусгана.",
         "descEN": "End mafia session",
         "args": [],
         "example": "A!mafiaend"
@@ -855,7 +1034,7 @@
         "name": "mafiastart",
         "cat": "Games",
         "icon": "▶️",
-        "desc": "Mafia наалт эхлүүлж тоглогчдыг хуваарилна.",
+        "desc": "Мафи тоглоомыг эхлүүлж тоглогчдыг хуваарилна.",
         "descEN": "Start mafia session",
         "args": [],
         "example": "A!mafiastart"
@@ -864,8 +1043,8 @@
         "name": "mines",
         "cat": "Games",
         "icon": "💣",
-        "desc": "mines команд",
-        "descEN": "mines",
+        "desc": "Mines тоглоом — найдваргүй талбай нээж урамшуулал цуглуул.",
+        "descEN": "Mines mining game",
         "args": [
             {
                 "key": "bet",
@@ -878,8 +1057,8 @@
         "name": "mp",
         "cat": "Games",
         "icon": "🛍️",
-        "desc": "Зах зээл командын товчлол.",
-        "descEN": "Marketplace shortcut",
+        "desc": "Зах зээлийн тусламж.",
+        "descEN": "Marketplace help",
         "args": [],
         "example": "A!mp"
     },
@@ -887,8 +1066,8 @@
         "name": "numberguess",
         "cat": "Games",
         "icon": "🔧",
-        "desc": "numberguess команд",
-        "descEN": "numberguess",
+        "desc": "Тоо таах мөрийтэй тоглоом.",
+        "descEN": "Number guessing game",
         "args": [
             {
                 "key": "amount_str",
@@ -898,10 +1077,28 @@
         "example": "A!numberguess <amount_str>"
     },
     {
+        "name": "pvp",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Хэрэглэгчтэй тулаан хийх (бооцоотой).",
+        "descEN": "PvP duel with a user",
+        "args": [
+            {
+                "key": "opponent",
+                "req": true
+            },
+            {
+                "key": "amount",
+                "req": true
+            }
+        ],
+        "example": "A!pvp <opponent> <amount>"
+    },
+    {
         "name": "roll",
         "cat": "Games",
         "icon": "🔧",
-        "desc": "1-ээс өгөгдсөн хүртэлх тоо шиднэ.",
+        "desc": "1-ээс өгөгдсөн тоо хүртэл санамсаргүй тоо шиднэ.",
         "descEN": "Roll a random number",
         "args": [
             {
@@ -915,7 +1112,7 @@
         "name": "roulettegame",
         "cat": "Games",
         "icon": "🎲",
-        "desc": "Рулетт тоглоом — өнгө/тойрог тавина.",
+        "desc": "Рулет тоглоом — өнгө/тоо тавина.",
         "descEN": "Roulette game",
         "args": [
             {
@@ -929,8 +1126,8 @@
         "name": "rps",
         "cat": "Games",
         "icon": "✊",
-        "desc": "rps команд",
-        "descEN": "rps",
+        "desc": "Чулуу-цаас-хайч мөрийтэй тоглоом.",
+        "descEN": "Rock-paper-scissors game",
         "args": [
             {
                 "key": "amount_str",
@@ -943,8 +1140,8 @@
         "name": "slot",
         "cat": "Games",
         "icon": "🔧",
-        "desc": "slot команд",
-        "descEN": "slot",
+        "desc": "Оромын машины мөрийтэй тоглоом.",
+        "descEN": "Slot machine game",
         "args": [
             {
                 "key": "amount_str",
@@ -957,36 +1154,42 @@
         "name": "trade",
         "cat": "Games",
         "icon": "🔄",
-        "desc": "Нөхөртэйгөө зүйл солилцох.",
-        "descEN": "Trade items with a user",
+        "desc": "Найздаа зүйл бэлэглэх — бараа, тоог цэснээс сонгоно.",
+        "descEN": "Trade/give items to a user",
         "args": [
             {
-                "key": "user",
-                "req": true
-            },
-            {
-                "key": "item",
-                "req": true
-            },
-            {
-                "key": "amount",
-                "req": true
-            },
-            {
-                "key": "target",
+                "key": "найз",
                 "req": true
             }
         ],
-        "example": "A!trade <user> <item> <amount> <target>"
+        "example": "A!trade <найз>"
     },
     {
         "name": "trivia",
         "cat": "Games",
         "icon": "🔧",
-        "desc": "trivia команд",
-        "descEN": "trivia",
+        "desc": "Асуулт хариултын мөрийтэй тоглоом.",
+        "descEN": "Trivia quiz game",
         "args": [],
         "example": "A!trivia"
+    },
+    {
+        "name": "automod",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Auto-moderation тохиргоо (холбоос/спам/үг).",
+        "descEN": "Auto-moderation settings",
+        "args": [
+            {
+                "key": "action",
+                "req": true
+            },
+            {
+                "key": "feature",
+                "req": true
+            }
+        ],
+        "example": "/automod <action> <feature>"
     },
     {
         "name": "avatar_config",
@@ -1001,8 +1204,8 @@
         "name": "ban",
         "cat": "Moderation",
         "icon": "🔨",
-        "desc": "ban команд",
-        "descEN": "ban",
+        "desc": "Хэрэглэгчийг бан хийнэ.",
+        "descEN": "Ban a member",
         "args": [
             {
                 "key": "member",
@@ -1028,8 +1231,8 @@
         "name": "clear",
         "cat": "Moderation",
         "icon": "🗑️",
-        "desc": "clear команд",
-        "descEN": "clear",
+        "desc": "Сувгийн мессежүүдийг устгана.",
+        "descEN": "Delete messages",
         "args": [
             {
                 "key": "amount",
@@ -1042,8 +1245,8 @@
         "name": "kick",
         "cat": "Moderation",
         "icon": "🦶",
-        "desc": "kick команд",
-        "descEN": "kick",
+        "desc": "Хэрэглэгчийг серверээс хөөнө.",
+        "descEN": "Kick a member",
         "args": [
             {
                 "key": "member",
@@ -1060,8 +1263,8 @@
         "name": "lock",
         "cat": "Moderation",
         "icon": "🔒",
-        "desc": "lock команд",
-        "descEN": "lock",
+        "desc": "Сувгийг түгжинэ (гишүүд мессеж бичих боломжгүй).",
+        "descEN": "Lock a channel",
         "args": [
             {
                 "key": "channel",
@@ -1075,10 +1278,92 @@
         "example": "/lock <channel> <reason>"
     },
     {
+        "name": "role give",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Хэрэглэгчид байнгын үүрэг өгнө.",
+        "descEN": "Give a permanent role",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            },
+            {
+                "key": "role",
+                "req": true
+            }
+        ],
+        "example": "A!role give <user> <role>"
+    },
+    {
+        "name": "role info",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Үүргийн дэлгэрэнгүй мэдээлэл.",
+        "descEN": "Role details",
+        "args": [
+            {
+                "key": "role",
+                "req": true
+            }
+        ],
+        "example": "A!role info <role>"
+    },
+    {
+        "name": "role members",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Тухайн үүрэгтэй гишүүдийн жагсаалт.",
+        "descEN": "Members with a role",
+        "args": [
+            {
+                "key": "role",
+                "req": true
+            }
+        ],
+        "example": "A!role members <role>"
+    },
+    {
+        "name": "role remove",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Хэрэглэгчээс байнгын үүрэг хасна.",
+        "descEN": "Remove a permanent role",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            },
+            {
+                "key": "role",
+                "req": true
+            }
+        ],
+        "example": "A!role remove <user> <role>"
+    },
+    {
+        "name": "rr",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Reaction role тохиргооны самбар.",
+        "descEN": "Reaction role setup",
+        "args": [
+            {
+                "key": "action",
+                "req": true
+            },
+            {
+                "key": "emoji",
+                "req": true
+            }
+        ],
+        "example": "/rr <action> <emoji>"
+    },
+    {
         "name": "rrlist",
         "cat": "Moderation",
         "icon": "🛡️",
-        "desc": "Reaction-role холболтууд харах.",
+        "desc": "Reaction-role холболтуудыг харуулна.",
         "descEN": "List reaction roles",
         "args": [],
         "example": "A!rrlist"
@@ -1087,7 +1372,7 @@
         "name": "set_log_channel",
         "cat": "Moderation",
         "icon": "📢",
-        "desc": "Лог бичих суваг тохируулах.",
+        "desc": "Алдааны лог сувгийг тохируулах.",
         "descEN": "Set log channel",
         "args": [
             {
@@ -1101,8 +1386,8 @@
         "name": "staff_counts",
         "cat": "Moderation",
         "icon": "🔢",
-        "desc": "Ажилчдын үйл ажиллагааны тооллого.",
-        "descEN": "Staff activity counts",
+        "desc": "Долоо хоногийн staff онооны эрэмбэ.",
+        "descEN": "Weekly staff ranking",
         "args": [],
         "example": "/staff_counts"
     },
@@ -1110,7 +1395,7 @@
         "name": "staff_setup",
         "cat": "Moderation",
         "icon": "👮",
-        "desc": "Стaff (ажилчин) систем тохируулах.",
+        "desc": "Staff (ажилчин) систем тохируулах.",
         "descEN": "Setup staff system",
         "args": [],
         "example": "/staff_setup"
@@ -1119,8 +1404,8 @@
         "name": "staff_status",
         "cat": "Moderation",
         "icon": "📟",
-        "desc": "Ажилчны төлөв/статистик.",
-        "descEN": "Staff status",
+        "desc": "Тухайн staff-ийн дэлгэрэнгүй үзүүлэлт.",
+        "descEN": "Staff member status",
         "args": [
             {
                 "key": "member",
@@ -1130,20 +1415,110 @@
         "example": "/staff_status <member>"
     },
     {
+        "name": "temprole clear",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Хэрэглэгчийн бүх түр үүргийг цуцална.",
+        "descEN": "Clear temp roles",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            }
+        ],
+        "example": "A!temprole clear <user>"
+    },
+    {
+        "name": "temprole give",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Хугацаатай түр үүрэг өгнө.",
+        "descEN": "Give a temporary role",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            },
+            {
+                "key": "role",
+                "req": true
+            },
+            {
+                "key": "duration",
+                "req": true
+            }
+        ],
+        "example": "A!temprole give <user> <role> <duration>"
+    },
+    {
+        "name": "temprole list",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Идэвхтэй түр үүргүүдийн жагсаалт.",
+        "descEN": "List active temp roles",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            }
+        ],
+        "example": "A!temprole list <user>"
+    },
+    {
+        "name": "temprole remove",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Түр үүргийг хугацаанаас өмнө хасна.",
+        "descEN": "Remove a temp role",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            },
+            {
+                "key": "role",
+                "req": true
+            }
+        ],
+        "example": "A!temprole remove <user> <role>"
+    },
+    {
         "name": "temprole_config",
         "cat": "Moderation",
         "icon": "🛡️",
-        "desc": "Түр роль системийн тохиргоо.",
+        "desc": "Түр үүргийн системийн тохиргооны самбар.",
         "descEN": "Temp role config",
         "args": [],
         "example": "/temprole_config"
     },
     {
+        "name": "timeout",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Хэрэглэгчийг түр хаана (timeout).",
+        "descEN": "Timeout a member",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            },
+            {
+                "key": "duration",
+                "req": true
+            },
+            {
+                "key": "reason",
+                "req": true
+            }
+        ],
+        "example": "/timeout <member> <duration> <reason>"
+    },
+    {
         "name": "unban",
         "cat": "Moderation",
         "icon": "🔓",
-        "desc": "unban команд",
-        "descEN": "unban",
+        "desc": "Хэрэглэгчийн баныг цуцлана.",
+        "descEN": "Unban a user",
         "args": [
             {
                 "key": "user_id",
@@ -1160,8 +1535,8 @@
         "name": "unlock",
         "cat": "Moderation",
         "icon": "🔓",
-        "desc": "unlock команд",
-        "descEN": "unlock",
+        "desc": "Сувгийн түгжээг тайлна.",
+        "descEN": "Unlock a channel",
         "args": [
             {
                 "key": "channel",
@@ -1178,8 +1553,8 @@
         "name": "untimeout",
         "cat": "Moderation",
         "icon": "▶️",
-        "desc": "untimeout команд",
-        "descEN": "untimeout",
+        "desc": "Түр хаалтыг цуцална.",
+        "descEN": "Remove a timeout",
         "args": [
             {
                 "key": "member",
@@ -1189,10 +1564,28 @@
         "example": "/untimeout <member>"
     },
     {
+        "name": "unwarn",
+        "cat": "Moderation",
+        "icon": "🛡️",
+        "desc": "Хэрэглэгчийн анхааруулгыг хасана.",
+        "descEN": "Remove a warning",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            },
+            {
+                "key": "amount",
+                "req": true
+            }
+        ],
+        "example": "/unwarn <member> <amount>"
+    },
+    {
         "name": "unwarnid",
         "cat": "Moderation",
         "icon": "🛡️",
-        "desc": "Анхааруулгыг ID-гаар нь цуцлана.",
+        "desc": "Анхааруулгыг ID-гаар нь цуцална.",
         "descEN": "Remove warning by ID",
         "args": [
             {
@@ -1206,8 +1599,8 @@
         "name": "warn",
         "cat": "Moderation",
         "icon": "⚠️",
-        "desc": "warn команд",
-        "descEN": "warn",
+        "desc": "Хэрэглэгчид анхааруулга өгнө.",
+        "descEN": "Warn a member",
         "args": [
             {
                 "key": "member",
@@ -1224,8 +1617,8 @@
         "name": "warned",
         "cat": "Moderation",
         "icon": "🛡️",
-        "desc": "Өөрт огдсон анхааруулгууд.",
-        "descEN": "Your warnings",
+        "desc": "Танд өгсөн анхааруулгуудыг харна.",
+        "descEN": "View your warnings",
         "args": [],
         "example": "/warned"
     },
@@ -1233,7 +1626,7 @@
         "name": "warnedusers",
         "cat": "Moderation",
         "icon": "👥",
-        "desc": "Анхааруулга авсан хэрэглэгчид.",
+        "desc": "Анхааруулга авсан хэрэглэгчдийн жагсаалт.",
         "descEN": "List warned users",
         "args": [],
         "example": "/warnedusers"
@@ -1242,8 +1635,8 @@
         "name": "warnings",
         "cat": "Moderation",
         "icon": "📃",
-        "desc": "warnings команд",
-        "descEN": "warnings",
+        "desc": "Хэрэглэгчийн анхааруулгыг харна.",
+        "descEN": "View user warnings",
         "args": [
             {
                 "key": "member",
@@ -1256,8 +1649,8 @@
         "name": "announce",
         "cat": "Admin",
         "icon": "📣",
-        "desc": "Серверт зар мэдээ тараах.",
-        "descEN": "Send announcement",
+        "desc": "Зарлал үүсгэх самбар нээх.",
+        "descEN": "Create an announcement",
         "args": [],
         "example": "/announce"
     },
@@ -1265,8 +1658,8 @@
         "name": "counting_setup",
         "cat": "Admin",
         "icon": "⚙️",
-        "desc": "Тооллого тоглоомын тохиргоо.",
-        "descEN": "Counting setup",
+        "desc": "Тооллого тоглоомын тохиргооны самбар.",
+        "descEN": "Counting setup panel",
         "args": [],
         "example": "/counting_setup"
     },
@@ -1274,8 +1667,8 @@
         "name": "greeting_reset",
         "cat": "Admin",
         "icon": "🔁",
-        "desc": "Мэндчилгээний тохиргоо цэвэрлэх.",
-        "descEN": "Reset greetings",
+        "desc": "Бүх мэндчилгээний тохиргоог устгах (болгоомжтой!).",
+        "descEN": "Reset all greetings",
         "args": [],
         "example": "/greeting_reset"
     },
@@ -1283,7 +1676,7 @@
         "name": "greeting_status",
         "cat": "Admin",
         "icon": "✅",
-        "desc": "Мэндчилгээний төлөв харах.",
+        "desc": "Одоогийн тохиргоог харах.",
         "descEN": "Greeting status",
         "args": [],
         "example": "/greeting_status"
@@ -1293,16 +1686,131 @@
         "cat": "Admin",
         "icon": "ℹ️",
         "desc": "Бот/серверийн ерөнхий мэдээлэл.",
-        "descEN": "Bot/server info",
+        "descEN": "Bot and server info",
         "args": [],
         "example": "/info"
+    },
+    {
+        "name": "invites addlabel",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Урилгын шошго нэмэх.",
+        "descEN": "Add an invite label",
+        "args": [
+            {
+                "key": "invite_code",
+                "req": true
+            },
+            {
+                "key": "label",
+                "req": true
+            },
+            {
+                "key": "role",
+                "req": true
+            }
+        ],
+        "example": "/invites addlabel <invite_code> <label> <role>"
+    },
+    {
+        "name": "invites codes",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Идэвхтэй урилгын кодууд.",
+        "descEN": "Active invite codes",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "/invites codes <member>"
+    },
+    {
+        "name": "invites graph",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Урилгын статистик график.",
+        "descEN": "Invite statistics graph",
+        "args": [
+            {
+                "key": "days",
+                "req": true
+            }
+        ],
+        "example": "/invites graph <days>"
+    },
+    {
+        "name": "invites inviter",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Хэрэглэгчийг хэн урьсныг харах.",
+        "descEN": "Who invited a user",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "/invites inviter <member>"
+    },
+    {
+        "name": "invites list",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Урьсан хэрэглэгчдийн жагсаалт.",
+        "descEN": "List invited users",
+        "args": [
+            {
+                "key": "user",
+                "req": true
+            }
+        ],
+        "example": "/invites list <user>"
+    },
+    {
+        "name": "invites removelabel",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Урилгын шошго устгах.",
+        "descEN": "Remove an invite label",
+        "args": [
+            {
+                "key": "invite_code",
+                "req": true
+            }
+        ],
+        "example": "/invites removelabel <invite_code>"
+    },
+    {
+        "name": "invites setup",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Урилгын систем тохируулах.",
+        "descEN": "Invite tracking setup",
+        "args": [],
+        "example": "/invites setup"
+    },
+    {
+        "name": "invites stats",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Урилгын статистик.",
+        "descEN": "Invite statistics",
+        "args": [
+            {
+                "key": "member",
+                "req": true
+            }
+        ],
+        "example": "/invites stats <member>"
     },
     {
         "name": "lang",
         "cat": "Admin",
         "icon": "🔧",
-        "desc": "Ботын хэл солих.",
-        "descEN": "Change language",
+        "desc": "Ботын хэл солих (mn/en).",
+        "descEN": "Change server language",
         "args": [
             {
                 "key": "new_lang",
@@ -1329,8 +1837,8 @@
         "name": "status",
         "cat": "Admin",
         "icon": "🩺",
-        "desc": "Ботын ажиллагааны төлөв.",
-        "descEN": "Bot status",
+        "desc": "Ботын төлөв болон эрүүл мэндийг шалгах.",
+        "descEN": "Bot status and health",
         "args": [],
         "example": "/status"
     },
@@ -1338,22 +1846,94 @@
         "name": "stick",
         "cat": "Admin",
         "icon": "🔧",
-        "desc": "Статик мессеж бэхлэх.",
-        "descEN": "Pin a sticky message",
+        "desc": "Sticky мессеж тохируулах.",
+        "descEN": "Set a sticky message",
         "args": [
             {
                 "key": "content",
                 "req": true
             }
         ],
-        "example": "/stick <content>"
+        "example": "A!stick <content>"
+    },
+    {
+        "name": "stock add",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Барааны нөөц нэмэх (админ).",
+        "descEN": "Add item stock",
+        "args": [
+            {
+                "key": "item_id",
+                "req": true
+            },
+            {
+                "key": "amount",
+                "req": true
+            }
+        ],
+        "example": "A!stock add <item_id> <amount>"
+    },
+    {
+        "name": "stock refresh",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Бүх серверийн нөөцийг дахин дүүргэх.",
+        "descEN": "Refresh shop stock",
+        "args": [],
+        "example": "A!stock refresh"
+    },
+    {
+        "name": "stock remove",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Барааны нөөц хасах (админ).",
+        "descEN": "Remove item stock",
+        "args": [
+            {
+                "key": "item_id",
+                "req": true
+            },
+            {
+                "key": "amount",
+                "req": true
+            }
+        ],
+        "example": "A!stock remove <item_id> <amount>"
+    },
+    {
+        "name": "stock reset",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Бүх нөөцийг даруй санамсаргүй болгох (админ).",
+        "descEN": "Reset all stock",
+        "args": [],
+        "example": "A!stock reset"
+    },
+    {
+        "name": "stock set",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Барааны нөөцийг тогтоох (админ).",
+        "descEN": "Set item stock",
+        "args": [
+            {
+                "key": "item_id",
+                "req": true
+            },
+            {
+                "key": "amount",
+                "req": true
+            }
+        ],
+        "example": "A!stock set <item_id> <amount>"
     },
     {
         "name": "template_create",
         "cat": "Admin",
         "icon": "📄",
-        "desc": "Мэндчилгээний загвар үүсгэх.",
-        "descEN": "Create template",
+        "desc": "Шинэ embed загвар үүсгэх.",
+        "descEN": "Create a template",
         "args": [],
         "example": "/template_create"
     },
@@ -1362,7 +1942,7 @@
         "cat": "Admin",
         "icon": "❌",
         "desc": "Загвар устгах.",
-        "descEN": "Delete template",
+        "descEN": "Delete a template",
         "args": [
             {
                 "key": "template_id",
@@ -1375,8 +1955,8 @@
         "name": "template_edit",
         "cat": "Admin",
         "icon": "✏️",
-        "desc": "Загвар засварлах.",
-        "descEN": "Edit template",
+        "desc": "Загварыг засварлах.",
+        "descEN": "Edit a template",
         "args": [
             {
                 "key": "template_id",
@@ -1389,7 +1969,7 @@
         "name": "template_list",
         "cat": "Admin",
         "icon": "📑",
-        "desc": "Загваруудын жагсаалт.",
+        "desc": "Бүх загваруудыг харах.",
         "descEN": "List templates",
         "args": [],
         "example": "/template_list"
@@ -1398,8 +1978,8 @@
         "name": "template_preview",
         "cat": "Admin",
         "icon": "👁️",
-        "desc": "Загварыг урьдчилж харах.",
-        "descEN": "Preview template",
+        "desc": "Загварыг урьдчилан харах.",
+        "descEN": "Preview a template",
         "args": [
             {
                 "key": "template_id",
@@ -1416,8 +1996,8 @@
         "name": "unstick",
         "cat": "Admin",
         "icon": "🔧",
-        "desc": "Бэхэлсэн мессеж цуцлах.",
-        "descEN": "Unpin sticky message",
+        "desc": "Sticky мессежийг цуцлах.",
+        "descEN": "Remove a sticky message",
         "args": [],
         "example": "A!unstick"
     },
@@ -1425,7 +2005,7 @@
         "name": "voicesettings",
         "cat": "Admin",
         "icon": "🔊",
-        "desc": "Түр дуут сувагны тохиргоо.",
+        "desc": "Одоогийн түр сувгийн тохиргоог харах.",
         "descEN": "Temp voice settings",
         "args": [],
         "example": "/voicesettings"
@@ -1434,8 +2014,8 @@
         "name": "voicesetup",
         "cat": "Admin",
         "icon": "🎙️",
-        "desc": "voicesetup команд",
-        "descEN": "voicesetup",
+        "desc": "Түр дуут сувгийн тохиргооны самбар нээх.",
+        "descEN": "Temp voice setup",
         "args": [],
         "example": "/voicesetup"
     },
@@ -1443,31 +2023,17 @@
         "name": "angry",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "angry команд",
-        "descEN": "angry",
+        "desc": "Уурласан гиф илгээнэ.",
+        "descEN": "Angry reaction gif",
         "args": [],
         "example": "A!angry"
-    },
-    {
-        "name": "autoaccept",
-        "cat": "Utility",
-        "icon": "✔️",
-        "desc": "Гэрлэх саналыг автоматаар зөвшөөрөх эсэх.",
-        "descEN": "Auto-accept marriage",
-        "args": [
-            {
-                "key": "enabled",
-                "req": true
-            }
-        ],
-        "example": "/autoaccept <enabled>"
     },
     {
         "name": "avatar",
         "cat": "Utility",
         "icon": "🖼️",
-        "desc": "avatar команд",
-        "descEN": "avatar",
+        "desc": "Хэрэглэгчийн аватарыг харуулна.",
+        "descEN": "Show a user avatar",
         "args": [
             {
                 "key": "member",
@@ -1480,8 +2046,8 @@
         "name": "bite",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "bite команд",
-        "descEN": "bite",
+        "desc": "Хазах гиф илгээнэ.",
+        "descEN": "Bite reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1494,8 +2060,8 @@
         "name": "boop",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "boop команд",
-        "descEN": "boop",
+        "desc": "Boop хийх гиф илгээнэ.",
+        "descEN": "Boop reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1508,8 +2074,8 @@
         "name": "bully",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "bully команд",
-        "descEN": "bully",
+        "desc": "Дээрэлхэх гиф илгээнэ.",
+        "descEN": "Bully reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1522,8 +2088,8 @@
         "name": "cat",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "cat команд",
-        "descEN": "cat",
+        "desc": "Санамсаргүй муурын зураг илгээнэ.",
+        "descEN": "Random cat image",
         "args": [],
         "example": "A!cat"
     },
@@ -1531,8 +2097,8 @@
         "name": "cry",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "cry команд",
-        "descEN": "cry",
+        "desc": "Уйлах гиф илгээнэ.",
+        "descEN": "Cry reaction gif",
         "args": [],
         "example": "A!cry"
     },
@@ -1540,8 +2106,8 @@
         "name": "cuddle",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "cuddle команд",
-        "descEN": "cuddle",
+        "desc": "Тэврэх гиф илгээнэ.",
+        "descEN": "Cuddle reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1554,8 +2120,8 @@
         "name": "dance",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "dance команд",
-        "descEN": "dance",
+        "desc": "Бүжиглэх гиф илгээнэ.",
+        "descEN": "Dance reaction gif",
         "args": [],
         "example": "A!dance"
     },
@@ -1563,8 +2129,8 @@
         "name": "dog",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "dog команд",
-        "descEN": "dog",
+        "desc": "Санамсаргүй нохойны зураг илгээнэ.",
+        "descEN": "Random dog image",
         "args": [],
         "example": "A!dog"
     },
@@ -1572,8 +2138,8 @@
         "name": "fox",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "fox команд",
-        "descEN": "fox",
+        "desc": "Санамсаргүй үнэгний зураг илгээнэ.",
+        "descEN": "Random fox image",
         "args": [],
         "example": "A!fox"
     },
@@ -1581,8 +2147,8 @@
         "name": "gif",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "gif команд",
-        "descEN": "gif",
+        "desc": "Хайлтанд тохирох гиф илгээнэ.",
+        "descEN": "Search and send a gif",
         "args": [
             {
                 "key": "query",
@@ -1592,11 +2158,51 @@
         "example": "A!gif <query>"
     },
     {
+        "name": "greeting_set",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "Welcome/Goodbye/Boost сувгийг тохируулах.",
+        "descEN": "Set a greeting channel",
+        "args": [
+            {
+                "key": "event",
+                "req": true
+            },
+            {
+                "key": "channel",
+                "req": true
+            },
+            {
+                "key": "template_id",
+                "req": true
+            },
+            {
+                "key": "dm",
+                "req": true
+            }
+        ],
+        "example": "/greeting_set <event> <channel> <template_id> <dm>"
+    },
+    {
+        "name": "greeting_toggle",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "Мэдэгдлийг идэвхжүүлэх/унтраах.",
+        "descEN": "Toggle greetings",
+        "args": [
+            {
+                "key": "event",
+                "req": true
+            }
+        ],
+        "example": "/greeting_toggle <event>"
+    },
+    {
         "name": "hack",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "hack команд",
-        "descEN": "hack",
+        "desc": "Хэрэглэгчийн данс руу хакдах (маш эрсдэлтэй).",
+        "descEN": "Hack a user account",
         "args": [
             {
                 "key": "target",
@@ -1609,8 +2215,8 @@
         "name": "handhold",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "handhold команд",
-        "descEN": "handhold",
+        "desc": "Гар барьсан гиф илгээнэ.",
+        "descEN": "Handhold reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1623,8 +2229,8 @@
         "name": "happy",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "happy команд",
-        "descEN": "happy",
+        "desc": "Баярлах гиф илгээнэ.",
+        "descEN": "Happy reaction gif",
         "args": [],
         "example": "A!happy"
     },
@@ -1646,8 +2252,8 @@
         "name": "highfive",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "highfive команд",
-        "descEN": "highfive",
+        "desc": "Гар алгадсан гиф илгээнэ.",
+        "descEN": "High-five reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1660,8 +2266,8 @@
         "name": "hug",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "hug команд",
-        "descEN": "hug",
+        "desc": "Тэврэх гиф илгээнэ.",
+        "descEN": "Hug reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1674,8 +2280,8 @@
         "name": "inventory",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "inventory команд",
-        "descEN": "inventory",
+        "desc": "Инвентар картаа харах.",
+        "descEN": "View inventory card",
         "args": [
             {
                 "key": "member",
@@ -1688,8 +2294,8 @@
         "name": "kiss",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "kiss команд",
-        "descEN": "kiss",
+        "desc": "Үнсэх гиф илгээнэ.",
+        "descEN": "Kiss reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1702,8 +2308,8 @@
         "name": "laugh",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "laugh команд",
-        "descEN": "laugh",
+        "desc": "Инээх гиф илгээнэ.",
+        "descEN": "Laugh reaction gif",
         "args": [],
         "example": "A!laugh"
     },
@@ -1711,17 +2317,26 @@
         "name": "meme",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "meme команд",
-        "descEN": "meme",
+        "desc": "Санамсаргүй meme илгээнэ.",
+        "descEN": "Random meme",
         "args": [],
         "example": "A!meme"
+    },
+    {
+        "name": "menu",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "Интерактив цэс нээх.",
+        "descEN": "Open interactive menu",
+        "args": [],
+        "example": "A!menu"
     },
     {
         "name": "pat",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "pat команд",
-        "descEN": "pat",
+        "desc": "Толгой илэх гиф илгээнэ.",
+        "descEN": "Pat reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1734,8 +2349,8 @@
         "name": "ping",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "ping команд",
-        "descEN": "ping",
+        "desc": "Ботын ping/удаашралыг харуулна.",
+        "descEN": "Bot latency",
         "args": [],
         "example": "A!ping"
     },
@@ -1743,7 +2358,7 @@
         "name": "placeholders",
         "cat": "Utility",
         "icon": "📌",
-        "desc": "Мэндчилгээний боломжит тэмдэгтүүд.",
+        "desc": "Мэндчилгээний бүх хувьсагчдыг харах.",
         "descEN": "Greeting placeholders",
         "args": [],
         "example": "/placeholders"
@@ -1752,8 +2367,8 @@
         "name": "poke",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "poke команд",
-        "descEN": "poke",
+        "desc": "Цохих гиф илгээнэ.",
+        "descEN": "Poke reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1766,8 +2381,8 @@
         "name": "profile",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "profile команд",
-        "descEN": "profile",
+        "desc": "Профайл картаа харах.",
+        "descEN": "View your profile card",
         "args": [
             {
                 "key": "member",
@@ -1780,8 +2395,8 @@
         "name": "punch",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "punch команд",
-        "descEN": "punch",
+        "desc": "Нүдэх гиф илгээнэ.",
+        "descEN": "Punch reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1794,17 +2409,72 @@
         "name": "quest",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "quest команд",
-        "descEN": "quest",
+        "desc": "Даалгаврын систем — тусламж/төлөв харах.",
+        "descEN": "Quest system help",
         "args": [],
         "example": "A!quest"
+    },
+    {
+        "name": "quest claim",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "Даалгавраа биелүүлж, шагнал авах.",
+        "descEN": "Claim quest reward",
+        "args": [
+            {
+                "key": "quest_id",
+                "req": true
+            }
+        ],
+        "example": "A!quest claim <quest_id>"
+    },
+    {
+        "name": "quest history",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "Сүүлд биелүүлсэн даалгаврын түүх.",
+        "descEN": "Completed quest history",
+        "args": [],
+        "example": "A!quest history"
+    },
+    {
+        "name": "quest new",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "Шинэ даалгавар авах (хамгийн ихдээ 5).",
+        "descEN": "Get a new quest",
+        "args": [],
+        "example": "A!quest new"
+    },
+    {
+        "name": "quest refresh",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "Даалгаврыг сольж, шинэчлэх.",
+        "descEN": "Refresh a quest",
+        "args": [
+            {
+                "key": "quest_id",
+                "req": true
+            }
+        ],
+        "example": "A!quest refresh <quest_id>"
+    },
+    {
+        "name": "quest status",
+        "cat": "Utility",
+        "icon": "🔧",
+        "desc": "Одоогийн идэвхтэй даалгаварууд.",
+        "descEN": "Current quests",
+        "args": [],
+        "example": "A!quest status"
     },
     {
         "name": "relax",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "relax команд",
-        "descEN": "relax",
+        "desc": "Амарч цатгалан/сэтгэл санаагаа сэргээнэ.",
+        "descEN": "Relax to recover stats",
         "args": [],
         "example": "A!relax"
     },
@@ -1812,8 +2482,8 @@
         "name": "slap",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "slap команд",
-        "descEN": "slap",
+        "desc": "Алгадах гиф илгээнэ.",
+        "descEN": "Slap reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1826,8 +2496,8 @@
         "name": "sleep",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "sleep команд",
-        "descEN": "sleep",
+        "desc": "Унтах гиф илгээнэ.",
+        "descEN": "Sleep reaction gif",
         "args": [],
         "example": "A!sleep"
     },
@@ -1835,8 +2505,8 @@
         "name": "snuggle",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "snuggle команд",
-        "descEN": "snuggle",
+        "desc": "Тусалдсан гиф илгээнэ.",
+        "descEN": "Snuggle reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1849,8 +2519,8 @@
         "name": "stare",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "stare команд",
-        "descEN": "stare",
+        "desc": "Харж зогсох гиф илгээнэ.",
+        "descEN": "Stare reaction gif",
         "args": [
             {
                 "key": "target",
@@ -1863,8 +2533,8 @@
         "name": "think",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "think команд",
-        "descEN": "think",
+        "desc": "Бодож байгаа гиф илгээнэ.",
+        "descEN": "Think reaction gif",
         "args": [],
         "example": "A!think"
     },
@@ -1872,8 +2542,8 @@
         "name": "wave",
         "cat": "Utility",
         "icon": "🔧",
-        "desc": "wave команд",
-        "descEN": "wave",
+        "desc": "Дав хийн вий.",
+        "descEN": "Wave reaction gif",
         "args": [
             {
                 "key": "target",
