@@ -5,7 +5,8 @@
 
 ## Хэрэгжсэн
 
-- Бот болон API `SUPABASE_SERVICE_ROLE_KEY`-г зөвхөн server-side ашиглана.
+- Бот болон API `SUPABASE_SECRET_KEY`-г зөвхөн server-side ашиглана
+  (`SUPABASE_SERVICE_ROLE_KEY`, хуучин `SUPABASE_KEY` нэрийг migration үед дэмжинэ).
 - Browser bundle-ээс Supabase URL/key болон direct REST fallback арилсан.
 - RLS migration бүх `allow_all` policy, anon/authenticated өргөн grants-ийг
   буцааж, зөвхөн `bot_status(id=1)` SELECT-ийг public үлдээсэн.
@@ -21,7 +22,7 @@
 ## Deploy хийхээс өмнө заавал
 
 1. Supabase Dashboard-аас service-role/secret key авч bot болон backend-ийн
-   secret environment-д `SUPABASE_SERVICE_ROLE_KEY` нэрээр хадгална.
+   secret environment-д `SUPABASE_SECRET_KEY` нэрээр хадгална.
 2. Hardening SQL-г maintenance window-д ажиллуулж bot/API smoke test хийнэ.
 3. `website/js/config.js` дахь `API_BASE_URL`-д production backend URL бичнэ.
 4. Олон API worker ашиглавал `REDIS_URL` тохируулна.

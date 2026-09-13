@@ -60,7 +60,16 @@ class SupabaseManager:
 
     def __init__(self):
         self.url: str = os.getenv("SUPABASE_URL", "")
-        self.key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+        self.key: str = (
+            os.getenv("SUPABASE_SECRET_KEY", "")
+            or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+            or os.getenv("SUPABASE_KEY", "")
+        )
+        self.using_legacy_env_name = bool(
+            not os.getenv("SUPABASE_SECRET_KEY")
+            and not os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+            and os.getenv("SUPABASE_KEY")
+        )
         self.client: Optional[Client] = None
 
     # ------------------------------------------------------------------
@@ -69,8 +78,14 @@ class SupabaseManager:
     def connect(self) -> Client:
         if not self.url or not self.key:
             raise ValueError(
-                "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set. "
-                "Never use a browser/anon key for the Discord bot."
+                "SUPABASE_URL and one server key must be set: "
+                "SUPABASE_SECRET_KEY (preferred), SUPABASE_SERVICE_ROLE_KEY, "
+                "or legacy SUPABASE_KEY."
+            )
+        if self.using_legacy_env_name:
+            logging.getLogger("aether.db").warning(
+                "SUPABASE_KEY is a deprecated environment name; migrate this "
+                "server-side value to SUPABASE_SECRET_KEY."
             )
         # Force HTTP/1.1: the httpcore HTTP/2 sync transport is unstable on
         # Windows with Python 3.13 (sporadic [WinError 10035]

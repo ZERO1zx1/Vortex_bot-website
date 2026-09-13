@@ -69,7 +69,7 @@ cp .env.example .env
 Edit `.env` and fill in:
 
 - `DISCORD_TOKEN` — your bot token
-- `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — server-only Supabase credentials
+- `SUPABASE_URL` / `SUPABASE_SECRET_KEY` — server-only Supabase credentials (`SUPABASE_SERVICE_ROLE_KEY` and legacy `SUPABASE_KEY` remain supported during migration)
 - `OWNER_ID` / `CO_OWNERS` — your Discord user IDs
 
 ### 3. Set up the database

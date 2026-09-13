@@ -37,17 +37,13 @@ cogs_handler.setFormatter(logging.Formatter(
 ))
 
 # TERMINAL LOG ТҮВШИН: config.json-ийн terminal_log_level-аар удирдагдана.
-# "INFO"   → терминалд мэдээлэл л харагдана (алдаа файл руу)
+# "INFO"   → INFO болон түүнээс дээш бүх лог харагдана
 # "WARNING"→ WARNING+ терминалд харагдана
 # "ERROR"  → зөвхөн ERROR/CRITICAL
 # "OFF"/"NONE" → терминалд огт лог бичигдэхгүй
 LEVELS = {"DEBUG": logging.DEBUG, "INFO": logging.INFO,
           "WARNING": logging.WARNING, "ERROR": logging.ERROR,
           "CRITICAL": logging.CRITICAL}
-
-class TerminalFilter(logging.Filter):
-    def filter(self, record):
-        return record.levelno < logging.WARNING
 
 _term_level_name = str(config.get("terminal_log_level", "INFO")).strip().upper()
 if _term_level_name in ("OFF", "NONE"):
@@ -57,10 +53,6 @@ else:
     _term_level = LEVELS.get(_term_level_name, logging.INFO)
     stream = logging.StreamHandler()
     stream.setLevel(_term_level)
-    # Алдаануудыг терминалд харуулахгүй файл руу л оруулах горимтой үед
-    # WARNING-аас доош түвшнийг шүүх фильтрийг нэмнэ.
-    if _term_level < logging.WARNING:
-        stream.addFilter(TerminalFilter())
 
 logging.basicConfig(
     level=logging.INFO,

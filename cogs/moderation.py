@@ -177,14 +177,6 @@ class Moderation(SupabaseCog):
         """Docs extension-teardown best practice: cancel tasks.loop tasks."""
         self.weekly_task.cancel()
         self.leaderboard_task.cancel()
-        try:
-            await self.weekly_task.wait_until_first_completed()
-        except asyncio.CancelledError:
-            pass
-        try:
-            await self.leaderboard_task.wait_until_first_completed()
-        except asyncio.CancelledError:
-            pass
 
     async def _set_config_field(self, guild_id: int, field: str, value: str):
         """Тохиргооны талбарт утга оруулах (upsert)"""

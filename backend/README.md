@@ -23,7 +23,7 @@ Interactive docs: `/docs` (Swagger UI).
 cd backend
 pip install -r requirements.txt
 $env:SUPABASE_URL = "https://onpxpvemmjesobxpilgd.supabase.co"
-$env:SUPABASE_SERVICE_ROLE_KEY = "<server-only service role key>"
+$env:SUPABASE_SECRET_KEY = "<server-only secret key>"
 $env:REDIS_URL = "redis://localhost:6379/0" # production multi-worker үед
 uvicorn main:app --reload --port 8080
 ```
@@ -37,7 +37,8 @@ uvicorn main:app --reload --port 8080
    (backend/Dockerfile автоматаар ашиглагдана)
 3. **Variables** хэсэгт нэмнэ:
    - `SUPABASE_URL` — боттой ижил
-   - `SUPABASE_SERVICE_ROLE_KEY` — server-only secret; frontend-д огт тавихгүй
+   - `SUPABASE_SECRET_KEY` — server-only secret; frontend-д огт тавихгүй
+     (`SUPABASE_SERVICE_ROLE_KEY`, хуучин `SUPABASE_KEY` нэрийг migration үед дэмжинэ)
    - `REDIS_URL` — олон worker хооронд cache хуваалцах Redis
    - `ALLOWED_ORIGINS` — нэмэлт домэйн байвал (таслалаар)
 4. **Settings → Networking → Generate Domain** — жишээ:
@@ -64,7 +65,7 @@ const { online, uptime_secs } = await res.json();
 | Нэр | Заавал | Default | Тайлбар |
 |-----|--------|---------|---------|
 | `SUPABASE_URL` | ✅ | — | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | — | server-only elevated key |
+| `SUPABASE_SECRET_KEY` | ✅ | — | server-only secret key (preferred) |
 | `REDIS_URL` | Production | — | олон worker-ийн shared cache |
 | `ALLOWED_ORIGINS` | — | Firebase + localhost | CORS нэмэлт origin-ууд |
 | `HEARTBEAT_FRESH_SECS` | — | `120` | Бот offline гэж тооцох босго |

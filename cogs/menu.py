@@ -325,6 +325,7 @@ class MenuView(ui.View):
 class Menu(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self.persistent_view: Optional[MenuView] = None
 
     async def cog_load(self) -> None:
         """Persistent view — бот restart/reconnect-д ч view handler сэргэнэ.
@@ -332,12 +333,15 @@ class Menu(commands.Cog):
         add_view() шаардлага: view timeout=None байх бөгөөд бүх item нь
         custom_id-тэй байх ёстой (MenuView-ийн бүх button/select custom_id-тэй).
         """
-        self.bot.add_view(MenuView(original=None, guild_id=0, persistent=True))
+        self.persistent_view = MenuView(original=None, guild_id=0, persistent=True)
+        self.bot.add_view(self.persistent_view)
         log.info("menu: persistent view registered")
 
     async def cog_unload(self) -> None:
         """Cog унтрахад view-г зогсоох (docs: extension teardown)."""
-        self.bot.remove_view(MenuView(original=None, guild_id=0, persistent=True))
+        if self.persistent_view is not None:
+            self.persistent_view.stop()
+            self.persistent_view = None
         log.info("menu: persistent view unregistered")
 
     @commands.hybrid_command(name="menu", description="Интерактив цэс нээх")

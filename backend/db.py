@@ -19,7 +19,11 @@ from redis.asyncio import Redis
 log = logging.getLogger("aether.backend.db")
 
 SUPABASE_URL: str = os.getenv("SUPABASE_URL", "").rstrip("/")
-SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_SERVICE_KEY: str = (
+    os.getenv("SUPABASE_SECRET_KEY", "")
+    or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    or os.getenv("SUPABASE_KEY", "")
+)
 
 # PostgREST timeout (s). Supabase free tier заримдаа удааширдаг тул
 # ботын 30s-тай ижил утга.
@@ -81,7 +85,10 @@ async def fetch_rows(
     """PostgREST-ээс мөрүүд унших. Алдаа гарвал exception шиднэ —
     endpoint талдаа барьж 503/502 болгож хариулна."""
     if not is_configured():
-        raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY тохируулагдаагүй.")
+        raise RuntimeError(
+            "SUPABASE_URL болон SUPABASE_SECRET_KEY, "
+            "SUPABASE_SERVICE_ROLE_KEY эсвэл legacy SUPABASE_KEY шаардлагатай."
+        )
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
         resp = await client.get(url, headers=_headers(), params=params or {})
