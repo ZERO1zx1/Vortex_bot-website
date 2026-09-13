@@ -13,6 +13,7 @@ v2.5 засварууд:
 import re
 import time
 import asyncio
+import logging
 from collections import defaultdict, deque
 from utils.constants import SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR, INFO_COLOR
 from utils.supabase_cog import SupabaseCog
@@ -24,6 +25,7 @@ from discord import app_commands
 TABLE = "automod_config"
 FEATURES = ("antispam", "antilink", "antiraid")
 DEFAULT_ON = ("antispam", "antilink")
+logger = logging.getLogger("cogs.automod")
 
 URL_RE = re.compile(r"https?://[^\s]+")
 INVITE_RE = re.compile(r"discord(?:\.gg|app\.com/invite|com/invite)/[A-Za-z0-9]+")

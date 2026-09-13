@@ -17,8 +17,10 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands, ui
 from datetime import datetime, timezone
+import logging
 
 TABLE = "reaction_roles"
+logger = logging.getLogger("cogs.reaction_roles")
 
 
 def normalize_emoji(emoji_raw: str) -> str:
@@ -157,7 +159,6 @@ class ReactionRoles(SupabaseCog):
             # via migrations (database/migrations/20260813_runtime_missing_tables.sql).
             await self.bot.db_manager.fetchall(TABLE, {"guild_id": "__probe__"})
         except Exception as exc:
-            logger = logging.getLogger("cogs.reaction_roles")
             logger.warning("reaction_roles хүснэгт олдсонгүй: %s — migration ажиллуул: 20260813_runtime_missing_tables.sql", exc)
         for g in self.bot.guilds:
             await self.rebuild_cache(g.id)
