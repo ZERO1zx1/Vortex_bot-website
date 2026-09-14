@@ -109,7 +109,7 @@ class MyBot(commands.Bot):
             for p in prefixes:
                 if lowered.startswith(p.lower()):
                     return content[:len(p)]
-            return None
+            return []
 
         super().__init__(
             command_prefix=_get_prefix,
