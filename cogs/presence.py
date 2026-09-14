@@ -37,15 +37,12 @@ _MEMBER_WATCH = 6  # index in ACTIVITIES ("... members" entry)
 
 
 def _sync_lang(gid: str) -> str:
-    """Blocking wrapper around get_guild_lang for to_thread."""
-    import asyncio
-    from utils.i18n import get_guild_lang  # noqa: WPS433
-
-    loop = asyncio.new_event_loop()
+    """Blocking call to fetch guild language via Supabase REST (runs in to_thread)."""
+    from utils.i18n import _sb_get_lang, DEFAULT_LANG  # noqa: WPS433
     try:
-        return loop.run_until_complete(get_guild_lang(gid))
-    finally:
-        loop.close()
+        return _sb_get_lang(gid) or DEFAULT_LANG
+    except Exception:
+        return DEFAULT_LANG
 
 
 class PresenceCog(commands.Cog):

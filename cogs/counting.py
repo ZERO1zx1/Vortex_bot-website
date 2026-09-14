@@ -5,6 +5,11 @@ from discord import app_commands, ui
 from typing import Optional, Dict, Any, Union
 import ast
 import operator
+import logging
+
+from utils.config_cache import ConfigCache
+
+logger = logging.getLogger(__name__)
 
 # ===== ӨНГӨНҮҮД =====
 EMBED_COLOR = 0x1e1e2f
@@ -284,6 +289,8 @@ class CountingSetupView(ui.View):
 class Counting(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self._cfg_cache = ConfigCache(ttl=15.0, name="counting_config")
+        self._prog_cache = ConfigCache(ttl=10.0, name="counting_progress")
 
     async def cog_load(self):
         # Tables are pre-configured in Supabase via SQL migrations
@@ -291,25 +298,48 @@ class Counting(commands.Cog):
 
     # ---------- DB туслахууд ----------
     async def get_config(self, guild_id: int) -> Dict[str, Any]:
-        row = await self.bot.db_manager.fetch_one("counting_config", {"guild_id": str(guild_id)})
-        if not row: return None
-        config = {
-            "channel_id": row.get("channel_id"),
-            "enabled": bool(row.get("enabled", 1)),
-            "delete_messages": bool(row.get("delete_messages", 0)),
-            "math_mode": bool(row.get("math_mode", 0)),
-            "failed_role_id": row.get("failed_role_id"),
-            "reliable_role_id": row.get("reliable_role_id"),
-            "save_role_id": row.get("save_role_id"),
-            "high_score": row.get("high_score") or 0,
-            "best_streak": row.get("best_streak") or 0,
-        }
-        return config
+        cached = self._cfg_cache.get_cached(guild_id)
+        if cached is not None:
+            return cached
+
+        async def _load():
+            row = await self.bot.db_manager.fetch_safe(
+                "counting_config", {"guild_id": str(guild_id)}, single=True
+            )
+            if not row:
+                return None
+            return {
+                "channel_id": row.get("channel_id"),
+                "enabled": bool(row.get("enabled", 1)),
+                "delete_messages": bool(row.get("delete_messages", 0)),
+                "math_mode": bool(row.get("math_mode", 0)),
+                "failed_role_id": row.get("failed_role_id"),
+                "reliable_role_id": row.get("reliable_role_id"),
+                "save_role_id": row.get("save_role_id"),
+                "high_score": row.get("high_score") or 0,
+                "best_streak": row.get("best_streak") or 0,
+            }
+
+        return await self._cfg_cache.get(guild_id, _load)
 
     async def get_progress(self, guild_id: int) -> Dict[str, Any]:
-        row = await self.bot.db_manager.fetch_one("counting_progress", {"guild_id": str(guild_id)})
-        if not row: return {"current": 0, "last_user": None, "streak": 0}
-        return {"current": row.get("current_count", 0), "last_user": row.get("last_user_id"), "streak": row.get("streak", 0)}
+        cached = self._prog_cache.get_cached(guild_id)
+        if cached is not None:
+            return cached
+
+        async def _load():
+            row = await self.bot.db_manager.fetch_safe(
+                "counting_progress", {"guild_id": str(guild_id)}, single=True
+            )
+            if not row:
+                return {"current": 0, "last_user": None, "streak": 0}
+            return {
+                "current": row.get("current_count", 0),
+                "last_user": row.get("last_user_id"),
+                "streak": row.get("streak", 0),
+            }
+
+        return await self._prog_cache.get(guild_id, _load)
 
     async def update_progress(self, guild_id: int, current: int, last_user: Optional[int], streak: int):
         await self.bot.db_manager.upsert(
@@ -322,6 +352,7 @@ class Counting(commands.Cog):
             },
             on_conflict="guild_id",
         )
+        self._prog_cache.invalidate(guild_id)
 
     async def reset_count(self, guild_id: int):
         await self.update_progress(guild_id, 0, None, 0)
@@ -330,11 +361,13 @@ class Counting(commands.Cog):
         await self.bot.db_manager.update(
             "counting_config", {"guild_id": str(guild_id)}, {"high_score": new_score}
         )
+        self._cfg_cache.invalidate(guild_id)
 
     async def update_best_streak(self, guild_id: int, new_streak: int):
         await self.bot.db_manager.update(
             "counting_config", {"guild_id": str(guild_id)}, {"best_streak": new_streak}
         )
+        self._cfg_cache.invalidate(guild_id)
 
     async def add_stats(self, guild_id: int, user_id: int, correct: bool, streak: int = 0):
         col = "correct" if correct else "wrong"
@@ -392,69 +425,77 @@ class Counting(commands.Cog):
         cfg = await self.get_config(message.guild.id)
         if not cfg or not cfg["enabled"] or message.channel.id != cfg["channel_id"]: return
 
-        content = message.content.strip()
-        num = None
-        try: num = int(content)
-        except ValueError:
-            if cfg["math_mode"]:
-                num = evaluate_expression(content)
-                if num is not None and not isinstance(num, int): num = None
-        if num is None or not isinstance(num, int): return
+        try:
+            content = message.content.strip()
+            num = None
+            try: num = int(content)
+            except ValueError:
+                if cfg["math_mode"]:
+                    num = evaluate_expression(content)
+                    if num is not None and not isinstance(num, int): num = None
+            if num is None or not isinstance(num, int): return
 
-        prog = await self.get_progress(message.guild.id)
-        expected = prog["current"] + 1
+            prog = await self.get_progress(message.guild.id)
+            expected = prog["current"] + 1
 
-        if num != expected or (prog["last_user"] == message.author.id and prog["current"] != 0):
-            await self.add_stats(message.guild.id, message.author.id, False)
-            await self.reset_count(message.guild.id)
-            embed = discord.Embed(title="❌ БУРУУ ТОО!",
-                description=f"{message.author.mention} буруу тоо бичлээ.\n**{expected}** байх ёстой байсан.\nТоолол **0** болж шинэчлэгдлээ.",
-                color=ERROR_COLOR)
-            embed.set_footer(text="Дараагийн тоо: 1")
-            await message.channel.send(embed=embed)
-            if cfg["delete_messages"]:
-                try: await message.delete()
-                except: pass
-            if cfg["failed_role_id"]:
-                role = message.guild.get_role(cfg["failed_role_id"])
-                if role:
-                    try: await message.author.add_roles(role, reason="Тооллогын алдаа")
+            if num != expected or (prog["last_user"] == message.author.id and prog["current"] != 0):
+                await self.add_stats(message.guild.id, message.author.id, False)
+                await self.reset_count(message.guild.id)
+                embed = discord.Embed(title="❌ БУРУУ ТОО!",
+                    description=f"{message.author.mention} буруу тоо бичлээ.\n**{expected}** байх ёстой байсан.\nТоолол **0** болж шинэчлэгдлээ.",
+                    color=ERROR_COLOR)
+                embed.set_footer(text="Дараагийн тоо: 1")
+                await message.channel.send(embed=embed)
+                if cfg["delete_messages"]:
+                    try: await message.delete()
                     except: pass
-            return
+                if cfg["failed_role_id"]:
+                    role = message.guild.get_role(cfg["failed_role_id"])
+                    if role:
+                        try: await message.author.add_roles(role, reason="Тооллогын алдаа")
+                        except: pass
+                return
 
-        new_streak = prog["streak"] + 1 if prog["last_user"] == message.author.id else 1
-        await self.update_progress(message.guild.id, expected, message.author.id, new_streak)
-        await self.add_stats(message.guild.id, message.author.id, True, new_streak)
-        
-        # Даалгаврын системд мэдэгдэх
-        quests_cog = self.bot.get_cog("Quests")
-        if quests_cog:
-            await quests_cog.trigger_event(message.author.id, message.guild.id, "counting_participate", 1)
-        
-        try: await message.add_reaction("✅")
-        except: pass
+            new_streak = prog["streak"] + 1 if prog["last_user"] == message.author.id else 1
+            await self.update_progress(message.guild.id, expected, message.author.id, new_streak)
+            await self.add_stats(message.guild.id, message.author.id, True, new_streak)
+            
+            # Даалгаврын системд мэдэгдэх
+            quests_cog = self.bot.get_cog("Quests")
+            if quests_cog:
+                await quests_cog.trigger_event(message.author.id, message.guild.id, "counting_participate", 1)
+            
+            try: await message.add_reaction("✅")
+            except: pass
 
-        if expected > cfg["high_score"]:
-            await self.update_high_score(message.guild.id, expected)
-            await message.channel.send(embed=discord.Embed(
-                title="🏆 ШИНЭ ДЭЭД АМЖИЛТ!",
-                description=f"{message.author.mention} **{expected}**-д хүрч, шинэ амжилт тогтоолоо!",
-                color=GOLD_COLOR))
+            if expected > cfg["high_score"]:
+                await self.update_high_score(message.guild.id, expected)
+                await message.channel.send(embed=discord.Embed(
+                    title="🏆 ШИНЭ ДЭЭД АМЖИЛТ!",
+                    description=f"{message.author.mention} **{expected}**-д хүрч, шинэ амжилт тогтоолоо!",
+                    color=GOLD_COLOR))
 
-        if new_streak > cfg["best_streak"]:
-            await self.update_best_streak(message.guild.id, new_streak)
-            await message.channel.send(embed=discord.Embed(
-                title="🔥 ХАМГИЙН УРТ ЦУВРАЛ!",
-                description=f"{message.author.mention} **{new_streak}** дараалсан зөв тоогоор шинэ рекорд тогтоолоо!",
-                color=0xffa500))
+            if new_streak > cfg["best_streak"]:
+                await self.update_best_streak(message.guild.id, new_streak)
+                await message.channel.send(embed=discord.Embed(
+                    title="🔥 ХАМГИЙН УРТ ЦУВРАЛ!",
+                    description=f"{message.author.mention} **{new_streak}** дараалсан зөв тоогоор шинэ рекорд тогтоолоо!",
+                    color=0xffa500))
 
-        if new_streak == 50 and cfg["reliable_role_id"]:
-            role = message.guild.get_role(cfg["reliable_role_id"])
-            if role and role not in message.author.roles:
-                try:
-                    await message.author.add_roles(role, reason="50 дараалсан зөв тоололт")
-                    await message.channel.send(f"🌟 {message.author.mention} та найдвартай тоологч боллоо!", delete_after=5)
-                except: pass
+            if new_streak == 50 and cfg["reliable_role_id"]:
+                role = message.guild.get_role(cfg["reliable_role_id"])
+                if role and role not in message.author.roles:
+                    try:
+                        await message.author.add_roles(role, reason="50 дараалсан зөв тоололт")
+                        await message.channel.send(f"🌟 {message.author.mention} та найдвартай тоологч боллоо!", delete_after=5)
+                    except: pass
+
+        except Exception as exc:
+            # Protect on_message from transient DB failures per event.
+            if getattr(exc, "code", None) in ("42501", "PGRST205"):
+                logger.debug("counting DB unavailable in guild %s: %s", message.guild.id, exc)
+            else:
+                logger.warning("counting error in guild %s: %s", message.guild.id, exc, exc_info=True)
 
     # ==================== ХЭРЭГЛЭГЧИЙН КОМАНДУУД ====================
     @app_commands.command(name="count_stats_user", description="Хэрэглэгчийн тооллогын статистик")

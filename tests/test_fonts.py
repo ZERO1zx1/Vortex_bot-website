@@ -242,7 +242,7 @@ class TestBrandingFont(unittest.TestCase):
         self.assertTrue(
             self.fm._font_has_glyph(font, "𝓐") or
             self.fm._font_has_glyph(font, "蒼") or
-            self.fm._font_has_glyph(font, "蒼"),
+            self.fm._font_has_glyph(font, "穹"),
             "Branding font should render at least one character of the bot name"
         )
 
@@ -287,9 +287,12 @@ class TestSecurity(unittest.TestCase):
         """Display names should never be used as filesystem paths."""
         # The font manager should only use predefined font paths
         malicious_name = "../../../etc/passwd"
-        # This should not crash or access the filesystem with the name
-        font = self.fm.get_font_for_char("A", 20, bold=True)
+        # Pass the malicious string INTO the SUT — it must not treat it as a path
+        font = self.fm.get_font_for_text(malicious_name, 20, bold=True)
         self.assertIsNotNone(font)
+        # The chosen font path must not contain the attacker-controlled name
+        fpath = getattr(font, "path", "") if hasattr(font, "path") else ""
+        self.assertNotIn(malicious_name, fpath)
 
     def test_long_display_name_no_crash(self):
         """Very long display names should not crash."""

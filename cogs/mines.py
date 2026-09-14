@@ -4,7 +4,11 @@ from discord.ext import commands
 from discord.ui import View, Button
 from discord import ButtonStyle
 import random
+import asyncio
+import logging
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 SUCCESS_COLOR = 0xa6e3a1
 ERROR_COLOR = 0xf38ba8
@@ -53,6 +57,9 @@ class MinesView(View):
         self.game = game
         self.message = None
         self.buttons = {}
+        # Serially settles payouts so a double-click on Cashout/all-safe
+        # can never credit the user twice.
+        self._payout_lock = asyncio.Lock()
 
         # Торны товчнууд – мөр 0-3 (нийт 4 мөр)
         for r in range(1, GRID_SIZE+1):
@@ -83,6 +90,7 @@ class MinesView(View):
 
             economy = self.bot.get_cog("Economy")
             mines_cog = self.bot.get_cog("Mines")
+            quests_cog = self.bot.get_cog("Quests")
 
             if result == "bomb":
                 button.style = ButtonStyle.red
@@ -99,11 +107,7 @@ class MinesView(View):
                 embed.add_field(name="🗺️ Талбар", value=self.get_grid_string(), inline=False)
                 embed.set_thumbnail(url=self.bot.user.display_avatar.url)
                 await interaction.response.edit_message(embed=embed, view=self)
-                if mines_cog:
-                    await mines_cog.add_hunger_mood(self.ctx, 10, 5)
-                quests_cog = self.bot.get_cog("Quests")
-                if quests_cog:
-                    await quests_cog.trigger_event(self.game.user_id, self.ctx.guild.id, "mines_play", 1)
+                await self.run_side_effects(mines_cog, quests_cog)
                 self.stop()
                 return
 
@@ -111,9 +115,20 @@ class MinesView(View):
                 button.style = ButtonStyle.green
                 button.label = "✅"
                 button.disabled = True
-                total_win = self.game.current_win
-                if economy:
-                    await economy.update_balance(self.game.user_id, self.ctx.guild.id, total_win)
+                # No loss scenario here (finished already set by reveal), but
+                # the payout itself must be settled exactly once.
+                async with self._payout_lock:
+                    if not self.game.finished:
+                        self.game.finished = True
+                    total_win = self.game.current_win
+                    if economy:
+                        try:
+                            await economy.update_balance(self.game.user_id, self.ctx.guild.id, total_win)
+                        except Exception as exc:
+                            logger.error(
+                                "mines jackpot payout failed for user %s in guild %s: %s",
+                                self.game.user_id, self.ctx.guild.id, exc, exc_info=True,
+                            )
                 embed = discord.Embed(
                     title="🏆 JACKPOT! БҮХ НҮД ОНГОЙЛГОСОН!",
                     description=f"{self.ctx.author.mention} та бүх аюулгүй нүдийг онгойлгож, **{total_win:,}** мөнгө хожлоо!",
@@ -125,11 +140,7 @@ class MinesView(View):
                 for child in self.children:
                     child.disabled = True
                 await interaction.response.edit_message(embed=embed, view=self)
-                if mines_cog:
-                    await mines_cog.add_hunger_mood(self.ctx, 10, 5)
-                quests_cog = self.bot.get_cog("Quests")
-                if quests_cog:
-                    await quests_cog.trigger_event(self.game.user_id, self.ctx.guild.id, "mines_play", 1)
+                await self.run_side_effects(mines_cog, quests_cog, hunger_inc=10, mood_inc=5)
                 self.stop()
                 return
 
@@ -153,9 +164,25 @@ class MinesView(View):
                 embed.set_footer(text="Хожил авахын тулд 💰 Cashout товчийг дарна уу")
                 embed.set_thumbnail(url=self.bot.user.display_avatar.url)
                 await interaction.response.edit_message(embed=embed, view=self)
-                if mines_cog:
-                    await mines_cog.add_hunger_mood(self.ctx, 5, 3)
+                await self.run_side_effects(mines_cog, quests_cog)
         return callback
+
+    async def run_side_effects(self, mines_cog, quests_cog, hunger_inc=5, mood_inc=3):
+        """Fire hunger/mood + quests updates that must never break the game.
+
+        These are secondary bookkeeping: their failure is logged (compact,
+        no traceback spam) but the settled game result is never undone.
+        """
+        try:
+            if mines_cog:
+                await mines_cog.add_hunger_mood(self.ctx, hunger_inc, mood_inc)
+        except Exception as exc:
+            logger.warning("mines hunger/mood update failed: %s", exc)
+        try:
+            if quests_cog:
+                await quests_cog.trigger_event(self.game.user_id, self.ctx.guild.id, "mines_play", 1)
+        except Exception as exc:
+            logger.warning("mines quest trigger failed: %s", exc)
 
     async def cashout_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.game.user_id:
@@ -164,11 +191,28 @@ class MinesView(View):
             return await interaction.response.send_message("❌ Тоглоом дууссан.", ephemeral=True)
 
         economy = self.bot.get_cog("Economy")
-        if economy:
-            await economy.update_balance(self.game.user_id, self.ctx.guild.id, self.game.current_win)
+        mines_cog = self.bot.get_cog("Mines")
+        quests_cog = self.bot.get_cog("Quests")
+
+        async with self._payout_lock:
+            # Re-check inside the serialized section: exactly one payout
+            # survives this guard, so rapid double-clicks can't credit twice.
+            if self.game.finished:
+                return await interaction.response.send_message("❌ Тоглоом дууссан.", ephemeral=True)
+            self.game.finished = True
+            payout = self.game.current_win
+            if economy:
+                try:
+                    await economy.update_balance(self.game.user_id, self.ctx.guild.id, payout)
+                except Exception as exc:
+                    logger.error(
+                        "mines cashout payout failed for user %s in guild %s: %s",
+                        self.game.user_id, self.ctx.guild.id, exc, exc_info=True,
+                    )
+
         embed = discord.Embed(
             title="💰 CASH OUT!",
-            description=f"{self.ctx.author.mention} та **{self.game.current_win:,}** мөнгө хожлоо! "
+            description=f"{self.ctx.author.mention} та **{payout:,}** мөнгө хожлоо! "
                         f"(x{self.game.multiplier:.2f})",
             color=GOLD_COLOR,
             timestamp=datetime.now(timezone.utc)
@@ -177,12 +221,7 @@ class MinesView(View):
         for child in self.children:
             child.disabled = True
         await interaction.response.edit_message(embed=embed, view=self)
-        mines_cog = self.bot.get_cog("Mines")
-        if mines_cog:
-            await mines_cog.add_hunger_mood(self.ctx, 5, 3)
-        quests_cog = self.bot.get_cog("Quests")
-        if quests_cog:
-            await quests_cog.trigger_event(self.game.user_id, self.ctx.guild.id, "mines_play", 1)
+        await self.run_side_effects(mines_cog, quests_cog, hunger_inc=5, mood_inc=3)
         self.stop()
 
     def get_grid_string(self):
@@ -202,23 +241,38 @@ class MinesView(View):
         return "\n".join(lines)
 
     async def on_timeout(self):
-        if not self.game.finished:
-            economy = self.bot.get_cog("Economy")
-            if economy:
-                await economy.update_balance(self.game.user_id, self.ctx.guild.id, self.game.bet)
-            embed = discord.Embed(
-                title="⏰ ХУГАЦАА ДУУССАН",
-                description=f"{self.ctx.author.mention}, та 2 минутын дотор тоглоомоо дуусгаагүй тул "
-                            f"**{self.game.bet:,}** мөнгийг буцаан авлаа.",
-                color=WARNING_COLOR
-            )
-            for child in self.children:
-                child.disabled = True
-            if self.message:
-                await self.message.edit(embed=embed, view=self)
-            quests_cog = self.bot.get_cog("Quests")
-            if quests_cog:
-                await quests_cog.trigger_event(self.game.user_id, self.ctx.guild.id, "mines_play", 1)
+        try:
+            if not self.game.finished:
+                # At this point the game was neither cashed out nor finished,
+                # so the original bet has not been settled: refund it once.
+                self.game.finished = True
+                economy = self.bot.get_cog("Economy")
+                if economy:
+                    try:
+                        await economy.update_balance(self.game.user_id, self.ctx.guild.id, self.game.bet)
+                    except Exception as exc:
+                        logger.error(
+                            "mines timeout refund failed for user %s in guild %s: %s",
+                            self.game.user_id, self.ctx.guild.id, exc, exc_info=True,
+                        )
+                embed = discord.Embed(
+                    title="⏰ ХУГАЦАА ДУУССАН",
+                    description=f"{self.ctx.author.mention}, та 2 минутын дотор тоглоомоо дуусгаагүй тул "
+                                f"**{self.game.bet:,}** мөнгийг буцаан авлаа.",
+                    color=WARNING_COLOR
+                )
+                for child in self.children:
+                    child.disabled = True
+                if self.message:
+                    await self.message.edit(embed=embed, view=self)
+                quests_cog = self.bot.get_cog("Quests")
+                try:
+                    if quests_cog:
+                        await quests_cog.trigger_event(self.game.user_id, self.ctx.guild.id, "mines_play", 1)
+                except Exception as exc:
+                    logger.warning("mines timeout quest trigger failed: %s", exc)
+        except Exception as exc:
+            logger.warning("mines on_timeout error: %s", exc, exc_info=True)
 
 class Mines(commands.Cog):
     def __init__(self, bot):

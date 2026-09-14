@@ -13,8 +13,11 @@ import asyncio
 import io
 import os
 import aiohttp
+import logging
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
+
+logger = logging.getLogger(__name__)
 
 # ---------- Centralized Unicode-aware font management ----------
 from utils.fonts import load_font as _load_font
@@ -115,6 +118,19 @@ class Economy(SupabaseCog):
             bot.config.get("tax_collector_roles", TAX_COLLECTOR_ROLES)
         )
         self._wealth_task = None
+        # Per-user locks serializing balance read-modify-writes so two
+        # concurrent +delta operations (e.g. work + a role income tick)
+        # can never overwrite each other's update (lost update).
+        self._balance_locks = {}
+        # Serializes the /work claim for each user (double-claim guard).
+        self._work_locks = {}
+
+    async def _get_user_lock(self, pool: dict, key):
+        lock = pool.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            pool[key] = lock
+        return lock
 
     async def cog_load(self):
         # Tables are pre-configured in Supabase
@@ -144,19 +160,21 @@ class Economy(SupabaseCog):
         """Гар дээрх үлдэгдэл өөрчлөх. Эерэг орлогод 10% татвар автан,
         Ерөнхийлөгч/Захирал ролттой хэрэглэгчид автоматаар хуваарилагдана.
         Татварын өөрөө хуваарилах үедээ apply_tax=False дамжуулна."""
-        await self.ensure_user(uid, gid)
-        if delta > 0 and (apply_tax if apply_tax is not None else True):
-            tax = int(delta * self.transfer_tax_percent / 100)
-            credited = delta - tax
-            if tax > 0:
-                await self.distribute_tax(gid, tax)
-        else:
-            tax = 0
-            credited = delta
-        cur = await self.get_balance(uid, gid)
-        new = max(0, min(self.max_balance, cur + credited))
-        await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "balance": new})
-        return new
+        lock = await self._get_user_lock(self._balance_locks, f"{uid}:{gid}")
+        async with lock:
+            await self.ensure_user(uid, gid)
+            if delta > 0 and (apply_tax if apply_tax is not None else True):
+                tax = int(delta * self.transfer_tax_percent / 100)
+                credited = delta - tax
+                if tax > 0:
+                    await self.distribute_tax(gid, tax)
+            else:
+                tax = 0
+                credited = delta
+            cur = await self.get_balance(uid, gid)
+            new = max(0, min(self.max_balance, cur + credited))
+            await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "balance": new})
+            return new
 
     async def get_tax_collectors(self, gid):
         """Ерөнхийлөгч / Захирал рольтой гишүүдийг олох."""
@@ -375,46 +393,56 @@ class Economy(SupabaseCog):
             return await ctx.send(embed=discord.Embed(title="🍔 Өлсөж байна!", description="`eat` командаар хоол идээрэй.", color=WARNING_COLOR))
         if mood >= 80:
             return await ctx.send(embed=discord.Embed(title="😡 Ууртай байна!", description="`relax` командаар амраарай.", color=WARNING_COLOR))
-        now = int(time.time())
-        row = await self.bot.db_manager.fetch_one("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, selects="last_work")
-        last = row.get("last_work", 0) if row else 0
-        if last and now - last < 1800:
-            rem = 1800 - (now-last)
-            m, s = divmod(rem, 60)
-            return await ctx.send(embed=discord.Embed(title="⏳ АМРАЛТ", description=f"**{m}м {s}с** хүлээ.", color=WARNING_COLOR))
 
-        disc_level = await self.get_discord_level(ctx.author.id, ctx.guild.id)
-        job_level, job = self.get_job_for_level(disc_level)
-        pay = random.randint(job["min"], job["max"])
-        bonus = min(50, disc_level * 2)
-        if bonus: pay = int(pay * (1 + bonus/100))
+        # Double-claim guard: the cooldown check + `last_work` write must be
+        # atomic per user so two rapid /work invocations pay only once.
+        work_lock = await self._get_user_lock(self._work_locks, f"{ctx.author.id}:{ctx.guild.id}")
+        async with work_lock:
+            now = int(time.time())
+            row = await self.bot.db_manager.fetch_one("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, selects="last_work")
+            last = row.get("last_work", 0) if row else 0
+            if last and now - last < 1800:
+                rem = 1800 - (now-last)
+                m, s = divmod(rem, 60)
+                return await ctx.send(embed=discord.Embed(title="⏳ АМРАЛТ", description=f"**{m}м {s}с** хүлээ.", color=WARNING_COLOR))
 
-        if custom_text:
-            work_desc = custom_text
-        else:
-            rows = await self.bot.db_manager.fetch_all("work_phrases", {"guild_id": str(ctx.guild.id)}, selects="phrase")
-            if rows:
-                work_desc = random.choice(rows)["phrase"]
+            disc_level = await self.get_discord_level(ctx.author.id, ctx.guild.id)
+            job_level, job = self.get_job_for_level(disc_level)
+            pay = random.randint(job["min"], job["max"])
+            bonus = min(50, disc_level * 2)
+            if bonus: pay = int(pay * (1 + bonus/100))
+
+            if custom_text:
+                work_desc = custom_text
             else:
-                work_desc = f"{job['emoji']} {job['name']} ажил"
+                rows = await self.bot.db_manager.fetch_safe(
+                    "work_phrases", {"guild_id": str(ctx.guild.id)}, selects="phrase"
+                )
+                if rows:
+                    work_desc = random.choice(rows)["phrase"]
+                else:
+                    work_desc = f"{job['emoji']} {job['name']} ажил"
 
-        await self.update_balance(ctx.author.id, ctx.guild.id, pay)
-        tax = int(pay * self.transfer_tax_percent / 100)
-        hunger_inc = random.randint(10, 15)
-        mood_inc = random.randint(10, 15)
-        new_hunger = min(100, hunger+hunger_inc)
-        new_mood = min(100, mood+mood_inc)
-        await self.set_hunger_mood(ctx.author.id, ctx.guild.id, hunger=new_hunger, mood=new_mood)
-        await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_work": now})
-        leveling = self.bot.get_cog("Leveling")
-        if leveling:
+            await self.update_balance(ctx.author.id, ctx.guild.id, pay)
+            tax = int(pay * self.transfer_tax_percent / 100)
+            hunger_inc = random.randint(10, 15)
+            mood_inc = random.randint(10, 15)
+            new_hunger = min(100, hunger+hunger_inc)
+            new_mood = min(100, mood+mood_inc)
+            await self.set_hunger_mood(ctx.author.id, ctx.guild.id, hunger=new_hunger, mood=new_mood)
+            await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_work": now})
+            leveling = self.bot.get_cog("Leveling")
+            if leveling:
+                try:
+                    await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(10, 20), member=ctx.author, check_mute=True, channel=ctx.channel)
+                except: pass
+
+            quests_cog = self.bot.get_cog("Quests")
             try:
-                await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(10, 20), member=ctx.author, check_mute=True, channel=ctx.channel)
-            except: pass
-
-        quests_cog = self.bot.get_cog("Quests")
-        if quests_cog:
-            await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "economy_work", 1)
+                if quests_cog:
+                    await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "economy_work", 1)
+            except Exception as exc:
+                logger.warning("work quest trigger failed: %s", exc)
 
         tax_line = f"\n🏛️ Татвар ({self.transfer_tax_percent}%): -{tax:,} ₮ (Ерөнхийлөгч/Захирал-д)" if tax > 0 else ""
         embed = discord.Embed(
@@ -517,7 +545,7 @@ class Economy(SupabaseCog):
         msg = await ctx.send(embed=embed, view=view)
         await view.wait()
         if view.value is not True:
-            return await ctx.send("❌ Шилжүүлэг цуцлагдлаа.", ephemeral=True)
+            return await ctx.send("❌ Шилжүүлэг цуцлагдлаа.")
         await self.update_balance(ctx.author.id, ctx.guild.id, -amount, apply_tax=False)
         await self.update_balance(member.id, ctx.guild.id, final_amount, apply_tax=False)
         # Шилжүүлгийн татвар Ерөнхийлөгч/Захирал rolт хэрэглэгчид очно
@@ -773,7 +801,7 @@ class Economy(SupabaseCog):
                         if not member.bot:
                             await self.update_balance(member.id, guild.id, amount)
             except Exception as e:
-                __import__("logging").getLogger("aether.economy").error("Role income loop error (table may be missing): %s", e)
+                logger.error("Role income loop error (table may be missing): %s", e)
             await asyncio.sleep(60)
 
 # ---------- VIEWS & MODALS ----------
@@ -827,45 +855,57 @@ class CooldownModal(Modal, title="Cooldown тохируулах"):
     command = TextInput(label="Командын нэр", placeholder="work", required=True)
     seconds = TextInput(label="Cooldown (секунд)", placeholder="3600", required=True)
     async def on_submit(self, interaction: discord.Interaction):
-        cog = interaction.client.get_cog("Economy")
-        cmd = self.command.value.lower()
-        sec = int(self.seconds.value)
-        await cog.set_cooldown_cmd(interaction, cmd, sec)
-        await interaction.response.send_message(f"✅ `{cmd}` cooldown {sec}с боллоо.", ephemeral=True)
+        try:
+            cog = interaction.client.get_cog("Economy")
+            cmd = self.command.value.lower()
+            sec = int(self.seconds.value)
+            await cog.set_cooldown_cmd(interaction, cmd, sec)
+            await interaction.response.send_message(f"✅ `{cmd}` cooldown {sec}с боллоо.", ephemeral=True)
+        except ValueError:
+            await interaction.response.send_message("❌ Тоо оруулна уу (жишээ: 3600).", ephemeral=True)
 
 class FineModal(Modal, title="Торгууль тохируулах"):
     command = TextInput(label="Командын нэр", placeholder="rob")
     fine_min = TextInput(label="Min торгууль", placeholder="100")
     fine_max = TextInput(label="Max торгууль", placeholder="500")
     async def on_submit(self, interaction: discord.Interaction):
-        cog = interaction.client.get_cog("Economy")
-        cmd = self.command.value.lower()
-        mn = int(self.fine_min.value)
-        mx = int(self.fine_max.value)
-        await cog.set_fine_amount(interaction, cmd, mn, mx)
-        await interaction.response.send_message(f"✅ `{cmd}` торгууль {mn}-{mx} боллоо.", ephemeral=True)
+        try:
+            cog = interaction.client.get_cog("Economy")
+            cmd = self.command.value.lower()
+            mn = int(self.fine_min.value)
+            mx = int(self.fine_max.value)
+            await cog.set_fine_amount(interaction, cmd, mn, mx)
+            await interaction.response.send_message(f"✅ `{cmd}` торгууль {mn}-{mx} боллоо.", ephemeral=True)
+        except ValueError:
+            await interaction.response.send_message("❌ Тоо оруулна уу (жишээ: 100, 500).", ephemeral=True)
 
 class PayoutModal(Modal, title="Цалин тохируулах"):
     command = TextInput(label="Командын нэр", placeholder="work")
     payout_min = TextInput(label="Min цалин")
     payout_max = TextInput(label="Max цалин")
     async def on_submit(self, interaction: discord.Interaction):
-        cog = interaction.client.get_cog("Economy")
-        cmd = self.command.value.lower()
-        mn = int(self.payout_min.value)
-        mx = int(self.payout_max.value)
-        await cog.set_payout(interaction, cmd, mn, mx)
-        await interaction.response.send_message(f"✅ `{cmd}` цалин {mn}-{mx} боллоо.", ephemeral=True)
+        try:
+            cog = interaction.client.get_cog("Economy")
+            cmd = self.command.value.lower()
+            mn = int(self.payout_min.value)
+            mx = int(self.payout_max.value)
+            await cog.set_payout(interaction, cmd, mn, mx)
+            await interaction.response.send_message(f"✅ `{cmd}` цалин {mn}-{mx} боллоо.", ephemeral=True)
+        except ValueError:
+            await interaction.response.send_message("❌ Тоо оруулна уу (жишээ: 100, 500).", ephemeral=True)
 
 class FailRateModal(Modal, title="Бүтэлгүйтэх магадлал"):
     command = TextInput(label="Командын нэр")
     rate = TextInput(label="Магадлал (0-1)", placeholder="0.5")
     async def on_submit(self, interaction: discord.Interaction):
-        cog = interaction.client.get_cog("Economy")
-        cmd = self.command.value.lower()
-        r = float(self.rate.value)
-        await cog.set_fail_rate(interaction, cmd, r)
-        await interaction.response.send_message(f"✅ `{cmd}` бүтэлгүйтэх {r*100}% боллоо.", ephemeral=True)
+        try:
+            cog = interaction.client.get_cog("Economy")
+            cmd = self.command.value.lower()
+            r = float(self.rate.value)
+            await cog.set_fail_rate(interaction, cmd, r)
+            await interaction.response.send_message(f"✅ `{cmd}` бүтэлгүйтэх {r*100}% боллоо.", ephemeral=True)
+        except (ValueError, TypeError):
+            await interaction.response.send_message("❌ Буруу тоо. 0-1 хооронд оруулна уу (жишээ: 0.5).", ephemeral=True)
 
 class CustomReplyModal(Modal, title="Custom Reply нэмэх"):
     command = TextInput(label="Команд")

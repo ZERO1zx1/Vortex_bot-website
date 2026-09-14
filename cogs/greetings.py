@@ -8,6 +8,11 @@ from typing import Optional, Dict, List
 from datetime import datetime
 from dataclasses import dataclass, field
 import random
+import logging
+
+from utils.config_cache import ConfigCache
+
+logger = logging.getLogger(__name__)
 
 # ===== COLORS =====
 SUCCESS_COLOR = 0xa6e3a1
@@ -255,37 +260,38 @@ class TemplateCreateView(View):
 class Greetings(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.config_cache: Dict[int, GuildConfig] = {}
+        self.config_cache: ConfigCache[GuildConfig] = ConfigCache(ttl=20.0, name="greeting_config")
 
     async def cog_load(self):
         # Tables are pre-configured in Supabase via SQL migrations
         pass
 
     async def get_config(self, guild_id: int) -> Optional[GuildConfig]:
-        if guild_id in self.config_cache:
-            return self.config_cache[guild_id]
-        row = await self.bot.db_manager.fetch_one("greeting_config", {"guild_id": str(guild_id)})
-        if not row:
-            return None
-        config = GuildConfig(
-            guild_id=guild_id,
-            welcome_channel=row.get("welcome_channel"),
-            goodbye_channel=row.get("goodbye_channel"),
-            boost_channel=row.get("boost_channel"),
-            welcome_template_id=row.get("welcome_template_id"),
-            goodbye_template_id=row.get("goodbye_template_id"),
-            boost_template_id=row.get("boost_template_id"),
-            welcome_enabled=bool(row.get("welcome_enabled", 1)),
-            goodbye_enabled=bool(row.get("goodbye_enabled", 1)),
-            boost_enabled=bool(row.get("boost_enabled", 1)),
-            dm_on_welcome=bool(row.get("dm_on_welcome", 0)),
-            log_channel=row.get("log_channel"),
-        )
-        self.config_cache[guild_id] = config
-        return config
+        async def _load():
+            row = await self.bot.db_manager.fetch_safe(
+                "greeting_config", {"guild_id": str(guild_id)}, single=True
+            )
+            if not row:
+                return None
+            return GuildConfig(
+                guild_id=guild_id,
+                welcome_channel=row.get("welcome_channel"),
+                goodbye_channel=row.get("goodbye_channel"),
+                boost_channel=row.get("boost_channel"),
+                welcome_template_id=row.get("welcome_template_id"),
+                goodbye_template_id=row.get("goodbye_template_id"),
+                boost_template_id=row.get("boost_template_id"),
+                welcome_enabled=bool(row.get("welcome_enabled", 1)),
+                goodbye_enabled=bool(row.get("goodbye_enabled", 1)),
+                boost_enabled=bool(row.get("boost_enabled", 1)),
+                dm_on_welcome=bool(row.get("dm_on_welcome", 0)),
+                log_channel=row.get("log_channel"),
+            )
+
+        return await self.config_cache.get(guild_id, _load)
 
     def invalidate_cache(self, guild_id: int):
-        self.config_cache.pop(guild_id, None)
+        self.config_cache.invalidate(guild_id)
 
     def resolve_placeholders(self, text: str, member: discord.Member) -> str:
         if not text:
@@ -594,35 +600,51 @@ class Greetings(commands.Cog):
     # ================= EVENT LISTENERS =================
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        config = await self.get_config(member.guild.id)
-        if config and config.is_welcome_active:
-            await self.send_greeting(
-                config.welcome_channel, config.welcome_template_id, member,
-                DEFAULT_TEMPLATES["welcome"],
-                send_dm=config.dm_on_welcome,
-                log_channel_id=config.log_channel
-            )
+        try:
+            config = await self.get_config(member.guild.id)
+            if config and config.is_welcome_active:
+                await self.send_greeting(
+                    config.welcome_channel, config.welcome_template_id, member,
+                    DEFAULT_TEMPLATES["welcome"],
+                    send_dm=config.dm_on_welcome,
+                    log_channel_id=config.log_channel
+                )
+        except Exception as exc:
+            self._log_event_error("on_member_join", member.guild.id, exc)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
-        config = await self.get_config(member.guild.id)
-        if config and config.is_goodbye_active:
-            await self.send_greeting(
-                config.goodbye_channel, config.goodbye_template_id, member,
-                DEFAULT_TEMPLATES["goodbye"],
-                log_channel_id=config.log_channel
-            )
+        try:
+            config = await self.get_config(member.guild.id)
+            if config and config.is_goodbye_active:
+                await self.send_greeting(
+                    config.goodbye_channel, config.goodbye_template_id, member,
+                    DEFAULT_TEMPLATES["goodbye"],
+                    log_channel_id=config.log_channel
+                )
+        except Exception as exc:
+            self._log_event_error("on_member_remove", member.guild.id, exc)
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
         if before.premium_since is None and after.premium_since is not None:
-            config = await self.get_config(after.guild.id)
-            if config and config.is_boost_active:
-                await self.send_greeting(
-                    config.boost_channel, config.boost_template_id, after,
-                    DEFAULT_TEMPLATES["boost"],
-                    log_channel_id=config.log_channel
-                )
+            try:
+                config = await self.get_config(after.guild.id)
+                if config and config.is_boost_active:
+                    await self.send_greeting(
+                        config.boost_channel, config.boost_template_id, after,
+                        DEFAULT_TEMPLATES["boost"],
+                        log_channel_id=config.log_channel
+                    )
+            except Exception as exc:
+                self._log_event_error("on_member_update", after.guild.id, exc)
+
+    @staticmethod
+    def _log_event_error(event: str, guild_id: int, exc: Exception):
+        if getattr(exc, "code", None) in ("42501", "PGRST205"):
+            logger.debug("greetings %s DB unavailable in guild %s: %s", event, guild_id, exc)
+        else:
+            logger.warning("greetings %s error in guild %s: %s", event, guild_id, exc, exc_info=True)
 
 async def setup(bot):
     await bot.add_cog(Greetings(bot))

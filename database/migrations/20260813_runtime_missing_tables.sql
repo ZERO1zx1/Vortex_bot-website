@@ -586,6 +586,27 @@ BEGIN
 END;
 $$;
 
+-- ── RPC: atomic stock consumption (negative-ыг хориглоно) ─
+CREATE OR REPLACE FUNCTION consume_stock(
+    g_guild_id TEXT,
+    g_item_id TEXT,
+    g_quantity INTEGER
+) RETURNS BOOLEAN LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    updated BOOLEAN;
+BEGIN
+    UPDATE shop_stock
+    SET current_stock = current_stock - g_quantity
+    WHERE guild_id = g_guild_id
+      AND item_id = g_item_id
+      AND current_stock >= g_quantity
+    RETURNING TRUE INTO updated;
+    RETURN COALESCE(updated, FALSE);
+END;
+$$;
+
 -- ── Indexes ──────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_economy_balance ON economy (balance);
 CREATE INDEX IF NOT EXISTS idx_economy_guild ON economy (guild_id, balance);

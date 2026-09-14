@@ -306,11 +306,12 @@ CREATE TABLE IF NOT EXISTS user_drunk (
 );
 
 CREATE TABLE IF NOT EXISTS user_equips (
-    user_id TEXT,
-    guild_id TEXT,
-    item_id INT,
-    equipped_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())),
-    PRIMARY KEY (user_id, guild_id, item_id)
+    guild_id TEXT NOT NULL,
+    user_id  TEXT NOT NULL,
+    slot     TEXT NOT NULL,      -- ring | necklace | bracelet | charm
+    item_id  BIGINT NOT NULL,
+    updated_at BIGINT DEFAULT 0,
+    PRIMARY KEY (guild_id, user_id, slot)
 );
 
 CREATE TABLE IF NOT EXISTS marketplace_listings (
@@ -611,6 +612,27 @@ BEGIN
         'UPDATE %I SET %I = COALESCE(%I, 0) + %s WHERE %I = %L',
         table_name, col, col, delta, filter_col, filter_val
     );
+END;
+$$;
+
+-- ── RPC: atomic stock consumption (negative-ыг хориглоно) ─
+CREATE OR REPLACE FUNCTION consume_stock(
+    g_guild_id TEXT,
+    g_item_id TEXT,
+    g_quantity INTEGER
+) RETURNS BOOLEAN LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    updated BOOLEAN;
+BEGIN
+    UPDATE shop_stock
+    SET current_stock = current_stock - g_quantity
+    WHERE guild_id = g_guild_id
+      AND item_id = g_item_id
+      AND current_stock >= g_quantity
+    RETURNING TRUE INTO updated;
+    RETURN COALESCE(updated, FALSE);
 END;
 $$;
 

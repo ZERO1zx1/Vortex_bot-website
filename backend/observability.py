@@ -36,8 +36,12 @@ class JsonFormatter(logging.Formatter):
 def configure_logging() -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
+    _level_name = __import__("os").getenv("LOG_LEVEL", "INFO").strip().upper()
+    _level = getattr(logging, _level_name, None)
+    if not isinstance(_level, int):
+        _level = logging.INFO  # буруу/үлдэгдэл утга → INFO
     logging.basicConfig(
-        level=logging.getLevelName(__import__("os").getenv("LOG_LEVEL", "INFO").upper()),
+        level=_level,
         handlers=[handler],
         force=True,
     )

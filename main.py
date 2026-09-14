@@ -14,6 +14,7 @@ from database.supabase_manager import SupabaseManager as DatabaseManager
 from utils.branding import BOT_NAME, BOT_FOOTER
 from utils.constants import DEFAULT_PREFIX
 from utils.cog_loader import discover_cogs
+from utils.log_filter import RateLimitFilter
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -35,6 +36,10 @@ cogs_handler.setLevel(logging.WARNING)  # WARNING+ бүгд файл руу
 cogs_handler.setFormatter(logging.Formatter(
     "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 ))
+# Break the "thousands of identical infra errors" pattern even at the sink:
+# the first few identical lines are kept, then repeats are folded into a
+# count so new/different failures always surface.
+cogs_handler.addFilter(RateLimitFilter(max_identical=2, quiet=300))
 stock_handler = RotatingFileHandler(
     LOG_DIR / "stock.log",
     maxBytes=5 * 1024 * 1024,
@@ -133,6 +138,35 @@ class MyBot(commands.Bot):
 
         await self.db_manager.init_tables()
 
+        # Surface schema/privilege problems ONCE at startup instead of one
+        # full traceback per event all day long.
+        try:
+            report = await asyncio.wait_for(self.db_manager.health_check(), timeout=30)
+            broken = [r for r in report if r["status"] != "OK"]
+            if broken:
+                missing = ", ".join(r["table"] for r in broken if r["status"] == "MISSING")
+                denied = ", ".join(r["table"] for r in broken if r["status"] == "PERMISSION_DENIED")
+                other = ", ".join(f"{r['table']} ({r['status']})" for r in broken
+                                  if r["status"] not in ("MISSING", "PERMISSION_DENIED"))
+                if missing:
+                    logger.error(
+                        "Database schema incomplete: missing table(s) -> %s. "
+                        "Apply the full migrations in database/migrations and restart.",
+                        missing,
+                    )
+                if denied:
+                    logger.error(
+                        "Database privileges incomplete: %s need service_role "
+                        "grants. Grant SELECT/INSERT/UPDATE/DELETE on them and restart.",
+                        denied,
+                    )
+                if other:
+                    logger.error("Database health problems: %s", other)
+            else:
+                logger.info("✅ Database health check OK (%d tables probed)", len(report))
+        except Exception as e:
+            logger.error("Database health check failed (Supabase may be unreachable): %s", e)
+
         # Load Cogs
         logger.info("📂 Loading Cogs...")
         cogs_to_load = discover_cogs(Path(__file__).parent / "cogs")
@@ -218,7 +252,7 @@ class MyBot(commands.Bot):
             logger.warning("Interaction expired [%s] %s: %s", ctx.command, getattr(ctx.author, "id", "?"), error)
             return
 
-        logger.exception("Command error [%s] %s: %s", ctx.command, ctx.author, error)
+        logger.error("Command error [%s] %s: %s", ctx.command, ctx.author, error, exc_info=error)
 
     async def _safe_app_error_reply(self, interaction, content):
         """Ephemeral хариу илгээх — response/followup ялгааг автоматаар зохицуулна."""
@@ -286,7 +320,7 @@ class MyBot(commands.Bot):
                 logger.warning("Interaction expired [%s] %s: %s", cmd, interaction.user, inner)
                 return
 
-        logger.exception("Slash error [%s] %s: %s", cmd, interaction.user, error)
+        logger.error("Slash error [%s] %s: %s", cmd, interaction.user, error, exc_info=error)
 
     async def on_ready(self):
         logger.info("✅ %s is online!", self.user)

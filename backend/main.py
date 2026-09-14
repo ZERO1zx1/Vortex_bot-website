@@ -82,8 +82,11 @@ def _parse_ts(value: Optional[str]) -> Optional[datetime]:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)  # naive → UTC гэж үзнэ
+        return dt
+    except (ValueError, TypeError):
         return None
 
 
@@ -145,7 +148,7 @@ async def bot_status() -> Dict[str, Any]:
 
     try:
         rows = await fetch_rows("bot_status", {"id": "eq.1", "select": "*"})
-    except (httpx.HTTPError, RuntimeError) as e:
+    except (httpx.HTTPError, RuntimeError, ValueError, TypeError, json.JSONDecodeError) as e:
         log.warning("status fetch failed: %s", e)
         raise HTTPException(status_code=502, detail="supabase_unreachable")
 
@@ -191,7 +194,7 @@ async def leaderboard(
             "order": "xp.desc",
             "limit": str(limit),
         })
-    except (httpx.HTTPError, RuntimeError) as e:
+    except (httpx.HTTPError, RuntimeError, ValueError, TypeError, json.JSONDecodeError) as e:
         log.warning("leaderboard fetch failed: %s", e)
         raise HTTPException(status_code=502, detail="supabase_unreachable")
 
@@ -232,7 +235,7 @@ async def giveaways(
 
     try:
         rows = await fetch_rows("giveaways", params)
-    except (httpx.HTTPError, RuntimeError) as e:
+    except (httpx.HTTPError, RuntimeError, ValueError, TypeError, json.JSONDecodeError) as e:
         log.warning("giveaways fetch failed: %s", e)
         raise HTTPException(status_code=502, detail="supabase_unreachable")
 
@@ -265,14 +268,14 @@ async def commands(
 
     items: List[Dict[str, Any]] = cached
     if cat:
-        items = [c for c in items if c.get("cat", "").lower() == cat.lower()]
+        items = [c for c in items if str(c.get("cat", "")).lower() == cat.lower()]
     if q:
         needle = q.lower()
         items = [
             c for c in items
-            if needle in c.get("name", "").lower()
-            or needle in c.get("desc", "").lower()
-            or needle in c.get("descEN", "").lower()
+            if needle in str(c.get("name", "")).lower()
+            or needle in str(c.get("desc", "")).lower()
+            or needle in str(c.get("descEN", "")).lower()
         ]
 
     cats = sorted({c.get("cat", "Other") for c in cached})

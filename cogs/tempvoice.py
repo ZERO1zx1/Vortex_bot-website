@@ -4,6 +4,11 @@ from discord import app_commands, ui, ButtonStyle
 import asyncio
 import time
 import random
+import logging
+
+from utils.config_cache import ConfigCache
+
+logger = logging.getLogger(__name__)
 
 # ========== Модалууд (өмнөхтэй адил) ==========
 class RenameModal(ui.Modal, title="Сувгийн нэрийг өөрчлөх"):
@@ -228,6 +233,7 @@ class TempVoice(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.connect_times = {}
+        self.config_cache = ConfigCache(ttl=15.0, name="guild_config")
 
     async def cog_load(self):
         # Tables are pre-configured in Supabase via SQL migrations
@@ -248,12 +254,12 @@ class TempVoice(commands.Cog):
             guild = self.bot.get_guild(int(guild_id))
             if not guild:
                 continue
-            channel = guild.get_channel(channel_id)
+            channel = guild.get_channel(int(channel_id))
             if not channel:
                 continue
             try:
-                message = await channel.fetch_message(message_id)
-            except:
+                message = await channel.fetch_message(int(message_id))
+            except (discord.NotFound, discord.HTTPException, ValueError, TypeError):
                 continue
             admin_id = guild.owner_id
             view = TempVoiceSetupView(self, guild.id, admin_id)
@@ -261,20 +267,30 @@ class TempVoice(commands.Cog):
             view.message = message
 
     async def get_config(self, guild_id):
-        row = await self.bot.db_manager.fetch_one("guild_config", {"guild_id": str(guild_id)})
-        if not row:
-            return {"create_channel_id": None, "category_id": None, "max_channels_per_user": 3, "control_channel_id": None}
-        return {
-            "create_channel_id": row.get("create_channel_id"),
-            "category_id": row.get("category_id"),
-            "max_channels_per_user": row.get("max_channels_per_user") or 3,
-            "control_channel_id": row.get("control_channel_id")
-        }
+        cached = self.config_cache.get_cached(guild_id)
+        if cached is not None:
+            return cached
+
+        async def _load():
+            row = await self.bot.db_manager.fetch_safe(
+                "guild_config", {"guild_id": str(guild_id)}, single=True
+            )
+            if not row:
+                return {"create_channel_id": None, "category_id": None, "max_channels_per_user": 3, "control_channel_id": None}
+            return {
+                "create_channel_id": row.get("create_channel_id"),
+                "category_id": row.get("category_id"),
+                "max_channels_per_user": row.get("max_channels_per_user") or 3,
+                "control_channel_id": row.get("control_channel_id")
+            }
+
+        return await self.config_cache.get(guild_id, _load)
 
     async def set_config(self, guild_id, **kwargs):
         data = {"guild_id": str(guild_id)}
         data.update(kwargs)
         await self.bot.db_manager.upsert("guild_config", data, on_conflict="guild_id")
+        self.config_cache.invalidate(guild_id)
 
     async def install_tempvoice(self, guild: discord.Guild):
         config = await self.get_config(guild.id)
@@ -328,74 +344,79 @@ class TempVoice(commands.Cog):
     async def on_voice_state_update(self, member, before, after):
         if member.bot:
             return
+        try:
+            if after.channel and not before.channel:
+                self.connect_times[member.id] = time.time()
 
-        if after.channel and not before.channel:
-            self.connect_times[member.id] = time.time()
+            if before.channel and not after.channel:
+                connect_time = self.connect_times.pop(member.id, None)
+                if connect_time:
+                    elapsed = time.time() - connect_time
+                    minutes = int(elapsed // 60)
+                    if minutes > 0:
+                        quests_cog = self.bot.get_cog("Quests")
+                        if quests_cog:
+                            await quests_cog.trigger_event(member.id, member.guild.id, "tempvoice_time", minutes)
 
-        if before.channel and not after.channel:
-            connect_time = self.connect_times.pop(member.id, None)
-            if connect_time:
-                elapsed = time.time() - connect_time
-                minutes = int(elapsed // 60)
-                if minutes > 0:
-                    quests_cog = self.bot.get_cog("Quests")
-                    if quests_cog:
-                        await quests_cog.trigger_event(member.id, member.guild.id, "tempvoice_time", minutes)
+            if after.channel and not before.channel:
+                config = await self.get_config(member.guild.id)
+                if not config["create_channel_id"] or after.channel.id != config["create_channel_id"]:
+                    return
 
-        if after.channel and not before.channel:
-            config = await self.get_config(member.guild.id)
-            if not config["create_channel_id"] or after.channel.id != config["create_channel_id"]:
-                return
+                max_channels = config["max_channels_per_user"]
+                cat_id = config["category_id"] or after.channel.category_id
+                category = member.guild.get_channel(cat_id) if cat_id else after.channel.category
 
-            max_channels = config["max_channels_per_user"]
-            cat_id = config["category_id"] or after.channel.category_id
-            category = member.guild.get_channel(cat_id) if cat_id else after.channel.category
-
-            temp_rows = await self.bot.db_manager.fetch_all(
-                "temp_channels",
-                {"guild_id": str(member.guild.id), "owner_id": str(member.id)},
-            )
-            count = len(temp_rows)
-            if count >= max_channels:
-                try: await member.send(f"❌ Хамгийн ихдээ {max_channels} түр суваг үүсгэх боломжтой.")
-                except: pass
-                await member.move_to(None)
-                return
-
-            overwrites = {
-                member.guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True),
-                member: discord.PermissionOverwrite(manage_channels=True, mute_members=True, deafen_members=True)
-            }
-            try:
-                new_channel = await member.guild.create_voice_channel(
-                    name=f"🔊 {member.display_name}",
-                    category=category,
-                    overwrites=overwrites
+                temp_rows = await self.bot.db_manager.fetch_safe(
+                    "temp_channels",
+                    {"guild_id": str(member.guild.id), "owner_id": str(member.id)},
                 )
-                await member.move_to(new_channel)
-            except discord.Forbidden:
-                return
-
-            await self.bot.db_manager.insert("temp_channels", {
-                "guild_id": str(member.guild.id),
-                "channel_id": str(new_channel.id),
-                "owner_id": str(member.id),
-            })
-            await self.send_control_panel(member, new_channel)
-
-        if before.channel:
-            channel = before.channel
-            temp_row = await self.bot.db_manager.fetch_one(
-                "temp_channels", {"channel_id": str(channel.id)}
-            )
-            if temp_row and len(channel.members) == 0:
-                await asyncio.sleep(3)
-                if len(channel.members) == 0:
-                    try: await channel.delete(reason="Хоосон түр суваг")
+                count = len(temp_rows)
+                if count >= max_channels:
+                    try: await member.send(f"❌ Хамгийн ихдээ {max_channels} түр суваг үүсгэх боломжтой.")
                     except: pass
-                    await self.bot.db_manager.delete(
-                        "temp_channels", {"channel_id": str(channel.id)}
+                    await member.move_to(None)
+                    return
+
+                overwrites = {
+                    member.guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True),
+                    member: discord.PermissionOverwrite(manage_channels=True, mute_members=True, deafen_members=True)
+                }
+                try:
+                    new_channel = await member.guild.create_voice_channel(
+                        name=f"🔊 {member.display_name}",
+                        category=category,
+                        overwrites=overwrites
                     )
+                    await member.move_to(new_channel)
+                except discord.Forbidden:
+                    return
+
+                await self.bot.db_manager.insert("temp_channels", {
+                    "guild_id": str(member.guild.id),
+                    "channel_id": str(new_channel.id),
+                    "owner_id": str(member.id),
+                })
+                await self.send_control_panel(member, new_channel)
+
+            if before.channel:
+                channel = before.channel
+                temp_row = await self.bot.db_manager.fetch_safe(
+                    "temp_channels", {"channel_id": str(channel.id)}, single=True
+                )
+                if temp_row and len(channel.members) == 0:
+                    await asyncio.sleep(3)
+                    if len(channel.members) == 0:
+                        try: await channel.delete(reason="Хоосон түр суваг")
+                        except: pass
+                        await self.bot.db_manager.delete(
+                            "temp_channels", {"channel_id": str(channel.id)}
+                        )
+        except Exception as exc:
+            if getattr(exc, "code", None) in ("42501", "PGRST205"):
+                logger.debug("tempvoice DB unavailable in guild %s: %s", member.guild.id, exc)
+            else:
+                logger.warning("tempvoice on_voice_state_update error in guild %s: %s", member.guild.id, exc, exc_info=True)
 
     # ==================== АДМИН ТОХИРГОО ====================
     @app_commands.command(name="voicesetup", description="Түр дуут сувгийн тохиргооны самбар нээх")

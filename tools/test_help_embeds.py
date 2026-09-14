@@ -38,7 +38,7 @@ fake_ctx = MagicMock()
 fake_ctx.author = fake_author
 
 for category in mod.CATEGORY_EMOJIS:
-    view = mod.HelpView(fake_ctx, list(mod.CATEGORY_EMOJIS.keys()), default_category=category)
+    view = mod.HelpView(fake_ctx, default_category=category)
     try:
         embed = view.build_embed(category)
         # replicate discord.py embed length validation

@@ -8,6 +8,8 @@ Legacy ``.acquire()`` / ``.cursor()`` / raw-SQL usage is not allowed.
 import asyncio
 import logging
 import os
+import time
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -29,6 +31,116 @@ except ImportError:
     pass
 
 _NETWORK_EXCEPTIONS = tuple({t for t in _NETWORK_EXCEPTIONS})
+
+
+class DatabaseUnavailableError(Exception):
+    """Supabase is unreachable, timing out, or returning 5xx (network/server)."""
+
+
+class DatabasePermissionError(Exception):
+    """The active role lacks privileges on the requested table/function (42501)."""
+
+
+class DatabaseSchemaError(Exception):
+    """The requested table does not exist in the PostgREST schema (PGRST205 / 404)."""
+
+
+_KNOWN_STATUS_ATTRS = ("http_status", "status_code", "status")
+
+
+def classify_supabase_error(exc: BaseException) -> BaseException:
+    """Map a PostgREST/Supabase failure to a typed application exception.
+
+    Transient failures (network, 5xx) map to :class:`DatabaseUnavailableError`,
+    privilege failures (42501) to :class:`DatabasePermissionError`, and missing
+    schema (PGRST205 / HTTP 404) to :class:`DatabaseSchemaError`.  Unknown
+    errors are returned unchanged so callers can still tell accidents apart
+    from expected infrastructure states.
+    """
+    msg = str(exc)
+    code = getattr(exc, "code", None) or ""
+    status = next((getattr(exc, a, None) for a in _KNOWN_STATUS_ATTRS
+                   if getattr(exc, a, None) is not None), 0)
+    try:
+        code_str = str(code)
+    except Exception:
+        code_str = ""
+    try:
+        status_int = int(status)
+    except (TypeError, ValueError):
+        status_int = 0
+
+    if "PGRST205" in code_str or "PGRST205" in msg or status_int == 404:
+        return DatabaseSchemaError(str(exc))
+    if "42501" in code_str or "42501" in msg:
+        return DatabasePermissionError(str(exc))
+    if _is_retryable(exc) or status_int in (500, 502, 503, 504):
+        return DatabaseUnavailableError(str(exc))
+    return exc
+
+
+# Per-table infrastructure-error deduplication window (seconds).
+# Keeps "same table unavailable" from flooding the log every event/loop.
+_LOG_DEDUP_WINDOW = 600
+
+
+class _TableErrorTracker:
+    """Rate-limits identical infrastructure failures per table.
+
+    First failure logs the full actionable message; repeats within the
+    window are counted silently; when the window elapses a compact summary
+    (occurrence count in the window) is logged and the window restarts.
+    """
+
+    def __init__(self, logger_name: str = "aether.db"):
+        self._logger = logging.getLogger(logger_name)
+        self._window_start: OrderedDict[str, float] = OrderedDict()
+        self._counts: dict[str, int] = {}
+        self._last_detail: dict[str, str] = {}
+        self._max_tables = 256  # bounded memory
+
+    def _prune(self, now: float):
+        expired = [k for k, w in self._window_start.items() if now - w >= _LOG_DEDUP_WINDOW]
+        for k in expired:
+            self._emit_summary(k)
+            self._window_start.pop(k, None)
+            self._counts.pop(k, None)
+            self._last_detail.pop(k, None)
+        # Bound memory if a flood of distinct tables arrives.
+        while len(self._window_start) > self._max_tables:
+            oldest = next(iter(self._window_start))
+            self._window_start.pop(oldest, None)
+            self._counts.pop(oldest, None)
+            self._last_detail.pop(oldest, None)
+
+    def _emit_summary(self, table: str):
+        detail = self._last_detail.get(table, "")
+        count = self._counts.get(table, 0)
+        self._logger.error(
+            "Table '%s' unavailable: %d repeat error(s) in the last %ds. "
+            "Fix the database (migrations/grants) to stop this. Last: %s",
+            table, count, _LOG_DEDUP_WINDOW, detail,
+        )
+
+    def report(self, table: str, detail: str):
+        now = time.monotonic()
+        start = self._window_start.get(table)
+        if start is None:
+            self._prune(now)
+            self._window_start[table] = now
+            self._counts[table] = 0
+            self._last_detail[table] = detail
+            self._logger.error(
+                "Table '%s' unavailable (apply database/migrations/000_complete_schema.sql "
+                "and restart): %s", table, detail,
+            )
+            return
+        if now - start >= _LOG_DEDUP_WINDOW:
+            self._emit_summary(table)
+            self._window_start[table] = now
+            self._counts[table] = 0
+        self._counts[table] = self._counts.get(table, 0) + 1
+        self._last_detail[table] = detail
 
 
 def _is_retryable(exc: BaseException) -> bool:
@@ -60,17 +172,23 @@ class SupabaseManager:
 
     def __init__(self):
         self.url: str = os.getenv("SUPABASE_URL", "")
+        # Key precedence — эмпирик шалтгаан: зарим legacy проект-д шинэ
+        # `sb_secret_` key нь service_role биш хязгаарлагдмал role руу ордог
+        # (25+ хүснэгтэд 42501). Legacy JWT service_role key түрүүнд,
+        # байхгүй бол SECRET (шинэ проект-д энэ нь л бүрэн эрхтэй role),
+        # сүүлийн нөөцөд хуучин SUPABASE_KEY.
         self.key: str = (
-            os.getenv("SUPABASE_SECRET_KEY", "")
-            or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+            or os.getenv("SUPABASE_SECRET_KEY", "")
             or os.getenv("SUPABASE_KEY", "")
         )
         self.using_legacy_env_name = bool(
-            not os.getenv("SUPABASE_SECRET_KEY")
-            and not os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+            not os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+            and not os.getenv("SUPABASE_SECRET_KEY")
             and os.getenv("SUPABASE_KEY")
         )
         self.client: Optional[Client] = None
+        self._table_error_tracker = _TableErrorTracker()
 
     # ------------------------------------------------------------------
     # Connection / lifecycle
@@ -79,13 +197,14 @@ class SupabaseManager:
         if not self.url or not self.key:
             raise ValueError(
                 "SUPABASE_URL and one server key must be set: "
-                "SUPABASE_SECRET_KEY (preferred), SUPABASE_SERVICE_ROLE_KEY, "
+                "SUPABASE_SERVICE_ROLE_KEY, SUPABASE_SECRET_KEY, "
                 "or legacy SUPABASE_KEY."
             )
         if self.using_legacy_env_name:
             logging.getLogger("aether.db").warning(
                 "SUPABASE_KEY is a deprecated environment name; migrate this "
-                "server-side value to SUPABASE_SECRET_KEY."
+                "server-side value to SUPABASE_SERVICE_ROLE_KEY or "
+                "SUPABASE_SECRET_KEY."
             )
         # Force HTTP/1.1: the httpcore HTTP/2 sync transport is unstable on
         # Windows with Python 3.13 (sporadic [WinError 10035]
@@ -139,6 +258,47 @@ class SupabaseManager:
             return True
         except Exception:
             return False
+
+    async def probe_table(self, table_name: str) -> str:
+        """Return a machine-readable health status for ``table_name``.
+
+        Results: ``OK``, ``MISSING`` (PGRST205/404), ``PERMISSION_DENIED``
+        (42501), ``UNAVAILABLE`` (network/5xx), or ``ERROR: <reason>`` for
+        anything else.  Never raises; safe to call from startup and tools.
+        """
+        try:
+            def _check():
+                self.client.table(table_name).select("*", count="exact").limit(0).execute()
+            await self._run(_check)
+            return "OK"
+        except Exception as e:
+            cls = classify_supabase_error(e)
+            if isinstance(cls, DatabaseSchemaError):
+                return "MISSING"
+            if isinstance(cls, DatabasePermissionError):
+                return "PERMISSION_DENIED"
+            if isinstance(cls, DatabaseUnavailableError):
+                return "UNAVAILABLE"
+            return f"ERROR: {cls.__class__.__name__}: {e}"
+
+    async def health_check(self, tables: Optional[List[str]] = None) -> List[Dict[str, str]]:
+        """Probe every required/critical table and report one status each.
+
+        Used by the startup sequence and the db-health diagnostic tool so a
+        broken schema is discovered once, before traffic generates thousands
+        of identical tracebacks.
+        """
+        if tables is None:
+            tables = self.REQUIRED_TABLES + [
+                "staff_members", "staff_activity", "counting_config",
+                "confession_config", "avatar_log_config", "guild_config",
+                "greeting_config", "invite_log_config", "user_quests",
+                "temp_channels", "work_phrases", "game_stats", "warnings",
+            ]
+        results: List[Dict[str, str]] = []
+        for t in tables:
+            results.append({"table": t, "status": await self.probe_table(t)})
+        return results
 
     # ------------------------------------------------------------------
     # Low-level helper
@@ -376,11 +536,7 @@ class SupabaseManager:
         except Exception as e:
             if not self._is_missing_table(e):
                 raise
-            logging.getLogger("aether.db").error(
-                "Table '%s' is missing in Supabase (PGRST205). "
-                "Apply database/migrations/000_complete_schema.sql and restart.",
-                table,
-            )
+            self._table_error_tracker.report(table, str(e) or e.__class__.__name__)
             return None if single else []
 
     # ------------------------------------------------------------------
@@ -436,5 +592,9 @@ class SupabaseManager:
                     return d if isinstance(d, list) else []
 
             return bool(await self._run(_ping))
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            reason = classify_supabase_error(exc)
+            logging.getLogger("aether.db").warning(
+                "Heartbeat failed: %s: %s", type(reason).__name__, exc
+            )
             return False

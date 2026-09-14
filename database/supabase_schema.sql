@@ -486,6 +486,30 @@ BEGIN
 END;
 $$;
 
+-- -------------------------------------------------------------
+-- Atomic stock consumption (negative stock-ыг зөвшөөрөхгүй).
+-- Used by cogs/stock.py consume_stock()
+-- -------------------------------------------------------------
+CREATE OR REPLACE FUNCTION consume_stock(
+    g_guild_id TEXT,
+    g_item_id TEXT,
+    g_quantity INTEGER
+) RETURNS BOOLEAN LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    updated BOOLEAN;
+BEGIN
+    UPDATE shop_stock
+    SET current_stock = current_stock - g_quantity
+    WHERE guild_id = g_guild_id
+      AND item_id = g_item_id
+      AND current_stock >= g_quantity
+    RETURNING TRUE INTO updated;
+    RETURN COALESCE(updated, FALSE);
+END;
+$$;
+
 -- Economy phrase/income/config tables
 CREATE TABLE IF NOT EXISTS work_phrases (
     id SERIAL PRIMARY KEY,

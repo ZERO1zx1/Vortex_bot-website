@@ -16,14 +16,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import Any, Dict, Optional
 
-SUPABASE_URL = "https://onpxpvemmjesobxpilgd.supabase.co"
-SUPABASE_ANON_KEY = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-    "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ucHhwdmVtbWplc29ieHBpbGdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2ODQ2OTcsImV4cCI6MjEwMjI2MDY5N30."
-    "Wh5O6JJLuYbykLBbfHSuvrj2-sC_AqlkWp0ix3X_jMk"
-)
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://onpxpvemmjesobxpilgd.supabase.co")
+# ANON/publishable key: SUPABASE_ANON_KEY гэх замаар, байхгүй бол хуучин
+# нэрийн SUPABASE_KEY-г (публишable ключ) ашиглана.
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY", "")
 
 logger = logging.getLogger("aether.i18n")
 
@@ -258,7 +257,7 @@ async def set_guild_lang(guild_id: Any, lang: str) -> bool:
         return True
     except Exception:
         logger.exception("i18n: guild_config.lang бичихэд алдаа (in-memory л хадгалагдав)")
-        return True  # bot ажиллаж байхад cache-аар үргэлжлүүлнэ
+        return False  # DB бичилт амжилтгүй → False буцаана (cache шинэчлэгдсэн ч DB-д үлдэхгүй)
 
 
 # ── Supabase холболт (анон key, bot_status-тэй ижил горим) ─

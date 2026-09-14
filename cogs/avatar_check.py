@@ -3,6 +3,11 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import datetime
+import logging
+
+from utils.config_cache import ConfigCache
+
+logger = logging.getLogger(__name__)
 
 EMBED_COLOR = 0x1e1e2f
 SUCCESS_COLOR = 0xa6e3a1
@@ -82,13 +87,26 @@ class ConfigView(discord.ui.View):
 class AvatarLogger(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self._cfg_cache = ConfigCache(ttl=15.0, name="avatar_log_config")
 
     # ==================== ӨГӨГДЛИЙН САН ====================
     async def get_config(self, guild_id):
-        row = await self.bot.db_manager.fetch_one("avatar_log_config", {"guild_id": str(guild_id)})
-        if not row:
-            return None
-        return {"channel_id": row.get("log_channel_id"), "enabled": bool(row.get("enabled", 1))}
+        cached = self._cfg_cache.get_cached(guild_id)
+        if cached is not None:
+            return cached
+
+        async def _load():
+            row = await self.bot.db_manager.fetch_safe(
+                "avatar_log_config", {"guild_id": str(guild_id)}, single=True
+            )
+            if not row:
+                return None
+            return {
+                "channel_id": row.get("log_channel_id"),
+                "enabled": bool(row.get("enabled", 1)),
+            }
+
+        return await self._cfg_cache.get(guild_id, _load)
 
     async def set_config(self, guild_id, channel_id=None, enabled=None):
         current = await self.get_config(guild_id)
@@ -108,6 +126,7 @@ class AvatarLogger(commands.Cog):
                 "log_channel_id": channel_id,
                 "enabled": 1 if enabled is None or enabled else 0,
             })
+        self._cfg_cache.invalidate(guild_id)
 
     # ==================== КОМАНД ====================
     @commands.hybrid_command(name="avatar_config", description="Аватар логын тохиргооны самбар (embed + button)")
@@ -140,26 +159,32 @@ class AvatarLogger(commands.Cog):
             if not channel:
                 continue
 
-            # Даалгаврын прогресс нэмэгдүүлэх
-            if quests_cog:
-                await quests_cog.trigger_event(member.id, guild.id, "avatar_change", 1)
-
-            embed = discord.Embed(
-                title="🔄 Аватар өөрчлөгдлөө",
-                description=f"{member.mention} (`{member}`) аватараа шинэчлэв.",
-                color=GOLD_COLOR,
-                timestamp=datetime.datetime.now(datetime.timezone.utc)
-            )
-            embed.set_author(name=member.display_name, icon_url=after.display_avatar.url)
-            embed.set_thumbnail(url=before.display_avatar.url)
-            embed.set_image(url=after.display_avatar.url)
-            embed.add_field(name="🖼️ Хуучин аватар", value=f"[Харах]({before.display_avatar.url})", inline=True)
-            embed.add_field(name="🆕 Шинэ аватар", value=f"[Харах]({after.display_avatar.url})", inline=True)
-            embed.set_footer(text=f"ID: {after.id}")
             try:
-                await channel.send(embed=embed)
-            except discord.Forbidden:
-                pass
+                # Даалгаврын прогресс нэмэгдүүлэх
+                if quests_cog:
+                    await quests_cog.trigger_event(member.id, guild.id, "avatar_change", 1)
+
+                embed = discord.Embed(
+                    title="🔄 Аватар өөрчлөгдлөө",
+                    description=f"{member.mention} (`{member}`) аватараа шинэчлэв.",
+                    color=GOLD_COLOR,
+                    timestamp=datetime.datetime.now(datetime.timezone.utc)
+                )
+                embed.set_author(name=member.display_name, icon_url=after.display_avatar.url)
+                embed.set_thumbnail(url=before.display_avatar.url)
+                embed.set_image(url=after.display_avatar.url)
+                embed.add_field(name="🖼️ Хуучин аватар", value=f"[Харах]({before.display_avatar.url})", inline=True)
+                embed.add_field(name="🆕 Шинэ аватар", value=f"[Харах]({after.display_avatar.url})", inline=True)
+                embed.set_footer(text=f"ID: {after.id}")
+                try:
+                    await channel.send(embed=embed)
+                except discord.Forbidden:
+                    pass
+            except Exception as exc:
+                if getattr(exc, "code", None) in ("42501", "PGRST205"):
+                    logger.debug("avatar_check DB unavailable in guild %s: %s", guild.id, exc)
+                else:
+                    logger.warning("avatar_check error in guild %s: %s", guild.id, exc, exc_info=True)
 
     async def cog_load(self):
         # Tables are pre-configured in Supabase via SQL migrations

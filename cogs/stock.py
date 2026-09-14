@@ -64,6 +64,7 @@ class PaginatedStockView(discord.ui.View):
         super().__init__(timeout=timeout)
         self.pages = pages
         self.current_page = 0
+        self.message = None  # assigned after first send
 
     async def update_message(self, interaction: discord.Interaction):
         self.previous.disabled = self.current_page == 0
@@ -85,8 +86,11 @@ class PaginatedStockView(discord.ui.View):
     async def on_timeout(self):
         for child in self.children:
             child.disabled = True
-        if self.message:
-            await self.message.edit(view=self)
+        if self.message is not None:
+            try:
+                await self.message.edit(view=self)
+            except (discord.NotFound, discord.HTTPException):
+                pass
 
 
 class Stock(commands.Cog):
@@ -167,17 +171,28 @@ class Stock(commands.Cog):
         Атомар байдлаар нөөц хасах.
         Амжилттай бол True, хүрэлцэхгүй эсвэл бараа байхгүй бол False буцаана.
         """
-        row = await self.bot.db_manager.fetch_one(
-            "shop_stock", {"guild_id": str(guild_id), "item_id": str(item_id)}
-        )
-        if not row or (row.get("current_stock", 0) or 0) < quantity:
-            return False
-        await self.bot.db_manager.update(
-            "shop_stock",
-            {"guild_id": str(guild_id), "item_id": str(item_id)},
-            {"current_stock": (row.get("current_stock", 0) or 0) - quantity},
-        )
-        return True
+        try:
+            result = await self.bot.db_manager.rpc(
+                "consume_stock",
+                {"guild_id": str(guild_id), "item_id": str(item_id), "quantity": int(quantity)},
+            )
+            data = getattr(result, "data", None)
+            if isinstance(data, bool):
+                return data
+            return bool(data) if data is not None else False
+        except Exception:
+            # RPC байхгүй (migration ашиглагдаагүй) → хуучин замд буцах
+            row = await self.bot.db_manager.fetch_one(
+                "shop_stock", {"guild_id": str(guild_id), "item_id": str(item_id)}
+            )
+            if not row or (row.get("current_stock", 0) or 0) < quantity:
+                return False
+            await self.bot.db_manager.update(
+                "shop_stock",
+                {"guild_id": str(guild_id), "item_id": str(item_id)},
+                {"current_stock": (row.get("current_stock", 0) or 0) - quantity},
+            )
+            return True
 
     async def set_stock(self, guild_id, item_id, amount):
         """

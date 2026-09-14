@@ -9,9 +9,15 @@ Supabase project-д амжилттай ажилласан эсэхийг шал�
     py -3.12 check_migration_applied.py
 
 Хэрвээ `.env` файл байхгүй бол шууд:
-    py -3.12 check_migration_applied.py --url "https://onpxpvemmjesobxpilgd.supabase.co" --key "ваш_anon_эсвэл_service_role_ключ"
+    py -3.12 check_migration_applied.py --url "https://<id>.supabase.co" --key "<service_role_эсвэл_anon_ключ>"
 
 Энэ скрипт зөвхөн УНШДАГ (read-only). Database-д ямар ч өөрчлөлт оруулахгүй.
+
+Гарцын бүртгэлтэй 4 төлөв:
+  OK               Хүснэгт байна, уншиж болно
+  MISSING          Хүснэгт байхгүй (PGRST205 / HTTP 404)         -> migration ажиллуулах
+  PERMISSION       service_role/тухайн рольд GRANT байхгүй (42501) -> 20260914_repair_runtime_schema.sql
+  UNAVAILABLE      Холболт/servertail алдаа (5xx/network)          -> дахин оролдох
 """
 from __future__ import annotations
 
@@ -54,8 +60,12 @@ ALL_TABLES = [
 # `limit=0` зөвхөн хүснэгт байгаа эсэхийг шалгадаг, мөр буцаахгүй.
 
 
-def check_table(base_url: str, key: str, table: str) -> tuple[bool, str]:
-    """Хүснэгт байгаа эсэхийг REST API-ээр шалгах. Returns (exists, message)."""
+def check_table(base_url: str, key: str, table: str) -> tuple[str, str]:
+    """Хүснэгт байгаа эсэхийг REST API-ээр шалгах.
+
+    Returns (status, message) where status is one of:
+      "OK", "MISSING", "PERMISSION", "UNAVAILABLE", "ERROR"
+    """
     url = f"{base_url.rstrip('/')}/rest/v1/{urllib.parse.quote(table)}?limit=0&select=*"
     req = urllib.request.Request(url, headers={
         "apikey": key,
@@ -63,26 +73,33 @@ def check_table(base_url: str, key: str, table: str) -> tuple[bool, str]:
     })
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
-            return True, f"OK (HTTP {resp.status})"
+            return "OK", f"OK (HTTP {resp.status})"
     except urllib.error.HTTPError as e:
         body = ""
         try:
             body = e.read().decode("utf-8", errors="replace")
         except Exception:
             pass
-        if e.code == 404:
-            return False, f"ХҮСНЭГТ БАЙХГҮЙ (PGRST205 — migration ажиллуулаагүй эсвэл алдаатай ажилласан)"
-        if e.code == 401 or e.code == 403:
-            return False, (f"Холбогдох эрхгүй (HTTP {e.code}) — хүснэгт дээр \"anon\" рольд SELECT "
-                           f"GRANT байхгүй, эсвэл Row Level Security (RLS) асалсан ч access policy "
-                           f"байхгүй. database/migrations/000_complete_schema.sql-ийн сүүлийн хэсэгт "
-                           f"байгаа 'DISABLE ROW LEVEL SECURITY' болон 'GRANT ALL ... TO anon' "
-                           f"тогтоолтуудыг SQL Editor дээр ажиллуул.")
-        return False, f"HTTP {e.code}: {body[:160]}"
+        if e.code == 404 or "PGRST205" in body:
+            return "MISSING", (
+                f"ХҮСНЭГТ БАЙХГҮЙ (PGRST205 / HTTP 404) — "
+                f"000_complete_schema.sql (эсвэл 20260914_repair_runtime_schema.sql) ажиллуулаагүй"
+            )
+        if e.code in (401, 403):
+            if "42501" in body or "permission denied" in body.lower():
+                return "PERMISSION", (
+                    f"ЭРХ БАЙХГҮЙ (42501 permission denied) — тухайн рольд (энэ key) SELECT "
+                    f"GRANT алга. database/migrations/20260914_repair_runtime_schema.sql ажиллуул."
+                )
+            return "PERMISSION", (
+                f"Холбогдох эрхгүй (HTTP {e.code}) — ашиглаж буй key нь anon бол RLS/GRANT "
+                f"улмаас хүснэгт харагдахгүй байна. --key-ээр service_role түлхүүр дамжуул."
+            )
+        return "ERROR", f"HTTP {e.code}: {body[:160]}"
     except urllib.error.URLError as e:
-        return False, f"Холбогдох боломжгүй: {e.reason}"
+        return "UNAVAILABLE", f"Холбогдох боломжгүй: {e.reason}"
     except Exception as e:
-        return False, f"Тодорхойгүй алдаа: {e}"
+        return "ERROR", f"Тодорхойгүй алдаа: {e}"
 
 
 def main() -> int:
@@ -111,41 +128,40 @@ def main() -> int:
     print(f"Supabase: {url}")
     print("=" * 60)
 
-    # 1) Bot-ын шаарддаг гол 12 хүснэгт
+    def _report(tables: list[str]) -> dict[str, int]:
+        counts = {"OK": 0, "MISSING": 0, "PERMISSION": 0, "UNAVAILABLE": 0, "ERROR": 0}
+        for table in tables:
+            status, msg = check_table(url, key, table)
+            counts[status] = counts.get(status, 0) + 1
+            mark = {"OK": "OK ", "MISSING": "X  "}.get(status, "!  ")
+            print(f"  {mark} {table:24s} {msg}")
+        return counts
+
+    # 1) Bot-ын шаарддаг гол хүснэгтүүд
     print("\n[1] Bot-ын шаарддаг гол хүснэгтүүд:")
-    missing = []
-    for table in EXPECTED_TABLES:
-        ok, msg = check_table(url, key, table)
-        mark = "OK " if ok else "X  "
-        print(f"  {mark} {table:24s} {msg}")
-        if not ok:
-            missing.append(table)
+    counts_exp = _report(EXPECTED_TABLES)
 
     # 2) Бүрэн schema-ийн хүснэгтүүд
     print(f"\n[2] Бүрэн schema-ийн {len(ALL_TABLES)} хүснэгт шалгах:")
-    missing_all = []
-    for table in ALL_TABLES:
-        ok, msg = check_table(url, key, table)
-        mark = "OK " if ok else "X  "
-        print(f"  {mark} {table:24s} {msg}")
-        if not ok:
-            missing_all.append(table)
+    counts_all = _report(ALL_TABLES)
 
-    # Дүгнэлт
+    # Дүгнэлт — машинд уншигдах нэг мөр + зөвлөмж
     print("=" * 60)
-    if not missing_all:
-        print(f"ҮР ДҮН: Бүх {len(ALL_TABLES)} хүснэгт Supabase дээр байна.")
-        print("Migration амжилттай ажилласан байна. Bot-оо restart хийж болно.")
+    summary = "ҮР ДҮН: " + ", ".join(
+        f"{k}={v}" for k, v in (("OK", counts_all["OK"]), ("MISSING", counts_all["MISSING"]),
+                                ("PERMISSION", counts_all["PERMISSION"]), ("UNAVAILABLE", counts_all["UNAVAILABLE"]))
+    )
+    print(summary)
+    if counts_all["MISSING"] == 0 and counts_all["PERMISSION"] == 0:
+        print("Migration бүрэн ажилласан. Bot-оо restart хийж болно.")
         return 0
-    if missing:
-        print(f"\nҮР ДҮН: {len(missing_all)} хүснэгт байхгүй байна.")
-        print("Шаардлагатай 12 хүснэгтийн {0} нь дутуу байна.".format(len(missing)))
-        print("-> Supabase Dashboard > SQL Editor > New query дээр")
-        print("   database/migrations/000_complete_schema.sql бүх агуулгыг paste хийж Run хийнэ үү.")
-        print("   (Энэ файл нь хүснэгтүүдийг үүсгээд RLS-ийг унтрааж, \"anon\" рольд")
-        print("    бүрэн эрх GRANT хийдэг — бүгдийг нэг удаа ажиллуулна.)")
-        return 1
-    print(f"\nҮР ДҮН: {len(missing_all)} хүснэгт байхгүй байна (гол 12 хүснэгт бүгд байна).")
+    if counts_all["MISSING"]:
+        print("-> Хүснэгтүүд дутуу: '000_complete_schema.sql' (эсвэл '20260914_repair_runtime_schema.sql') ажиллуул.")
+    if counts_all["PERMISSION"]:
+        print("-> GRANT алдсан: 'database/migrations/20260914_repair_runtime_schema.sql' ажиллуул "
+              "(service_role-д SELECT/INSERT/UPDATE/DELETE GRANT-ддаг).")
+    if counts_all["UNAVAILABLE"]:
+        print("-> Зарим хүснэгт холболтын алдаагаар шалгагдаагүй; дахин ажиллуул.")
     return 1
 
 

@@ -10,6 +10,8 @@ import traceback
 from io import BytesIO
 from typing import Optional
 
+from utils.config_cache import ConfigCache
+
 try:
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
@@ -131,12 +133,22 @@ class InviteTracker(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.invite_cache = {}
+        self._cfg_cache = ConfigCache(ttl=15.0, name="invite_log_config")
 
     async def get_config(self, guild_id):
-        row = await self.bot.db_manager.fetch_one("invite_log_config", {"guild_id": str(guild_id)})
-        if not row:
-            return None
-        return {"channel_id": row.get("log_channel_id"), "enabled": bool(row.get("enabled", 1)), "fake_delay": row.get("fake_delay") or 3}
+        async def _load():
+            row = await self.bot.db_manager.fetch_safe(
+                "invite_log_config", {"guild_id": str(guild_id)}, single=True
+            )
+            if not row:
+                return None
+            return {
+                "channel_id": row.get("log_channel_id"),
+                "enabled": bool(row.get("enabled", 1)),
+                "fake_delay": row.get("fake_delay") or 3,
+            }
+
+        return await self._cfg_cache.get(guild_id, _load)
 
     async def set_config(self, guild_id, channel_id=None, enabled=None, fake_delay=None):
         gid = str(guild_id)
@@ -148,6 +160,7 @@ class InviteTracker(commands.Cog):
         if fake_delay is not None:
             data["fake_delay"] = fake_delay
         await self.bot.db_manager.upsert("invite_log_config", data, on_conflict="guild_id")
+        self._cfg_cache.invalidate(guild_id)
 
     async def log_to_channel(self, guild, embed):
         cfg = await self.get_config(guild.id)
@@ -356,43 +369,49 @@ class InviteTracker(commands.Cog):
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         if member.bot: return
-        await self.bot.db_manager.update(
-            "invite_joins",
-            {"guild_id": str(member.guild.id), "user_id": str(member.id)},
-            {"left_at": int(time.time())},
-        )
-        row = await self.bot.db_manager.fetch_one(
-            "invite_joins",
-            {"guild_id": str(member.guild.id), "user_id": str(member.id)},
-            order_by="joined_at",
-            desc=True,
-        )
-        if row and row.get("invited_by"):
-            inviter_id = row["invited_by"]
-            stats_row = await self.bot.db_manager.fetch_one(
-                "invite_stats",
-                {"guild_id": str(member.guild.id), "user_id": str(inviter_id)},
+        try:
+            await self.bot.db_manager.update(
+                "invite_joins",
+                {"guild_id": str(member.guild.id), "user_id": str(member.id)},
+                {"left_at": int(time.time())},
             )
-            if stats_row:
-                await self.bot.db_manager.update(
+            row = await self.bot.db_manager.fetch_one(
+                "invite_joins",
+                {"guild_id": str(member.guild.id), "user_id": str(member.id)},
+                order_by="joined_at",
+                desc=True,
+            )
+            if row and row.get("invited_by"):
+                inviter_id = row["invited_by"]
+                stats_row = await self.bot.db_manager.fetch_one(
                     "invite_stats",
                     {"guild_id": str(member.guild.id), "user_id": str(inviter_id)},
-                    {"left": (stats_row.get("left", 0) or 0) + 1},
                 )
+                if stats_row:
+                    await self.bot.db_manager.update(
+                        "invite_stats",
+                        {"guild_id": str(member.guild.id), "user_id": str(inviter_id)},
+                        {"left": (stats_row.get("left", 0) or 0) + 1},
+                    )
+                else:
+                    await self.bot.db_manager.insert("invite_stats", {
+                        "guild_id": str(member.guild.id),
+                        "user_id": str(inviter_id),
+                        "left": 1,
+                    })
+            cfg = await self.get_config(member.guild.id)
+            if cfg and cfg["enabled"]:
+                channel = member.guild.get_channel(cfg["channel_id"])
+                if channel:
+                    embed = discord.Embed(title="🚪 Гишүүн гарлаа", description=f"{member.mention} (`{member}`) серверээс гарлаа.",
+                                          color=WARNING_COLOR, timestamp=datetime.datetime.now(datetime.timezone.utc))
+                    embed.set_thumbnail(url=member.display_avatar.url)
+                    await channel.send(embed=embed)
+        except Exception as exc:
+            if getattr(exc, "code", None) in ("42501", "PGRST205"):
+                logger.debug("invite_tracker remove DB unavailable in guild %s: %s", member.guild.id, exc)
             else:
-                await self.bot.db_manager.insert("invite_stats", {
-                    "guild_id": str(member.guild.id),
-                    "user_id": str(inviter_id),
-                    "left": 1,
-                })
-        cfg = await self.get_config(member.guild.id)
-        if cfg and cfg["enabled"]:
-            channel = member.guild.get_channel(cfg["channel_id"])
-            if channel:
-                embed = discord.Embed(title="🚪 Гишүүн гарлаа", description=f"{member.mention} (`{member}`) серверээс гарлаа.",
-                                      color=WARNING_COLOR, timestamp=datetime.datetime.now(datetime.timezone.utc))
-                embed.set_thumbnail(url=member.display_avatar.url)
-                await channel.send(embed=embed)
+                logger.warning("invite_tracker on_member_remove error in guild %s: %s", member.guild.id, exc, exc_info=True)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
@@ -506,20 +525,23 @@ class InviteTracker(commands.Cog):
     @commands.Cog.listener()
     async def on_invite_create(self, invite: discord.Invite):
         if not invite.guild: return
-        if invite.guild.id not in self.invite_cache:
-            self.invite_cache[invite.guild.id] = {}
-        self.invite_cache[invite.guild.id][invite.code] = invite.uses
-        cfg = await self.get_config(invite.guild.id)
-        if cfg and cfg["enabled"]:
-            channel = invite.guild.get_channel(cfg["channel_id"])
-            if channel:
-                embed = discord.Embed(
-                    title="🔗 Урилга үүсгэгдлээ",
-                    description=f"**Код:** `{invite.code}`\n**Үүсгэсэн:** {invite.inviter.mention if invite.inviter else 'Хүн биш'}",
-                    color=GOLD_COLOR,
-                    timestamp=datetime.datetime.now(datetime.timezone.utc)
-                )
-                await channel.send(embed=embed)
+        try:
+            if invite.guild.id not in self.invite_cache:
+                self.invite_cache[invite.guild.id] = {}
+            self.invite_cache[invite.guild.id][invite.code] = invite.uses
+            cfg = await self.get_config(invite.guild.id)
+            if cfg and cfg["enabled"]:
+                channel = invite.guild.get_channel(cfg["channel_id"])
+                if channel:
+                    embed = discord.Embed(
+                        title="🔗 Урилга үүсгэгдлээ",
+                        description=f"**Код:** `{invite.code}`\n**Үүсгэсэн:** {invite.inviter.mention if invite.inviter else 'Хүн биш'}",
+                        color=GOLD_COLOR,
+                        timestamp=datetime.datetime.now(datetime.timezone.utc)
+                    )
+                    await channel.send(embed=embed)
+        except Exception as exc:
+            logger.warning("invite_tracker on_invite_create error: %s", exc, exc_info=True)
 
     async def cog_load(self):
         # Tables are pre-configured in Supabase via SQL migrations

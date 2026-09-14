@@ -5,6 +5,25 @@
    ============================================================ */
 'use strict';
 
+/* ---------------- Three.js ES Modules loader ---------------- */
+/* r158-ийн UMD three.min.js r160-аас хасагдсан (deprecated warning).
+   Энд ES Module build-ийг async import()-ээр ачаалж, `window.THREE`-д тавьдаг —
+   зөвхөн доорх 3D background module-д хэрэглэгдэнэ (hero orb и цэвэр CSS).
+   Ачаалагдахгүй бол window.THREE undefined хэвээр → 2D canvas fallback. */
+(() => {
+  const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
+  window.__aetherThreeInit = true;
+  window.__aetherThree = import(THREE_URL)
+    .then((m) => {
+      window.THREE = m;
+      return m;
+    })
+    .catch((err) => {
+      console.warn('[Aether] Three.js ES Module ачааллаас татгалзлаа:', err);
+      window.__aetherThreeFailed = true;
+    });
+})();
+
 /* ---------------- 3D particle background ---------------- */
 (() => {
   const canvas = document.getElementById('bg-canvas');
@@ -40,6 +59,8 @@
   }
 
   function draw() {
+    // WebGL 3D background амжилттай эхэлсэн бол энэ 2D fallback-ийг сул зогсооно
+    if (window.__aether3D) { requestAnimationFrame(draw); return; }
     ctx.clearRect(0, 0, W, H);
     for (const p of particles) {
       p.x += p.vx; p.y += p.vy;
@@ -86,6 +107,193 @@
   draw();
 })();
 
+/* ---------------- Real WebGL 3D particle background ---------------- */
+/* two.js (r158 UMD) ачаалагдаж, WebGL дэмжигдвэл хүйтэн 3D хөдөлгөөний талбарыг
+   buffer-driven Points-оор зурна (дайсан бол 2D canvas fallback хэвээр үлдэнэ). */
+(() => {
+  const anchor = document.getElementById('bg-canvas');
+  if (!anchor) return;
+
+  let start = () => { }; // no-op guard
+
+  start = async () => {
+    if (window.__aether3D) return;
+    try { await window.__aetherThree; } catch { return; } // → 2D canvas fallback хэвээр
+    if (typeof THREE === 'undefined') return;
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
+    } catch { return; } // → 2D canvas fallback хэвээр
+
+    const canvas = renderer.domElement;
+    canvas.id = 'bg-3d';
+    canvas.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(canvas);
+    document.body.classList.add('bg-3d');
+    window.__aether3D = true; // 2D module зогсоно
+
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    const isLight = () => document.documentElement.getAttribute('data-theme') === 'light';
+    const isMobile = () => window.innerWidth <= 768;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 100);
+    camera.position.z = 8;
+
+    // Brand палитра: CSS --particle-hue-a/b/c (dark 218/168/30, light мөн тод)
+    const hues = () => {
+      const cs = getComputedStyle(document.documentElement);
+      const n = (s) => parseFloat(cs.getPropertyValue(s)) || 218;
+      return [n('--particle-hue-a'), n('--particle-hue-b'), n('--particle-hue-c')];
+    };
+
+    const LIGHTNESS = () => (isLight() ? 66 : 78);
+    const SIZE = () => (isLight() ? 0.075 : 0.05);
+
+    function makeCloud() {
+      const count = isMobile() ? 230 : Math.min(720, Math.max(420, Math.floor((window.innerWidth * window.innerHeight) / 32000)));
+      const [ha, hb, hc] = hues();
+      const pos = new Float32Array(count * 3);
+      const col = new Float32Array(count * 3);
+      const spd = new Float32Array(count);   // хурд (z-дрейф)
+      const ph = new Float32Array(count);    // twinkle phase
+      const size = new Float32Array(count);
+      const c = new THREE.Color();
+      const depth = 14;
+      for (let i = 0; i < count; i++) {
+        pos[i * 3 + 0] = (Math.random() - 0.5) * 30;
+        pos[i * 3 + 1] = (Math.random() - 0.5) * 20;
+        pos[i * 3 + 2] = -2 + Math.random() * depth;
+        const hue = Math.random() < 0.72 ? ha : (Math.random() < 0.5 ? hb : hc);
+        c.setHSL((hue % 360) / 360, isLight() ? 0.55 : 0.72, LIGHTNESS() / 100);
+        col[i * 3 + 0] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+        spd[i] = (Math.random() - 0.5) * 0.02;
+        ph[i] = Math.random() * Math.PI * 2;
+        size[i] = 0.5 + Math.random() * 1.4;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      geo.userData = { pos, spd, ph, size };
+
+      const mat = new THREE.PointsMaterial({
+        size: SIZE(),
+        sizeAttenuation: true,
+        vertexColors: true,
+        transparent: true,
+        opacity: isLight() ? 0.55 : 0.8,
+        depthWrite: false,
+        blending: isLight() ? THREE.NormalBlending : THREE.AdditiveBlending,
+      });
+      const points = new THREE.Points(geo, mat);
+      scene.add(points);
+      return { geo, points, mat, count };
+    }
+
+    let cloud = makeCloud();
+
+    function recolor() {
+      if (!cloud) return;
+      const light = isLight();
+      cloud.mat.opacity = light ? 0.55 : 0.8;
+      cloud.mat.color.setRGB(1, 1, 1);
+      cloud.mat.blending = light ? THREE.NormalBlending : THREE.AdditiveBlending;
+      cloud.mat.needsUpdate = true;
+      const [ha, hb, hc] = hues();
+      const col = cloud.geo.getAttribute('color');
+      const c = new THREE.Color();
+      const pos = cloud.geo.userData.pos;
+      for (let i = 0; i < cloud.count; i++) {
+        const hue = Math.random() < 0.72 ? ha : (Math.random() < 0.5 ? hb : hc);
+        c.setHSL((hue % 360) / 360, light ? 0.55 : 0.72, LIGHTNESS() / 100);
+        col.setXYZ(i, c.r, c.g, c.b);
+      }
+      col.needsUpdate = true;
+      cloud.mat.size = SIZE();
+      if (reduced) renderer.render(scene, camera);
+    }
+
+    function resize() {
+      const w = window.innerWidth, h = window.innerHeight;
+      if (!w || !h) return;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile() ? 1.25 : 1.75));
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    window.addEventListener('resize', () => cloud = makeCloud(), { once: false });
+
+    // Theme солиход өнгийг дахин тооцно
+    new MutationObserver(() => { if (cloud) recolor(); }).observe(
+      document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }
+    );
+
+    let mouseX = 0, mouseY = 0, camX = 0, camY = 0;
+    window.addEventListener('mousemove', (e) => {
+      mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+    }, { passive: true });
+
+    let raf = null, t = 0;
+    function frame() {
+      t += 0.005;
+      camX += (mouseX - camX) * 0.04;
+      camY += (mouseY - camY) * 0.04;
+      camera.position.x = camX * 0.9;
+      camera.position.y = -camY * 0.65;
+      camera.lookAt(0, 0, 0);
+
+      const u = cloud.geo.userData;
+      const pos = u.pos;
+      for (let i = 0; i < cloud.count; i++) {
+        pos[i * 3 + 0] += u.spd[i] * 1.6 + Math.sin(t * 4 + u.ph[i]) * 0.004;
+        pos[i * 3 + 1] += (u.spd[i] * 0.9 + Math.cos(t * 3 + u.ph[i]) * 0.003);
+        pos[i * 3 + 2] += u.spd[i] * 3;
+        const z = pos[i * 3 + 2], span = 14;
+        if (z > span) pos[i * 3 + 2] = -2;
+        if (z < -2) pos[i * 3 + 2] = span - 0.01;
+        if (pos[i * 3 + 0] > 16) pos[i * 3 + 0] = -16;
+        if (pos[i * 3 + 0] < -16) pos[i * 3 + 0] = 16;
+        if (pos[i * 3 + 1] > 12) pos[i * 3 + 1] = -12;
+        if (pos[i * 3 + 1] < -12) pos[i * 3 + 1] = 12;
+      }
+      cloud.geo.getAttribute('position').needsUpdate = true;
+      renderer.render(scene, camera);
+      raf = requestAnimationFrame(frame);
+    }
+
+    // Hidden tab: зогсоож GPU/батерей хэмнэнэ
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { if (raf) { cancelAnimationFrame(raf); raf = null; } }
+      else if (!raf && !reduced) { raf = requestAnimationFrame(frame); }
+    });
+
+    if (reduced) {
+      renderer.render(scene, camera); // нэг статик кадр — хөдөлгөөнгүй
+    } else {
+      raf = requestAnimationFrame(frame);
+    }
+
+    const contextLost = (e) => {
+      e.preventDefault();
+      document.body.classList.remove('bg-3d');
+      document.body.removeChild(canvas);
+      window.__aether3D = false;
+    };
+    renderer.domElement.addEventListener('webglcontextlost', contextLost, false);
+  };
+
+  // Three.js ES Modules ачаалалтыг хүлээж, дараа нь эхэлнэ (2.5s-ийн polling fallback)
+  const boot = () => {
+    window.removeEventListener('load', boot);
+    setTimeout(start, 0);
+  };
+  window.addEventListener('load', boot);
+  setTimeout(() => { if (!window.__aether3D) start(); }, 2500);
+})();
+
 /* ---------------- Dark / Light theme toggle ---------------- */
 (() => {
   const root = document.documentElement;
@@ -109,20 +317,31 @@
     toggle.addEventListener('click', () => applyTheme(window.__aetherTheme === 'light' ? 'dark' : 'light'));
   }
 })();
-/* ---------------- 3D tilt on hover ---------------- */
+/* ---------------- 3D tilt on hover (glare + depth) ---------------- */
 (() => {
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  if (reduced) return;
+  const hoverable = window.matchMedia?.('(hover: hover)')?.matches;
+  if (hoverable === false) return;
+
   document.querySelectorAll('[data-tilt]').forEach(el => {
-    const max = 9;
+    const max = parseFloat(el.dataset.tiltMax) || 9;
+    const scale = parseFloat(el.dataset.tiltScale) || 1.02;
     el.addEventListener('mousemove', (e) => {
       const r = el.getBoundingClientRect();
       const px = (e.clientX - r.left) / r.width;
       const py = (e.clientY - r.top) / r.height;
       const rx = (py - 0.5) * -max * 2;
       const ry = (px - 0.5) * max * 2;
-      el.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(6px)`;
+      el.style.transform =
+        `perspective(900px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) translateZ(16px) scale(${scale})`;
+      el.style.setProperty('--gx', `${(px * 100).toFixed(1)}%`);
+      el.style.setProperty('--gy', `${(py * 100).toFixed(1)}%`);
     });
     el.addEventListener('mouseleave', () => {
       el.style.transform = '';
+      el.style.removeProperty('--gx');
+      el.style.removeProperty('--gy');
     });
   });
 })();
@@ -442,7 +661,6 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   // Backend API-гаас төлөв авах оролдлого. Амжилттай бол true буцаана.
   const checkViaBackend = async () => {
     if (!API_BASE_URL) {
-      setOffline(null);
       return false;
     }
     const ctrl = new AbortController();
@@ -469,8 +687,46 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     }
   };
 
+  // Backend байхгүй бол Supabase bot_status(id=1)-ыг anon key-ээр шууд уншина.
+  // last_ping 120с-ийн дотор + status='online' бол online гэж үзнэ.
+  const checkViaSupabase = async () => {
+    const supabaseUrl = (cfg.SUPABASE_URL || '').replace(/\/+$/, '');
+    const anonKey = cfg.SUPABASE_ANON_KEY || '';
+    if (!supabaseUrl || !anonKey) return false;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/bot_status?select=id,status,last_ping,uptime_since&id=eq.1`,
+        {
+          headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+          signal: ctrl.signal,
+          cache: 'no-store',
+        }
+      );
+      if (!res.ok) return false;
+      const rows = await res.json();
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (!row?.last_ping) return false;
+      const ageMs = Date.now() - new Date(row.last_ping).getTime();
+      const online = Number.isFinite(ageMs) && ageMs <= 120000 && row.status === 'online';
+      const r = {
+        last_ping: row.last_ping,
+        uptime_since: online ? row.uptime_since : null,
+      };
+      if (online) setOnline(r); else setOffline(r);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(t);
+    }
+  };
+
   const check = async () => {
-    if (!(await checkViaBackend())) setOffline(null);
+    if (await checkViaBackend()) return;
+    if (await checkViaSupabase()) return;
+    setOffline(null);
   };
   check();
   setInterval(check, POLL_MS);
@@ -514,164 +770,6 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     tx = 0; ty = 0; kick();
     window.__aetherMouse = { x: 0, y: 0 };
   });
-})();
-
-/* ---------------- Hero: Three.js WebGL orb (CSS orb-ын дээр overlay) ---------------- */
-/* three.min.js (r158 UMD) ачаалагдсан бол бодит WebGL orb зурж,
-   CSS orb-ийг (fallback) нуух. Ачаалагдаагүй/WebGL дэмжигдэхгүй бол юу ч болохгүй. */
-(() => {
-  function init3DOrb() {
-    const container = document.getElementById('three-orb-container');
-    if (!container || typeof THREE === 'undefined') return;
-
-    let renderer;
-    try {
-      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    } catch {
-      return; // WebGL дэмжигдэхгүй — CSS orb хэвээр
-    }
-
-    // ── Мобайл оновчлол: бага GPU, батерей хэмнэлт ──
-    // Төхөөрөмж эргэх (portrait↔landscape) үед шинэчлэгдэх resize handler-д дахин уншина.
-    let isMobile = window.innerWidth <= 768;
-    const seg = () => (isMobile ? 32 : 64);   // Sphere сегмент: 64→32
-    const wireSeg = () => (isMobile ? 16 : 24);
-    const ringSeg = () => (isMobile ? 64 : 128);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    camera.position.z = 3.2;
-
-    // Brand палитр: blue #89B4FA · cyan #94E2D5 · gold #FAB387
-    const geometry = new THREE.SphereGeometry(1.08, seg(), seg());
-    const material = new THREE.MeshPhysicalMaterial({
-      color: 0x16264d,
-      emissive: 0x315a9c,
-      emissiveIntensity: 0.28,
-      roughness: 0.18,
-      metalness: 0.48,
-      clearcoat: 1,
-      clearcoatRoughness: 0.12,
-      transparent: true,
-      opacity: 0.88,
-    });
-    const orb = new THREE.Mesh(geometry, material);
-    scene.add(orb);
-
-    // Дотроосоо гэрэлтдэг жижиг energy core — өмнөх хавтгай бөмбөрцгийг
-    // илүү гүн, амьтай харагдуулна.
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.62, seg(), seg()),
-      new THREE.MeshBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.24 })
-    );
-    scene.add(core);
-
-    const atmosphere = new THREE.Mesh(
-      new THREE.SphereGeometry(1.18, wireSeg(), wireSeg()),
-      new THREE.MeshBasicMaterial({
-        color: 0x94e2d5,
-        transparent: true,
-        opacity: 0.07,
-        side: THREE.BackSide,
-      })
-    );
-    scene.add(atmosphere);
-
-    // Гадна талын сууцит wireframe (holographic circuit мэдрэмж)
-    const wire = new THREE.Mesh(
-      new THREE.SphereGeometry(1.13, wireSeg(), wireSeg()),
-      new THREE.MeshBasicMaterial({ color: 0x89b4fa, wireframe: true, transparent: true, opacity: 0.10 })
-    );
-    scene.add(wire);
-
-    // Эргэлдэх holographic ring-үүд (CSS orb-ring-ийн 3D хувилбар)
-    const rings = [];
-    [[1.43, 0x89b4fa, 0.42, 1.22, 0.25], [1.62, 0x94e2d5, 0.28, 1.05, -0.62], [1.78, 0xcba6f7, 0.20, 1.48, 0.82]].forEach(([r, color, op, tiltX, tiltY]) => {
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(r, 0.012, 8, ringSeg()),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op })
-      );
-      ring.rotation.x = tiltX;
-      ring.rotation.y = tiltY;
-      scene.add(ring);
-      rings.push(ring);
-    });
-
-    // Гэрэлтүүлэг — cyan дулаан тал, pink/violet хүйтэн тал (cinematic contrast)
-    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-    const key = new THREE.PointLight(0x94e2d5, 2.2, 12);
-    key.position.set(2.5, 2, 3);
-    scene.add(key);
-    const rim = new THREE.PointLight(0xb494fa, 1.6, 12);
-    rim.position.set(-3, -2, -2);
-    scene.add(rim);
-    const gold = new THREE.PointLight(0xfab387, 0.9, 10);
-    gold.position.set(0, -3, 2);
-    scene.add(gold);
-
-    container.appendChild(renderer.domElement);
-    container.classList.add('active'); // → CSS orb-ийг нуух
-
-    // WebGL context loss (санах ой дүүрэх, GPU crash) үед CSS orb fallback руу буцна
-    renderer.domElement.addEventListener('webglcontextlost', (e) => {
-      e.preventDefault();
-      container.classList.remove('active');
-      container.innerHTML = '';
-    }, false);
-
-    let mx = 0, my = 0;
-    function resize() {
-      const w = container.clientWidth, h = container.clientHeight;
-      if (!w || !h) return;
-      isMobile = window.innerWidth <= 768;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      // Мобайл (3x-4x Retina) дээр 1.5 хүртэл хязгаарлаж GPU/батерей хэмнэнэ
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2));
-    }
-    resize();
-    window.addEventListener('resize', resize);
-
-    // Харагдахгүй үед (scroll хийсэн/таб солисон) render хийхгүй — батерей хэмнэлт
-    let visible = true;
-    if ('IntersectionObserver' in window) {
-      new IntersectionObserver((es) => { visible = es[0].isIntersecting; }, { threshold: 0.02 }).observe(container);
-    }
-    document.addEventListener('visibilitychange', () => { visible = !document.hidden; });
-
-    let t = 0;
-    function animate() {
-      requestAnimationFrame(animate);
-      if (!visible) return;
-      t += 0.01;
-      // Хулганы дагуу жигд эргэлт (hero parallax-ийн __aetherMouse-аас)
-      const m = window.__aetherMouse || { x: 0, y: 0 };
-      mx += (m.x - mx) * 0.06;
-      my += (m.y - my) * 0.06;
-      orb.rotation.y = t * 0.4 + mx * 0.7;
-      orb.rotation.x = my * 0.5;
-      core.scale.setScalar(1 + Math.sin(t * 2.2) * 0.07);
-      core.material.opacity = 0.22 + Math.sin(t * 2.2) * 0.05;
-      atmosphere.rotation.y = t * 0.12;
-      wire.rotation.y = -t * 0.25;
-      wire.rotation.x = t * 0.12;
-      rings[0].rotation.z = t * 0.5;
-      rings[1].rotation.z = -t * 0.35;
-      rings[2].rotation.z = t * 0.22;
-      // Зөөлөн хөвүүлэлт
-      orb.position.y = Math.sin(t * 1.4) * 0.08;
-      wire.position.y = orb.position.y;
-      renderer.render(scene, camera);
-    }
-    animate();
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init3DOrb);
-  } else {
-    init3DOrb();
-  }
 })();
 
 /* ---------------- Command cards: holographic cursor glow ---------------- */
@@ -789,7 +887,11 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
 
 /* ---------------- Mobile: tilt reset on touch ---------------- */
 document.querySelectorAll('[data-tilt]').forEach(el => {
-  el.addEventListener('touchstart', () => { el.style.transform = ''; }, { passive: true });
+  el.addEventListener('touchstart', () => {
+    el.style.transform = '';
+    el.style.removeProperty('--gx');
+    el.style.removeProperty('--gy');
+  }, { passive: true });
 });
 
 /* ---------------- Scroll to top ---------------- */

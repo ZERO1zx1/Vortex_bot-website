@@ -3,6 +3,11 @@ import discord
 from discord.ext import commands
 from discord import app_commands, ui
 import datetime
+import logging
+
+from utils.config_cache import ConfigCache
+
+logger = logging.getLogger(__name__)
 
 # ===== COLOR SCHEME =====
 EMBED_COLOR = 0x1e1e2f
@@ -162,24 +167,36 @@ class SetupView(ui.View):
 class Confessions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self._cfg_cache = ConfigCache(ttl=15.0, name="confession_config")
 
     # ----- DB туслахууд -----
     async def get_config(self, guild_id):
-        row = await self.bot.db_manager.fetch_one("confession_config", {"guild_id": str(guild_id)})
-        if not row:
-            return None
-        return {
-            "confess_channel": row.get("confess_channel_id"),
-            "output_channel": row.get("output_channel_id"),
-            "anonymity": bool(row.get("anonymity", 1)),
-            "cooldown": row.get("cooldown", 30),
-            "next_id": row.get("next_id", 1)
-        }
+
+        async def _load():
+            # fetch_safe swallows PGRST205/404/42501 so a DB setup problem
+            # returns None (unconfigured) instead of breaking every message.
+            row = await self.bot.db_manager.fetch_safe(
+                "confession_config", {"guild_id": str(guild_id)}, single=True
+            )
+            if not row:
+                return None
+            return {
+                "confess_channel": row.get("confess_channel_id"),
+                "output_channel": row.get("output_channel_id"),
+                "anonymity": bool(row.get("anonymity", 1)),
+                "cooldown": row.get("cooldown", 30),
+                "next_id": row.get("next_id", 1)
+            }
+
+        if self._cfg_cache.get_cached(guild_id) is not None:
+            return self._cfg_cache.get_cached(guild_id)
+        return await self._cfg_cache.get(guild_id, _load)
 
     async def update_config(self, guild_id, **kwargs):
         data = {"guild_id": str(guild_id)}
         data.update(kwargs)
         await self.bot.db_manager.upsert("confession_config", data, on_conflict="guild_id")
+        self._cfg_cache.invalidate(guild_id)
 
     async def increment_id(self, guild_id):
         cfg = await self.get_config(guild_id)
@@ -388,7 +405,18 @@ class Confessions(commands.Cog):
         cfg = await self.get_config(message.guild.id)
         if not cfg or message.channel.id != cfg["confess_channel"]:
             return
-        await self.process_confession(user=message.author, guild=message.guild, content=message.content)
+        try:
+            await self.process_confession(user=message.author, guild=message.guild, content=message.content)
+        except Exception as exc:
+            # Protect against transient DB failures mid-process without
+            # leaking a full traceback for every single guild message.
+            if getattr(exc, "code", None) in ("42501", "PGRST205"):
+                logger.debug(
+                    "confession DB unavailable in guild %s: %s",
+                    message.guild.id, exc,
+                )
+            else:
+                logger.warning("confession error in guild %s: %s", message.guild.id, exc, exc_info=True)
         try:
             await message.delete()
         except:

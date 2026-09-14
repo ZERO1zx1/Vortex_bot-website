@@ -324,7 +324,8 @@ class Moderation(SupabaseCog):
                 msg = await channel.fetch_message(int(msg_id))
                 await msg.edit(embed=embed)
                 return
-            except: pass
+            except (discord.NotFound, discord.HTTPException, ValueError):
+                pass
 
         msg = await channel.send(embed=embed)
         await self.bot.db_manager.upsert("staff_config", {
@@ -459,33 +460,40 @@ class Moderation(SupabaseCog):
     async def on_voice_state_update(self, member, before, after):
         if member.bot:
             return
-        guild_id = member.guild.id
-        user_id = member.id
-        member_row = await self.bot.db_manager.fetch_one(
-            "staff_members", {"user_id": str(user_id), "guild_id": str(guild_id)}
-        )
-        if not member_row:
-            return
-        now = time.time()
-        if before.channel is None and after.channel is not None:
-            if not after.self_mute and not after.deaf:
-                self.voice_times[user_id] = now
-        elif before.channel is not None and after.channel is None:
-            if user_id in self.voice_times:
-                elapsed = now - self.voice_times[user_id]
-                await self.increment_staff_activity(user_id, guild_id, "voice_seconds", int(elapsed))
-                del self.voice_times[user_id]
-        elif before.channel == after.channel:
-            was_muted = before.self_mute or before.deaf
-            now_muted = after.self_mute or after.deaf
-            if not was_muted and now_muted:
+        try:
+            guild_id = member.guild.id
+            user_id = member.id
+            member_row = await self.bot.db_manager.fetch_safe(
+                "staff_members", {"user_id": str(user_id), "guild_id": str(guild_id)}, single=True
+            )
+            if not member_row:
+                return
+            now = time.time()
+            if before.channel is None and after.channel is not None:
+                if not after.self_mute and not after.deaf:
+                    self.voice_times[user_id] = now
+            elif before.channel is not None and after.channel is None:
                 if user_id in self.voice_times:
                     elapsed = now - self.voice_times[user_id]
                     await self.increment_staff_activity(user_id, guild_id, "voice_seconds", int(elapsed))
                     del self.voice_times[user_id]
-            elif was_muted and not now_muted:
-                if after.channel is not None:
-                    self.voice_times[user_id] = now
+            elif before.channel == after.channel:
+                was_muted = before.self_mute or before.deaf
+                now_muted = after.self_mute or after.deaf
+                if not was_muted and now_muted:
+                    if user_id in self.voice_times:
+                        elapsed = now - self.voice_times[user_id]
+                        await self.increment_staff_activity(user_id, guild_id, "voice_seconds", int(elapsed))
+                        del self.voice_times[user_id]
+                elif was_muted and not now_muted:
+                    if after.channel is not None:
+                        self.voice_times[user_id] = now
+        except Exception as exc:
+            guild_id = getattr(getattr(member, "guild", None), "id", "?")
+            if str(getattr(exc, "code", None)) in ("42501", "PGRST205"):
+                logger.debug("staff voice activity skipped (DB infra) in guild %s: %s", guild_id, exc)
+            else:
+                logger.warning("staff voice activity error in guild %s: %s", guild_id, exc, exc_info=True)
 
     # ================== Лог илгээх ==================
     async def log_to_mod_channel(self, guild, action, target, moderator, reason):

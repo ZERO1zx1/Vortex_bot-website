@@ -1,5 +1,7 @@
 """Compatibility adapter for slash-only admin/moderation commands."""
 
+import discord
+
 
 class SlashContext:
     """Expose the small Context API used by legacy command bodies."""
@@ -11,17 +13,23 @@ class SlashContext:
         self.channel = interaction.channel
 
     async def defer(self, *, ephemeral=False):
-        if not self._interaction.response.is_done():
-            await self._interaction.response.defer(ephemeral=ephemeral)
+        try:
+            if not self._interaction.response.is_done():
+                await self._interaction.response.defer(ephemeral=ephemeral)
+        except (discord.NotFound, discord.HTTPException, discord.InteractionResponded):
+            return
 
     async def send(self, content=None, *, embed=None, ephemeral=False, **kwargs):
-        if not self._interaction.response.is_done():
-            return await self._interaction.response.send_message(
-                content=content, embed=embed, ephemeral=ephemeral
+        try:
+            if not self._interaction.response.is_done():
+                return await self._interaction.response.send_message(
+                    content=content, embed=embed, ephemeral=ephemeral
+                )
+            return await self._interaction.followup.send(
+                content=content, embed=embed, ephemeral=ephemeral, wait=True
             )
-        return await self._interaction.followup.send(
-            content=content, embed=embed, ephemeral=ephemeral, wait=True
-        )
+        except (discord.NotFound, discord.HTTPException, discord.InteractionResponded):
+            return None
 
 
 def adapt_interaction(interaction):

@@ -46,6 +46,20 @@ body {
   pointer-events: none;
 }
 
+/* WebGL 3D background (Three.js) — байгаа бол 2D canvas-ыг нууна */
+#bg-3d {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bg-3d #bg-canvas {
+  display: none;
+}
+
 /* Deep aurora gradient under the canvas */
 body::before {
   content: '';
@@ -214,52 +228,87 @@ footer {
   font-weight: 700;
   font-size: 0.95rem;
   border: 1px solid transparent;
-  transition: transform 0.2s, box-shadow 0.2s, background 0.25s;
+  transform-style: preserve-3d;
+  transition: transform 0.18s, box-shadow 0.25s, background 0.25s, border-color 0.2s;
   cursor: pointer;
+  will-change: transform;
 }
 
 .btn:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px) translateZ(12px) scale(1.02);
 }
 
 .btn:active {
-  transform: translateY(0) scale(0.98);
+  transform: translateY(2px) translateZ(-10px) scale(0.98);
 }
 
 .btn-primary {
   background: linear-gradient(135deg, #3B5EA8, var(--accent));
   color: #0B0B14;
-  box-shadow: 0 8px 30px rgba(137, 180, 250, 0.35);
+  box-shadow:
+    0 10px 26px rgba(137, 180, 250, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -3px 6px rgba(11, 11, 20, 0.28);
 }
 
 .btn-primary:hover {
-  box-shadow: 0 12px 45px rgba(137, 180, 250, 0.55);
+  box-shadow:
+    0 16px 48px rgba(137, 180, 250, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -4px 8px rgba(11, 11, 20, 0.32);
+}
+
+.btn-primary:active {
+  box-shadow:
+    0 4px 12px rgba(137, 180, 250, 0.3),
+    inset 0 3px 8px rgba(11, 11, 20, 0.35);
 }
 
 .btn-ghost {
   background: rgba(137, 180, 250, 0.08);
   border-color: var(--border);
   color: var(--text);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .btn-ghost:hover {
   background: rgba(137, 180, 250, 0.16);
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.btn-ghost:active {
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.2),
+    inset 0 2px 6px rgba(0, 0, 0, 0.22);
 }
 
 .btn-glow {
   background: linear-gradient(135deg, #3B5EA8, var(--accent));
   color: #0B0B14;
-  box-shadow: var(--glow);
+  box-shadow:
+    var(--glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -3px 6px rgba(11, 11, 20, 0.28);
   animation: btnGlow 2.8s ease-in-out infinite alternate;
 }
 
 @keyframes btnGlow {
   0% {
-    box-shadow: 0 0 15px rgba(137, 180, 250, 0.25);
+    box-shadow:
+      0 0 15px rgba(137, 180, 250, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -3px 6px rgba(11, 11, 20, 0.28);
   }
 
   100% {
-    box-shadow: 0 0 35px rgba(137, 180, 250, 0.6);
+    box-shadow:
+      0 0 35px rgba(137, 180, 250, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      inset 0 -3px 6px rgba(11, 11, 20, 0.32);
   }
 }
 
@@ -310,6 +359,21 @@ section {
   color: transparent;
 }
 
+/* Grid containers: хүүхэд картуудын translateZ/rotateX гүнд оруулна */
+.feature-grid,
+.stat-grid,
+.status-grid,
+.about-cards,
+.price-grid,
+.faq-grid,
+.intro-grid,
+.rules-grid,
+.staff-grid,
+.community-logo-wrap,
+.punish-wrap {
+  perspective: 1400px;
+}
+
 /* Reveal-on-scroll */
 [data-reveal] {
   opacity: 0;
@@ -320,6 +384,43 @@ section {
 [data-reveal].revealed {
   opacity: 1;
   transform: translateY(0) rotateX(0);
+  /* Хулгана сум нэвтрэхэд гүнзгий 3D өргөлт (дараа нь JS inline transform авдаг) */
+}
+
+[data-tilt]:hover {
+  transform: translateY(-7px) rotateX(3deg) rotateY(-2deg) translateZ(14px) scale(1.02);
+}
+
+/* Cursor-following glare overlay — tilt JS --gx/--gy өгнө */
+.feature-card::after,
+.status-card::after,
+.invite-card::after,
+.about-card::after,
+.price-card:not(.featured)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(320px circle at var(--gx, 50%) var(--gy, 50%),
+      rgba(148, 226, 213, 0.16), transparent 62%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.feature-card:hover::after,
+.status-card:hover::after,
+.invite-card:hover::after,
+.about-card:hover::after,
+.price-card:not(.featured):hover::after {
+  opacity: 1;
+}
+
+/* Section tag: жижиг 3D товчлуур мэдрэмж */
+.section-tag {
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 /* ---------------- HERO ---------------- */
@@ -429,19 +530,6 @@ section {
   transform-style: preserve-3d;
   will-change: transform;
 }
-/* Three.js WebGL orb container — CSS orb-ийн дээгүүр overlay болно */
-#three-orb-container {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: none;
-  pointer-events: none;
-}
-#three-orb-container canvas { display: block; width: 100%; height: 100%; }
-/* Three.js амжилттай ачаалбал CSS orb fallback-ийг нуух */
-#three-orb-container.active { display: block; }
-#three-orb-container.active ~ .orb-scene,
-.orb-tilt:has(#three-orb-container.active) .orb-scene { visibility: hidden; }
 
 .orb-scene {
   position: absolute;
@@ -2114,15 +2202,33 @@ html[data-theme="light"] .status-graph {
   .float-card {
     transform: scale(0.82);
   }
-  .float-card.c1 { top: 2%;  left: -12%; }
-  .float-card.c2 { top: 30%; right: -13%; }
-  .float-card.c3 { bottom: 20%; left: -13%; }
-  .float-card.c4 { bottom: 2%;  right: -9%; }
+
+  .float-card.c1 {
+    top: 2%;
+    left: -12%;
+  }
+
+  .float-card.c2 {
+    top: 30%;
+    right: -13%;
+  }
+
+  .float-card.c3 {
+    bottom: 20%;
+    left: -13%;
+  }
+
+  .float-card.c4 {
+    bottom: 2%;
+    right: -9%;
+  }
 }
 
 /* Мобайл (≤768px): Three.js orb canvas-ийн өндөр — hero-visual-ийн 400px-тэй таарна */
 @media (max-width: 768px) {
-  #three-orb-container { height: 100%; }
+  #three-orb-container {
+    height: 100%;
+  }
 }
 
 /* ---------------- Responsive ---------------- */
@@ -3483,23 +3589,38 @@ html[data-theme="light"] .nav-links a::after {
 }
 
 html[data-theme="light"] .btn-primary {
-  box-shadow: 0 8px 30px rgba(59, 94, 168, 0.3);
+  box-shadow:
+    0 8px 30px rgba(59, 94, 168, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -2px 5px rgba(59, 94, 168, 0.22);
 }
 
 html[data-theme="light"] .btn-primary:hover {
-  box-shadow: 0 12px 45px rgba(59, 94, 168, 0.45);
+  box-shadow:
+    0 12px 45px rgba(59, 94, 168, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -2px 5px rgba(59, 94, 168, 0.25);
 }
 
 html[data-theme="light"] .btn-ghost {
   background: rgba(59, 94, 168, 0.06);
+  box-shadow:
+    0 4px 12px rgba(59, 94, 168, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 html[data-theme="light"] .btn-ghost:hover {
   background: rgba(59, 94, 168, 0.14);
+  box-shadow:
+    0 8px 20px rgba(59, 94, 168, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 html[data-theme="light"] .btn-glow {
-  box-shadow: 0 0 30px rgba(59, 94, 168, 0.25);
+  box-shadow:
+    0 0 30px rgba(59, 94, 168, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -2px 5px rgba(59, 94, 168, 0.22);
 }
 
 html[data-theme="light"] .lang-switcher {
@@ -4258,4 +4379,17 @@ html[data-theme="light"] .err-clear-btn {
 
 html[data-theme="light"] .err-clear-btn:hover {
   background: rgba(59, 94, 168, .18);
+}
+
+/* ---------------- Reduced motion: хөдөлгөөнийг бүхэлд нь тайвшруулах ---------------- */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

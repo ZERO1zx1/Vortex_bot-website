@@ -3,6 +3,9 @@ import discord
 from discord.ext import commands
 import random
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ══════════════ ӨНГӨ ══════════════
 SUCCESS_COLOR = 0x57f287
@@ -160,14 +163,28 @@ class Quests(commands.Cog):
 
     # ══════════════ ПРОГРЕСС ШИНЭЧЛЭХ (Бусад когуудаас дуудагдана) ══════════════
     async def trigger_event(self, user_id, guild_id, event_type, value=1):
-        quests = await self.get_user_quests(user_id, guild_id)
-        for q in quests:
-            if q["claimed"]:
-                continue
-            template = QUEST_TEMPLATES[q["template_id"]]
-            if template["type"] == event_type:
-                new_progress = q["progress"] + value
-                await self.update_progress(user_id, guild_id, q["quest_id"], new_progress)
+        """Increment matching quest progress.
+
+        Keeps a failed/secondary quest write from crashing the caller (game
+        commands, message handlers, voice events).  Infrastructure failures
+        (missing table, privileges, network) are logged compactly here and
+        swallowed; genuine bugs still propagate because the DB layer raises
+        those untouched.
+        """
+        try:
+            quests = await self.get_user_quests(user_id, guild_id)
+            for q in quests:
+                if q["claimed"]:
+                    continue
+                template = QUEST_TEMPLATES[q["template_id"]]
+                if template["type"] == event_type:
+                    new_progress = q["progress"] + value
+                    await self.update_progress(user_id, guild_id, q["quest_id"], new_progress)
+        except Exception as exc:
+            if getattr(exc, "code", None) in ("42501", "PGRST205"):
+                logger.debug("quests update skipped (DB infra) for %s/%s: %s", user_id, guild_id, exc)
+            else:
+                logger.warning("quests trigger failed for %s/%s (%s): %s", user_id, guild_id, event_type, exc, exc_info=True)
 
     def _progress_bar(self, current, total, length=10):
         filled = int(length * current / total) if total > 0 else 0
