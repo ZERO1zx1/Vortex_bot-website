@@ -136,6 +136,21 @@ class MyBot(commands.Bot):
             logger.error("❌ Supabase connection error: %s", e)
             raise RuntimeError("Could not connect to Supabase") from e
 
+        # Runtime key probe: a restricted `sb_secret_` key would otherwise
+        # 42501 on every heartbeat.  `probe_best_key` finds the first key
+        # (precedence: service_role > secret > key) that can read bot_status
+        # and switches the live client to it when a better one exists.
+        try:
+            best = await self.db_manager.probe_best_key()
+            if best and os.getenv(best, "").strip() != self.db_manager.key:
+                logger.info("⚙️ Supabase key probe: using env '%s' (insures heartbeat access)", best)
+                if not self.db_manager.switch_key(best):
+                    logger.warning(
+                        "⚠️ Supabase key switch to '%s' failed; continuing with current key", best,
+                    )
+        except Exception as e:
+            logger.warning("⚙️ Supabase key probe skipped: %s", e)
+
         await self.db_manager.init_tables()
 
         # Surface schema/privilege problems ONCE at startup instead of one
@@ -337,8 +352,11 @@ class MyBot(commands.Bot):
         try:
             while not self.is_closed():
                 try:
-                    await self.db_manager.ping_bot("online")
-                    logger.info("💓 Heartbeat sent (website status: Online)")
+                    ok = await self.db_manager.ping_bot("online")
+                    if ok:
+                        logger.info("💓 Heartbeat sent (website status: Online)")
+                    else:
+                        logger.warning("⚠️ Heartbeat failed — website will show Offline")
                 except Exception:  # noqa: BLE001
                     logger.warning("⚠️ Failed to send heartbeat")
                 await asyncio.sleep(60)

@@ -170,18 +170,21 @@ def _is_retryable(exc: BaseException) -> bool:
 class SupabaseManager:
     """Async-first data access layer for Supabase."""
 
+    # Key precedence — эмпирик шалтгаан: зарим legacy проект-д шинэ
+    # `sb_secret_` key нь service_role биш хязгаарлагдмал role руу ордог
+    # (25+ хүснэгтэд 42501). Legacy JWT service_role key түрүүнд,
+    # байхгүй бол SECRET (шинэ проект-д энэ нь л бүрэн эрхтэй role),
+    # сүүлийн нөөцөд хуучин SUPABASE_KEY.  Runtime дээр probe хийгээд
+    # эрхгүй key-г алгасна (``probe_best_key``).
+    KEY_CANDIDATE_ENVS = (
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_SECRET_KEY",
+        "SUPABASE_KEY",
+    )
+
     def __init__(self):
         self.url: str = os.getenv("SUPABASE_URL", "")
-        # Key precedence — эмпирик шалтгаан: зарим legacy проект-д шинэ
-        # `sb_secret_` key нь service_role биш хязгаарлагдмал role руу ордог
-        # (25+ хүснэгтэд 42501). Legacy JWT service_role key түрүүнд,
-        # байхгүй бол SECRET (шинэ проект-д энэ нь л бүрэн эрхтэй role),
-        # сүүлийн нөөцөд хуучин SUPABASE_KEY.
-        self.key: str = (
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-            or os.getenv("SUPABASE_SECRET_KEY", "")
-            or os.getenv("SUPABASE_KEY", "")
-        )
+        self.key: str = self._pick_first_defined()
         self.using_legacy_env_name = bool(
             not os.getenv("SUPABASE_SERVICE_ROLE_KEY")
             and not os.getenv("SUPABASE_SECRET_KEY")
@@ -189,6 +192,64 @@ class SupabaseManager:
         )
         self.client: Optional[Client] = None
         self._table_error_tracker = _TableErrorTracker()
+
+    def _pick_first_defined(self) -> str:
+        for env in self.KEY_CANDIDATE_ENVS:
+            value = os.getenv(env, "").strip()
+            if value:
+                return value
+        return ""
+
+    def available_keys(self) -> List[Dict[str, str]]:
+        """All key env names that have a value, in precedence order."""
+        return [
+            {"env": env, "key": os.getenv(env, "").strip()}
+            for env in self.KEY_CANDIDATE_ENVS
+            if os.getenv(env, "").strip()
+        ]
+
+    async def probe_best_key(self, probe_table: str = "bot_status") -> Optional[str]:
+        """Find the first key (in precedence order) that can read ``probe_table``.
+
+        Runs at startup after connection so a restricted ``sb_secret_`` key
+        is silently replaced by the working legacy JWT / anon key instead of
+        failing every heartbeat with 42501.  Returns the env var name of the
+        chosen key, or None if nothing works (caller keeps the first key).
+        """
+        candidates = self.available_keys()
+        if not candidates:
+            return None
+        current = self._pick_first_defined()
+
+        for cand in candidates:
+            key = cand["key"]
+            if key == current and self.client is not None:
+                # already connected with this key: not a fresh probe target
+                pass
+            try:
+                saved = self.client
+                self.client = self._make_client(key)
+                try:
+                    if await self.probe_table(probe_table) == "OK":
+                        return cand["env"]
+                finally:
+                    self.client = saved
+            except Exception:
+                continue
+        # fall back to the first configured key (log-worthy but non-fatal)
+        return candidates[0]["env"]
+
+    def _make_client(self, key: str) -> Client:
+        http_client = httpx.Client(
+            http1=True,
+            http2=False,
+            timeout=30.0,
+        )
+        return create_client(
+            self.url,
+            key,
+            options=SyncClientOptions(httpx_client=http_client),
+        )
 
     # ------------------------------------------------------------------
     # Connection / lifecycle
@@ -209,17 +270,33 @@ class SupabaseManager:
         # Force HTTP/1.1: the httpcore HTTP/2 sync transport is unstable on
         # Windows with Python 3.13 (sporadic [WinError 10035]
         # WSAEWOULDBLOCK socket errors during framing). HTTP/1.1 is reliable.
-        http_client = httpx.Client(
-            http1=True,
-            http2=False,
-            timeout=30.0,
-        )
-        self.client = create_client(
-            self.url,
-            self.key,
-            options=SyncClientOptions(httpx_client=http_client),
-        )
+        self.client = self._make_client(self.key)
         return self.client
+
+    def switch_key(self, env_name: str) -> bool:
+        """Swap the active key to another env var's value (for runtime recovery).
+
+        Re-creates the PostgREST client with the new key.  Returns True on
+        success; on failure stays on the current key and returns False.
+        """
+        if not self.url:
+            return False
+        key = os.getenv(env_name, "").strip()
+        if not key:
+            logger = logging.getLogger("aether.db")
+            logger.warning("switch_key: env '%s' is empty/undefined", env_name)
+            return False
+        try:
+            new_client = self._make_client(key)
+        except Exception as exc:
+            logger = logging.getLogger("aether.db")
+            logger.error("switch_key: failed to build client for '%s': %s", env_name, exc)
+            return False
+        self.client = new_client
+        self.key = key
+        logger = logging.getLogger("aether.db")
+        logger.info("Supabase key switched to env '%s' (runtime probe)", env_name)
+        return True
 
     def is_connected(self) -> bool:
         return self.client is not None
