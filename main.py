@@ -24,7 +24,7 @@ if not TOKEN:
 
 config = load_config()
 
-LOG_DIR = Path("logs")
+LOG_DIR = Path(__file__).resolve().parent / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 cogs_handler = RotatingFileHandler(
     LOG_DIR / "cogs.log",
@@ -73,6 +73,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[stream, cogs_handler],
+    force=True,
 )
 logger = logging.getLogger("aether")
 logger.info("📟 Terminal log level: %s", _term_level_name)
@@ -99,9 +100,19 @@ class MyBot(commands.Bot):
         intents.voice_states = True
         intents.presences = True  # online/offline статус харахад шаардлагатай (Dev Portal-оос мөн асаана)
 
-        prefix = config.get("prefix", DEFAULT_PREFIX)
+        raw_prefix = config.get("prefix", DEFAULT_PREFIX)
+        prefixes = [p.strip() for p in str(raw_prefix).split(",") if p.strip()] or [DEFAULT_PREFIX]
+
+        def _get_prefix(bot, message):
+            content = message.content or ""
+            lowered = content.lower()
+            for p in prefixes:
+                if lowered.startswith(p.lower()):
+                    return content[:len(p)]
+            return None
+
         super().__init__(
-            command_prefix=prefix,
+            command_prefix=_get_prefix,
             intents=intents,
             help_command=None,
             case_insensitive=True,

@@ -166,33 +166,40 @@ class Stock(commands.Cog):
         )
         return row.get("current_stock", 0) or 0 if row else 0
 
+    # Set to True after the first 404 on consume_stock RPC so we stop
+    # hitting the missing endpoint and avoid noisy error logs.
+    _rpc_available: bool | None = None  # None = untested, True/False = tested
+
     async def consume_stock(self, guild_id, item_id, quantity=1):
         """
         Атомар байдлаар нөөц хасах.
         Амжилттай бол True, хүрэлцэхгүй эсвэл бараа байхгүй бол False буцаана.
         """
-        try:
-            result = await self.bot.db_manager.rpc(
-                "consume_stock",
-                {"guild_id": str(guild_id), "item_id": str(item_id), "quantity": int(quantity)},
-            )
-            data = getattr(result, "data", None)
-            if isinstance(data, bool):
-                return data
-            return bool(data) if data is not None else False
-        except Exception:
-            # RPC байхгүй (migration ашиглагдаагүй) → хуучин замд буцах
-            row = await self.bot.db_manager.fetch_one(
-                "shop_stock", {"guild_id": str(guild_id), "item_id": str(item_id)}
-            )
-            if not row or (row.get("current_stock", 0) or 0) < quantity:
-                return False
-            await self.bot.db_manager.update(
-                "shop_stock",
-                {"guild_id": str(guild_id), "item_id": str(item_id)},
-                {"current_stock": (row.get("current_stock", 0) or 0) - quantity},
-            )
-            return True
+        if Stock._rpc_available is not False:
+            try:
+                result = await self.bot.db_manager.rpc(
+                    "consume_stock",
+                    {"g_guild_id": str(guild_id), "g_item_id": str(item_id), "g_quantity": int(quantity)},
+                )
+                Stock._rpc_available = True
+                data = getattr(result, "data", None)
+                if isinstance(data, bool):
+                    return data
+                return bool(data) if data is not None else False
+            except Exception:
+                Stock._rpc_available = False
+        # RPC байхгүй (migration ашиглагдаагүй) → хуучин замд буцах
+        row = await self.bot.db_manager.fetch_one(
+            "shop_stock", {"guild_id": str(guild_id), "item_id": str(item_id)}
+        )
+        if not row or (row.get("current_stock", 0) or 0) < quantity:
+            return False
+        await self.bot.db_manager.update(
+            "shop_stock",
+            {"guild_id": str(guild_id), "item_id": str(item_id)},
+            {"current_stock": (row.get("current_stock", 0) or 0) - quantity},
+        )
+        return True
 
     async def set_stock(self, guild_id, item_id, amount):
         """
