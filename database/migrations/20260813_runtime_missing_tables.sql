@@ -391,8 +391,8 @@ CREATE TABLE IF NOT EXISTS invite_stats (
     user_id TEXT,
     regular INT DEFAULT 0,
     bonus INT DEFAULT 0,
-    fake INT DEFAULT 0,
-    left INT DEFAULT 0,
+    "fake" INT DEFAULT 0,
+    "left" INT DEFAULT 0,
     PRIMARY KEY (guild_id, user_id)
 );
 
