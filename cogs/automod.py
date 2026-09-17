@@ -13,6 +13,7 @@ v2.5 засварууд:
 import re
 import time
 import asyncio
+import datetime
 import logging
 from collections import defaultdict, deque
 from utils.constants import SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR, INFO_COLOR
@@ -161,8 +162,9 @@ class AutoModeration(SupabaseCog):
         app_commands.Choice(name="Антиссылка (зөвшөөрөгдөөгүй линк)", value="antilink"),
         app_commands.Choice(name="Анти-райд (5 сек-д 10+ гишүүн)", value="antiraid"),
     ])
-    @commands.has_permissions(manage_guild=True)
-    @commands.bot_has_permissions(manage_messages=True)
+    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(manage_messages=True)
     async def automod(self, interaction: discord.Interaction, action: app_commands.Choice[str],
                       feature: app_commands.Choice[str]):
         guild_id = interaction.guild.id
@@ -185,9 +187,9 @@ class AutoModeration(SupabaseCog):
                 title="🛡️ Auto-moderation", description=desc, color=SUCCESS_COLOR))
         # status
         lines = [
-            f"🛡️ **Анти-спам** — {'✅' if self.is_on(guild_id, 'antispam') else '❌'}",
-            f"🔗 **Антиссылка** — {'✅' if self.is_on(guild_id, 'antilink') else '❌'}",
-            f"🚨 **Анти-райд** — {'✅' if self.is_on(guild_id, 'antiraid') else '❌'}",
+            f"🛡️ **Antispam** — {'✅' if self.is_on(guild_id, 'antispam') else '❌'}",
+            f"🔗 **Antilink** — {'✅' if self.is_on(guild_id, 'antilink') else '❌'}",
+            f"🚨 **Antiraid** — {'✅' if self.is_on(guild_id, 'antiraid') else '❌'}",
         ]
         await interaction.response.send_message(embed=discord.Embed(
             title="🛡️ Auto-moderation статус", description="\n".join(lines), color=INFO_COLOR))
@@ -234,9 +236,10 @@ class AutoModeration(SupabaseCog):
         except discord.HTTPException:
             pass
         if level <= len(SPAM_SEVERITY) and SPAM_SEVERITY[level - 1] is not None:
+            until = discord.utils.utcnow() + datetime.timedelta(seconds=SPAM_SEVERITY[level - 1])
             try:
-                await message.author.timeout(discord.utils.utcnow(), SPAM_SEVERITY[level - 1], reason=reason)
-            except discord.HTTPException:
+                await message.author.timeout(until, reason=reason)
+            except (discord.HTTPException, TypeError):
                 pass
         elif level > len(SPAM_SEVERITY):
             try:
@@ -245,7 +248,7 @@ class AutoModeration(SupabaseCog):
                 pass
         try:
             warn = await message.channel.send(
-                embed=discord.Embed(title="🛡️ Анти-спам",
+                embed=discord.Embed(title="🛡️ Antispam",
                                     description=f"{message.author.mention} хэт олон мессеж илгээлээ. "
                                                 f"({level}-р зөрчил)",
                                     color=WARNING_COLOR))
@@ -261,7 +264,7 @@ class AutoModeration(SupabaseCog):
             pass
         try:
             warn = await message.channel.send(
-                embed=discord.Embed(title="🔗 Антиссылка",
+                embed=discord.Embed(title="🔗 Antilink",
                                     description=f"{message.author.mention} зөвшөөрөгдөөгүй линк илгээлээ.",
                                     color=WARNING_COLOR))
             await asyncio.sleep(10)
@@ -281,19 +284,22 @@ class AutoModeration(SupabaseCog):
         if not joined_ids:
             return
         # Raid илэрсэн: бүгдийг 10 минутын timeout-д оруулна
-        try:
-            for uid in joined_ids:
-                m = member.guild.get_member(uid)
-                if m and not m.is_timed_out():
-                    await m.timeout(discord.utils.utcnow(), 600, reason="Anti-raid: масс нэгдэлт")
-        except discord.HTTPException:
-            pass
+        # Гишүүн бүрийн timeout-г тус тусад нь оролдоно — нэг нь унах нь
+        # үлдсэнийг зогсоохгүй, буруу аргумент (TypeError) ч эвдэхгүй.
+        for uid in joined_ids:
+            m = member.guild.get_member(uid)
+            if m and not m.is_timed_out():
+                until = discord.utils.utcnow() + datetime.timedelta(seconds=600)
+                try:
+                    await m.timeout(until, reason="Anti-raid: масс нэгдэлт")
+                except (discord.HTTPException, TypeError):
+                    continue
         # Staff-д мэдэгдэх (system_channel байхгүй үед crash-ээс хамгаална)
         target = member.guild.system_channel
         if target is not None:
             try:
                 await target.send(embed=discord.Embed(
-                    title="🚨 Анти-райд хамгаалалт идэвхжлээ",
+                    title="🚨 AntiRaid хамгаалалт идэвхжлээ",
                     description=f"Сүүлийн 5 секундэд 10+ гишүүн нэгдлээ. "
                                 f"Бүгдийг 10 минутын timeout-д орууллаа. "
                                 f"Шалгаж баталгаажуулаарай.",

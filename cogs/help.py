@@ -1417,6 +1417,34 @@ COMMAND_INFO = {
         "usage": "/giveaway list",
         "examples": []
     },
+    "government": {
+        "description_mn": "Засгийн газрын самбар — ажилтнууд, роль, co-owner, систем идэвхжүүлэх.",
+        "description_en": "Government panel (officials, roles, co-owners, toggle)",
+        "category": "Засгийн газар",
+        "usage": "/government",
+        "examples": []
+    },
+    "economy-config": {
+        "description_mn": "Эдийн засгийн тохиргоо — татвар, хүлээн авагч, ажил, ролын орлого.",
+        "description_en": "Economy config (tax, recipients, jobs, role income)",
+        "category": "Засгийн газар",
+        "usage": "/economy-config",
+        "examples": []
+    },
+    "treasury": {
+        "description_mn": "Засгийн тэтгэвэр — үлдэгдэл, төлбөр, түүх, хуваарилалт.",
+        "description_en": "Government treasury (balance, payments, history, distribution)",
+        "category": "Засгийн газар",
+        "usage": "/treasury",
+        "examples": []
+    },
+    "economy": {
+        "description_mn": "Хэрэглэгчийн эдийн засгийн самбар — үлдэгдэл, ажил, татвар, засгийн газар.",
+        "description_en": "User economy panel (balance, jobs, tax, government)",
+        "category": "Засгийн газар",
+        "usage": "/economy",
+        "examples": []
+    },
 }
 class HelpView(ui.View):
     def __init__(self, ctx, default_category: str = "Эдийн засаг"):

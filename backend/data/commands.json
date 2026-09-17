@@ -164,6 +164,24 @@
         "example": "A!eat"
     },
     {
+        "name": "economy",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Хэрэглэгчийн эдийн засгийн самбар — үлдэгдэл, ажил, татвар, засгийн газар.",
+        "descEN": "User economy panel (balance, jobs, tax, government)",
+        "args": [],
+        "example": "/economy"
+    },
+    {
+        "name": "economy-config",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Эдийн засгийн тохиргоо — татвар, хүлээн авагч, ажил, ролын орлого.",
+        "descEN": "Economy config (tax, recipients, jobs, role income)",
+        "args": [],
+        "example": "/economy-config"
+    },
+    {
         "name": "equip",
         "cat": "Economy",
         "icon": "💰",
@@ -190,6 +208,15 @@
             }
         ],
         "example": "A!equipped <member>"
+    },
+    {
+        "name": "government",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Засгийн газрын самбар — ажилтнууд, роль, co-owner, систем идэвхжүүлэх.",
+        "descEN": "Government panel (officials, roles, co-owners, toggle)",
+        "args": [],
+        "example": "/government"
     },
     {
         "name": "iteminfo",
@@ -308,6 +335,15 @@
             }
         ],
         "example": "A!transfer <member> <amount_str>"
+    },
+    {
+        "name": "treasury",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Засгийн тэтгэвэр — үлдэгдэл, төлбөр, түүх, хуваарилалт.",
+        "descEN": "Government treasury (balance, payments, history, distribution)",
+        "args": [],
+        "example": "/treasury"
     },
     {
         "name": "unequip",

@@ -43,6 +43,7 @@ class BlackjackView(View):
         self.active_hand_index = 0
         self.game_over = False
         self.all_hands_resolved = False
+        self._finalizing = False  # finalize_game давхар дуудагдахаас сэргийлнэ
         self.message = None
         self.update_embed()
         # Товчлуурын анхны төлвийг async task-ээр тохируулна (хурдан идэвхжинэ)
@@ -184,6 +185,9 @@ class BlackjackView(View):
         await interaction.response.edit_message(embed=self.embed, view=self)
 
     async def finalize_game(self, interaction):
+        if self._finalizing:
+            return
+        self._finalizing = True
         self.game_over = True
         self.all_hands_resolved = True
         for child in self.children: child.disabled = True
@@ -196,20 +200,23 @@ class BlackjackView(View):
         total_win = 0
         bonus_percent = self.ctx.bot.config.get("bonus_percent", 10)
         results_text = []
+        # Double Down/Split үед self.bet давхарлагдсан тул гар бүрийн бооцоо
+        # self.bet // len(hands) байна (double-down: 2x, split: гар тутамд анхны дүн)
+        stake_per_hand = self.bet // len(self.hands)
         for i, hand in enumerate(self.hands):
             player_val = self.hand_value(hand)
             if player_val > 21:
                 outcome = f"Гар {i+1}: 💥 BUST ({player_val})"
-                win = -self.original_bet
+                win = -stake_per_hand
             elif dealer_val > 21:
-                outcome = f"Гар {i+1}: 🎉 Дилер BUST ({dealer_val}) - ЯЛАЛТ!"
-                win = self.original_bet
+                outcome = f"Гар {i+1}: 🎉 Dealer BUST ({player_val}) - ЯЛАЛТ!"
+                win = stake_per_hand
             elif player_val > dealer_val:
                 outcome = f"Гар {i+1}: 🏆 ЯЛЛАА ({player_val} vs {dealer_val})"
-                win = self.original_bet
+                win = stake_per_hand
             elif player_val < dealer_val:
                 outcome = f"Гар {i+1}: 😞 ЯЛАГДАЛ ({player_val} vs {dealer_val})"
-                win = -self.original_bet
+                win = -stake_per_hand
             else:
                 outcome = f"Гар {i+1}: 🤝 ТЭНЦСЭН ({player_val} vs {dealer_val})"
                 win = 0
@@ -221,10 +228,10 @@ class BlackjackView(View):
             results_text.append(f"{outcome} → **{win_with_bonus:+,}₮**{bonus_text}")
 
             if win > 0:
-                await self.casino.update_game_stats(self.ctx.author.id, self.ctx.guild.id, True, self.original_bet, win_with_bonus)
+                await self.casino.update_game_stats(self.ctx.author.id, self.ctx.guild.id, True, stake_per_hand, win_with_bonus)
                 await self.casino.try_give_gem_ring(self.ctx.author.id, self.ctx.guild.id, self.ctx.channel, self.ctx.author.mention)
             elif win < 0:
-                await self.casino.update_game_stats(self.ctx.author.id, self.ctx.guild.id, False, self.original_bet, -win)
+                await self.casino.update_game_stats(self.ctx.author.id, self.ctx.guild.id, False, stake_per_hand, -win)
 
         economy = self.ctx.bot.get_cog("Economy")
         if economy:
@@ -237,7 +244,7 @@ class BlackjackView(View):
         )
         embed.set_author(name=self.ctx.author.display_name, icon_url=self.ctx.author.display_avatar.url)
         dealer_display = " | ".join(c["display"] for c in self.dealer_cards)
-        embed.add_field(name="🃟 ДИЛЕР", value=f"```yaml\n{dealer_display} = {dealer_val}```", inline=False)
+        embed.add_field(name="🃟 Dealer", value=f"```yaml\n{dealer_display} = {dealer_val}```", inline=False)
         embed.add_field(name="📋 ДҮН", value="\n".join(results_text), inline=False)
         embed.description = f"💰 **Нийт хожил/гарз:** {total_win:+,}₮"
         embed.set_footer(text="🃏 Тоглоом дууслаа")
@@ -264,6 +271,9 @@ class BlackjackView(View):
             self.active_hand_index += 1
             asyncio.create_task(self._after_hand_switch(interaction))
         else:
+            if self._finalizing:
+                return
+            self._finalizing = True
             asyncio.create_task(self.finalize_game(interaction))
 
     async def _after_hand_switch(self, interaction):
@@ -320,7 +330,7 @@ class BlackjackView(View):
             "🔹 **Double Down** – Бооцоогоо 2х нэмээд, ганц карт аваад зогсох\n"
             "🔹 **Split** – Хэрэв эхний хоёр карт ижил зэрэглэлтэй бол (жишээ нь, 8-8, 10-10) хоёр тусдаа гар болгон хувааж, тус бүрт нэмэлт карт тараана. Бооцоо давхарлана.\n\n"
             "💡 **Картны үнэ:** A=1/11, 2-10=нэрлэсэн, J/Q/K=10\n\n"
-            "⏳ Дилер 17 хүрэх хүртэл карт татна.",
+            "⏳ Dealer 17 хүрэх хүртэл карт татна.",
             ephemeral=True
         )
 
@@ -491,6 +501,11 @@ class Casino(commands.Cog):
         if await economy.is_in_prison(ctx.author.id, ctx.guild.id):
             return await ctx.send("🚔 Шоронд тоглох боломжгүй.")
         if amount <= 0: return await ctx.send("❌ Дүн эерэг байх ёстой!")
+        bal = await economy.get_balance(ctx.author.id, ctx.guild.id)
+        if bal < amount:
+            return await ctx.send(f"❌ Танд {amount:,}₮ хүрэлцэхгүй! (Үлдэгдэл: {bal:,}₮)")
+        # Бооцоог тоглоомын өмнө хасна (хожилд эргүүлэн нэмэх, хожигдолд нэмж хасахгүй)
+        await economy.update_balance(ctx.author.id, ctx.guild.id, -amount)
         first = random.randint(1, 100)
         second = random.randint(1, 100)
         win = (choice in ['higher','high'] and second > first) or (choice in ['lower','low'] and second < first)
@@ -508,7 +523,7 @@ class Casino(commands.Cog):
             embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
             embed.description = f"**Таны таамаглал:** {choice.upper()}\n\n🎲 Эхний тоо: **{first}** → Дараагийн тоо: **{second}**\n\n✨ **+{total_win:,}** ₮ нэмэгдлээ!"
         else:
-            await economy.update_balance(ctx.author.id, ctx.guild.id, -amount)
+            # Бооцоог тоглоомын өмнө хасчихсан тул хожигдолд нэмж хасахгүй
             await self.update_game_stats(ctx.author.id, ctx.guild.id, False, amount, 0)
             embed = discord.Embed(
                 title="😞 ХОЖИГДЛОО",
@@ -572,7 +587,7 @@ class Casino(commands.Cog):
                 timestamp=datetime.now(timezone.utc)
             )
         else:
-            fine = random.randint(100, 2000)
+            fine = min(random.randint(100, 2000), await economy.get_balance(ctx.author.id, guild_id))
             await economy.update_balance(ctx.author.id, guild_id, -fine)
             await economy.set_prison(ctx.author.id, guild_id, hours=2)
             await self.update_game_stats(ctx.author.id, guild_id, False, fine, 0)
@@ -628,7 +643,7 @@ class Casino(commands.Cog):
                 timestamp=datetime.now(timezone.utc)
             )
         else:
-            fine = random.randint(2000, 8000)
+            fine = min(random.randint(2000, 8000), await economy.get_balance(ctx.author.id, ctx.guild.id))
             await economy.update_balance(ctx.author.id, ctx.guild.id, -fine)
             await economy.set_prison(ctx.author.id, ctx.guild.id, hours=2)
             await self.update_game_stats(ctx.author.id, ctx.guild.id, False, fine, 0)

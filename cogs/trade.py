@@ -386,8 +386,15 @@ class Marketplace(commands.Cog):
             if not listing:
                 return await interaction.response.send_message("❌ Зарлал олдсонгүй.", ephemeral=True)
 
-            gid, seller_id, item_id, quantity, price_per_item, _ = listing
-            if int(gid) != interaction.guild_id:
+            if isinstance(listing, dict):
+                gid = listing.get("guild_id")
+                seller_id = listing.get("seller_id")
+                item_id = listing.get("item_id")
+                quantity = listing.get("quantity", 1)
+                price_per_item = listing.get("price_per_item")
+            else:
+                gid, seller_id, item_id, quantity, price_per_item, _ = listing
+            if str(gid) != str(interaction.guild_id):
                 return await interaction.response.send_message("❌ Энэ зарлал энэ серверт хамаарахгүй.", ephemeral=True)
             if str(seller_id) == str(interaction.user.id):
                 return await interaction.response.send_message("❌ Өөрийн зарыг худалдаж болохгүй.", ephemeral=True)

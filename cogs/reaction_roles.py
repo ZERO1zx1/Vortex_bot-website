@@ -182,7 +182,8 @@ class ReactionRoles(SupabaseCog):
         app_commands.Choice(name="List (харуулах)", value="list"),
         app_commands.Choice(name="Remove (emoji устгах)", value="remove"),
     ])
-    @commands.has_permissions(manage_roles=True)
+    @app_commands.default_permissions(manage_roles=True)
+    @app_commands.checks.has_permissions(manage_roles=True)
     async def rr_setup(self, interaction: discord.Interaction, action: app_commands.Choice[str],
                        emoji: str = None):
         await interaction.response.defer(ephemeral=True)

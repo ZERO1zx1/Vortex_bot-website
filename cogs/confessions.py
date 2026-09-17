@@ -48,9 +48,9 @@ class ConfessionModal(ui.Modal, title="📩 Нууц захиа илгээх"):
         )
 
 # ==================== МОДАЛ: КҮҮДАУН ТОХИРУУЛАХ ====================
-class CooldownModal(ui.Modal, title="⏱️ Күүдаун тохируулах"):
+class CooldownModal(ui.Modal, title="⏱️ Cooldown тохируулах"):
     seconds = ui.TextInput(
-        label="Күүдаун (секундээр)",
+        label="Cooldown (секундээр)",
         placeholder="Жишээ: 60",
         default="30",
         required=True
@@ -67,7 +67,7 @@ class CooldownModal(ui.Modal, title="⏱️ Күүдаун тохируулах"
                 await interaction.response.send_message("❌ Эерэг тоо оруулна уу.", ephemeral=True)
                 return
             await self.view.cog.update_config(interaction.guild_id, cooldown=cd)
-            await interaction.response.send_message(f"✅ Күүдаун {cd} секунд болж өөрчлөгдлөө.", ephemeral=True)
+            await interaction.response.send_message(f"✅ Cooldown {cd} секунд болж өөрчлөгдлөө.", ephemeral=True)
             await self.view.refresh(interaction)
         except ValueError:
             await interaction.response.send_message("❌ Зөвхөн тоо оруулна уу.", ephemeral=True)
@@ -208,6 +208,9 @@ class Confessions(commands.Cog):
             {"guild_id": str(guild_id)},
             {"next_id": new_id},
         )
+        # Хуучин next_id кэшт үлдсэн тул дараагийн дуудлагад давхардсан ID өгнө —
+        # бичиж дууссаны дараа кэшийг хүчингүй болгоно.
+        self._cfg_cache.invalidate(guild_id)
         return new_id - 1
 
     # ----- ГОЛ БОЛОВСРУУЛАЛТ -----

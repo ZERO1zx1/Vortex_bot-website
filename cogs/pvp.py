@@ -167,7 +167,9 @@ class PVPView(View):
                 self.current_round += 1
                 await self.start_next_round()
         else:
-            await self.end_game()
+            # Хоёул хариулаагүй тэнцээ бол тависан мөнгө аль хэдийн буцаасан.
+            # end_game дахин дуудах нь давхар буцаалт (double refund) үүсгэнэ.
+            return
 
     async def _give_xp(self, user_id, guild_id, amount):
         leveling = self.bot.get_cog("Leveling")
@@ -480,6 +482,8 @@ class PVP(commands.Cog):
             async def accept_button(self, interaction: discord.Interaction, button: Button):
                 if interaction.user != self.opponent:
                     return await interaction.response.send_message("❌ Энэ урилга танд зориулагдаагүй!", ephemeral=True)
+                if self.accepted:
+                    return await interaction.response.send_message("⏳ Тулааны урилга аль хэдийн зөвшөөрөгдсөн.", ephemeral=True)
                 self.accepted = True
                 await self.disable_all_buttons()
                 await self.start_duel(interaction)
@@ -518,6 +522,7 @@ class PVP(commands.Cog):
                 view.round_active = True
                 await view.start_round_timer()
                 await view.start_global_timer()   # 2 минутын ерөнхий таймер
+                self.stop()  # давхар зөвшөөрөл/давхар тулаан эхлэхээс сэргийлэх
 
             async def on_timeout(self):
                 if not self.accepted:

@@ -117,11 +117,14 @@ class PresenceCog(commands.Cog):
             await asyncio.sleep(120)
             if self.bot.is_closed():
                 break
+            if not self.bot.ws or self.bot.ws.closed:
+                continue
             self._current = (self._current + 1) % len(ACTIVITIES)
             try:
                 await self._set(self._current)
             except Exception:  # noqa: BLE001
-                logger.warning("⚠️ Presence rotation error", exc_info=True)
+                logger.debug("Presence rotation skipped (ws closing)", exc_info=True)
+                continue
 
     async def cog_unload(self) -> None:
         """Docs extension-teardown best practice: cancel background tasks."""

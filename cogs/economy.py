@@ -124,6 +124,11 @@ class Economy(SupabaseCog):
         self._balance_locks = {}
         # Serializes the /work claim for each user (double-claim guard).
         self._work_locks = {}
+        # 30s per-guild cache of the active tax mode (rate, active, enabled) so
+        # the hot path (every positive balance change) avoids a DB read.
+        self._tax_mode_cache = {}
+        # Last-payment timestamp per "guild:role" for role-income interval gating.
+        self._role_income_last = {}
 
     async def _get_user_lock(self, pool: dict, key):
         lock = pool.get(key)
@@ -157,14 +162,16 @@ class Economy(SupabaseCog):
         return row.get("balance", 0) if row else 0
 
     async def update_balance(self, uid, gid, delta, apply_tax: bool = None):
-        """Гар дээрх үлдэгдэл өөрчлөх. Эерэг орлогод 10% татвар автан,
-        Ерөнхийлөгч/Захирал ролттой хэрэглэгчид автоматаар хуваарилагдана.
+        """Гар дээрх үлдэгдэл өөрчлөх. Эерэг орлогод татвар автан
+        (Government system идэвхтэй бол түүний хүлээн авагчдад, эс бөгөөс
+        Ерөнхийлөгч/Захирал ролттой хэрэглэгчид) автоматаар хуваарилагдана.
         Татварын өөрөө хуваарилах үедээ apply_tax=False дамжуулна."""
         lock = await self._get_user_lock(self._balance_locks, f"{uid}:{gid}")
         async with lock:
             await self.ensure_user(uid, gid)
             if delta > 0 and (apply_tax if apply_tax is not None else True):
-                tax = int(delta * self.transfer_tax_percent / 100)
+                rate = await self.get_effective_rate(gid)
+                tax = int(delta * rate / 100)
                 credited = delta - tax
                 if tax > 0:
                     await self.distribute_tax(gid, tax)
@@ -172,7 +179,14 @@ class Economy(SupabaseCog):
                 tax = 0
                 credited = delta
             cur = await self.get_balance(uid, gid)
-            new = max(0, min(self.max_balance, cur + credited))
+            new = cur + credited
+            if new < 0:
+                raise ValueError(
+                    f"Insufficient balance for user {uid} in guild {gid}: "
+                    f"current {cur} + delta {credited} would go below 0"
+                )
+            if new > self.max_balance:
+                new = self.max_balance
             await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "balance": new})
             return new
 
@@ -197,10 +211,57 @@ class Economy(SupabaseCog):
                 unique.append(m)
         return unique
 
+    def invalidate_tax_cache(self, gid):
+        self._tax_mode_cache.pop(str(gid), None)
+
+    async def get_tax_mode(self, gid):
+        """Return (rate, active, enabled) for the guild's tax.
+
+        When the Government system is active for the guild, the configured
+        government tax rate + enabled flag wins (30s cache). Otherwise the
+        legacy ``transfer_tax_percent`` applies and ``active`` is False so the
+        legacy collector-role path stays untouched.
+        """
+        key = str(gid)
+        now = time.monotonic()
+        cached = self._tax_mode_cache.get(key)
+        if cached and now - cached[0] < 30:
+            return cached[1]
+        mode = None
+        gov = self.bot.get_cog("Government")
+        if gov is not None and hasattr(gov, "government_tax"):
+            try:
+                res = await gov.government_tax(gid)
+                if res is not None:
+                    mode = (int(res[0]), True, bool(res[1]))
+            except Exception as e:
+                logger.warning("government_tax failed gid=%s: %s", gid, e)
+        if mode is None:
+            mode = (self.transfer_tax_percent, False, True)
+        self._tax_mode_cache[key] = (now, mode)
+        return mode
+
+    async def get_effective_rate(self, gid) -> int:
+        rate, _active, enabled = await self.get_tax_mode(gid)
+        return rate if enabled else 0
+
     async def distribute_tax(self, gid, tax: int):
-        """Цугларсан татварыг Ерөнхийлөгч/Захирал rolт хэрэглэгчид хувааж өгнө.
-        Татвар цуглуулагч байхгүй бол орлого алдагдана (сан хөрөнгө)."""
+        """Цугларсан татварыг хуваарилах.
+
+        Government system идэвхтэй бол Government cog-ийн тохируулсан
+        хүлээн авагчдад хуваарилагдана. Идэвхгүй бол легаси зан үйл:
+        Ерөнхийлөгч/Захирал ролт хэрэглэгчид. Татвар цуглуулагч байхгүй бол
+        орлого алдагдана (сан хөрөнгө)."""
         self._tax_collected[gid] = self._tax_collected.get(gid, 0) + tax
+        gov = self.bot.get_cog("Government")
+        if gov is not None and hasattr(gov, "distribute_tax") and hasattr(gov, "is_government_active"):
+            try:
+                if await gov.is_government_active(gid):
+                    shipped = await gov.distribute_tax(gid, tax)
+                    self._tax_distributed[gid] = self._tax_distributed.get(gid, 0) + shipped
+                    return shipped
+            except Exception as e:
+                logger.warning("government distribute_tax failed gid=%s: %s", gid, e)
         collectors = await self.get_tax_collectors(gid)
         if not collectors or tax <= 0:
             return 0
@@ -407,7 +468,19 @@ class Economy(SupabaseCog):
                 return await ctx.send(embed=discord.Embed(title="⏳ АМРАЛТ", description=f"**{m}м {s}с** хүлээ.", color=WARNING_COLOR))
 
             disc_level = await self.get_discord_level(ctx.author.id, ctx.guild.id)
-            job_level, job = self.get_job_for_level(disc_level)
+            gov = self.bot.get_cog("Government")
+            custom = None
+            if gov is not None and hasattr(gov, "resolve_user_job"):
+                try:
+                    if await gov.is_government_active(ctx.guild.id):
+                        custom = await gov.resolve_user_job(ctx.guild.id, disc_level, member=ctx.author)
+                except Exception:
+                    custom = None
+            if custom:
+                job = {"min": custom["min"], "max": custom["max"], "emoji": custom["emoji"], "name": custom["name"]}
+                job_level = custom["required_level"]
+            else:
+                job_level, job = self.get_job_for_level(disc_level)
             pay = random.randint(job["min"], job["max"])
             bonus = min(50, disc_level * 2)
             if bonus: pay = int(pay * (1 + bonus/100))
@@ -424,7 +497,8 @@ class Economy(SupabaseCog):
                     work_desc = f"{job['emoji']} {job['name']} ажил"
 
             await self.update_balance(ctx.author.id, ctx.guild.id, pay)
-            tax = int(pay * self.transfer_tax_percent / 100)
+            rate = await self.get_effective_rate(ctx.guild.id)
+            tax = int(pay * rate / 100)
             hunger_inc = random.randint(10, 15)
             mood_inc = random.randint(10, 15)
             new_hunger = min(100, hunger+hunger_inc)
@@ -444,7 +518,7 @@ class Economy(SupabaseCog):
             except Exception as exc:
                 logger.warning("work quest trigger failed: %s", exc)
 
-        tax_line = f"\n🏛️ Татвар ({self.transfer_tax_percent}%): -{tax:,} ₮ (Ерөнхийлөгч/Захирал-д)" if tax > 0 else ""
+        tax_line = f"\n🏛️ Татвар ({rate}%): -{tax:,} ₮ (Татвар-д)" if tax > 0 else ""
         embed = discord.Embed(
             title="💼 АЖИЛ АМЖИЛТТАЙ!",
             description=f"{ctx.author.mention} **{work_desc}** хийж, **{pay:,}** ₮ оллоо!\n⭐ Урамшуулал: +{bonus}%{tax_line}",
@@ -463,34 +537,39 @@ class Economy(SupabaseCog):
         if not await self.check_registration(ctx): return
         if await self.is_in_prison(ctx.author.id, ctx.guild.id):
             return await ctx.send(embed=discord.Embed(title="🚔 Шорон", description="Та шоронгоос урамшуулал авах боломжгүй.", color=ERROR_COLOR))
-        now = int(time.time())
-        row = await self.bot.db_manager.fetch_one("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, selects="last_daily")
-        last = row.get("last_daily", 0) if row else 0
-        if last and now - last < 86400:
-            rem = 86400 - (now-last)
-            h, m, s = rem//3600, (rem%3600)//60, rem%60
+        # Double-claim guard: cooldown шалгалт + last_daily бичилтийг хэрэглэгч бүрт
+        # атомар болгох — /work-той ижилхэн (давхар авахаас сэргийлнэ).
+        daily_lock = await self._get_user_lock(self._work_locks, f"{ctx.author.id}:{ctx.guild.id}")
+        async with daily_lock:
+            now = int(time.time())
+            row = await self.bot.db_manager.fetch_one("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, selects="last_daily")
+            last = row.get("last_daily", 0) if row else 0
+            if last and now - last < 86400:
+                rem = 86400 - (now-last)
+                h, m, s = rem//3600, (rem%3600)//60, rem%60
+                lang = await i18n.get_guild_lang(ctx.guild.id)
+                time_left = f"{h}ч {m}м {s}с" if lang == "mn" else f"{h}h {m}m {s}s"
+                return await ctx.send(embed=discord.Embed(title="⏰ Daily", description=i18n.t_direct(lang, "economy.daily.already", time_left=time_left), color=WARNING_COLOR))
+            reward = random.randint(DAILY_MIN, DAILY_MAX)
+            await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_daily": now})
+            await self.update_balance(ctx.author.id, ctx.guild.id, reward)
+            rate = await self.get_effective_rate(ctx.guild.id)
+            tax_note = f"\n🏛️ Татвар ({rate}%): -{int(reward * rate / 100):,} ₮" if reward > 0 else ""
+            leveling = self.bot.get_cog("Leveling")
+            if leveling:
+                try: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(5, 10), member=ctx.author, check_mute=True, channel=ctx.channel)
+                except: pass
             lang = await i18n.get_guild_lang(ctx.guild.id)
-            time_left = f"{h}ч {m}м {s}с" if lang == "mn" else f"{h}h {m}m {s}s"
-            return await ctx.send(embed=discord.Embed(title="⏰ Daily", description=i18n.t_direct(lang, "economy.daily.already", time_left=time_left), color=WARNING_COLOR))
-        reward = random.randint(DAILY_MIN, DAILY_MAX)
-        await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_daily": now})
-        await self.update_balance(ctx.author.id, ctx.guild.id, reward)
-        tax_note = f"\n🏛️ Татвар ({self.transfer_tax_percent}%): -{int(reward * self.transfer_tax_percent / 100):,} ₮" if reward > 0 else ""
-        leveling = self.bot.get_cog("Leveling")
-        if leveling:
-            try: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(5, 10), member=ctx.author, check_mute=True, channel=ctx.channel)
-            except: pass
-        lang = await i18n.get_guild_lang(ctx.guild.id)
-        embed = discord.Embed(
-            title="🎉 Daily Reward",
-            description=i18n.t_direct(lang, "economy.daily.success", amount=reward),
-            color=SUCCESS_COLOR,
-            timestamp=datetime.now(timezone.utc)
-        )
-        embed.add_field(name=i18n.t_direct(lang, "economy.daily.reward_field", mn="💰 Шагнал", en="💰 Reward"), value=f"+ **{reward:,}** ₮{tax_note}")
-        embed.set_thumbnail(url=ctx.author.display_avatar.url)
-        embed.set_footer(text=i18n.t_direct(lang, "economy.daily.footer", mn="Дараагийн урамшуулал 24 цагийн дараа", en="Next reward in 24 hours"))
-        await ctx.send(embed=embed)
+            embed = discord.Embed(
+                title="🎉 Daily Reward",
+                description=i18n.t_direct(lang, "economy.daily.success", amount=reward),
+                color=SUCCESS_COLOR,
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.add_field(name=i18n.t_direct(lang, "economy.daily.reward_field", mn="💰 Шагнал", en="💰 Reward"), value=f"+ **{reward:,}** ₮{tax_note}")
+            embed.set_thumbnail(url=ctx.author.display_avatar.url)
+            embed.set_footer(text=i18n.t_direct(lang, "economy.daily.footer", mn="Дараагийн урамшуулал 24 цагийн дараа", en="Next reward in 24 hours"))
+            await ctx.send(embed=embed)
 
     @commands.command(name='crime')
     async def crime(self, ctx):
@@ -501,7 +580,8 @@ class Economy(SupabaseCog):
         if random.random() < crime["success_chance"]:
             reward = random.randint(crime["min_reward"], crime["max_reward"])
             await self.update_balance(ctx.author.id, ctx.guild.id, reward)
-            crime_tax_note = f"\n🏛️ Татвар ({self.transfer_tax_percent}%): -{int(reward * self.transfer_tax_percent / 100):,} ₮"
+            rate = await self.get_effective_rate(ctx.guild.id)
+            crime_tax_note = f"\n🏛️ Татвар ({rate}%): -{int(reward * rate / 100):,} ₮"
             leveling = self.bot.get_cog("Leveling")
             if leveling: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(10, 20), member=ctx.author, check_mute=True, channel=ctx.channel)
             embed = discord.Embed(title="🎉 ГЭМТ ХЭРЭГ АМЖИЛТТАЙ!",
@@ -533,19 +613,29 @@ class Economy(SupabaseCog):
             except: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
         if amount <= 0: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн эерэг байх ёстой.", color=ERROR_COLOR))
         if member.id == ctx.author.id: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Өөртөө мөнгө шилжүүлэх боломжгүй.", color=ERROR_COLOR))
-        tax = int(amount * self.transfer_tax_percent / 100)
+        rate = await self.get_effective_rate(ctx.guild.id)
+        tax = int(amount * rate / 100)
         final_amount = amount - tax
         if final_amount <= 0: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Татварын дараа шилжих мөнгө 0 боллоо.", color=ERROR_COLOR))
         sender_bal = await self.get_balance(ctx.author.id, ctx.guild.id)
         if sender_bal < amount: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description=f"Танд {amount:,} ₮ хүрэлцэхгүй.", color=ERROR_COLOR))
         embed = discord.Embed(title="💰 МӨНГӨ ШИЛЖҮҮЛЭХ",
-                              description=f"{ctx.author.mention} → {member.mention}\nДүн: **{amount:,}** ₮\nТатвар ({self.transfer_tax_percent}%): **{tax:,}** ₮\nХүлээн авах дүн: **{final_amount:,}** ₮",
+                              description=f"{ctx.author.mention} → {member.mention}\nДүн: **{amount:,}** ₮\nТатвар ({rate}%): **{tax:,}** ₮\nХүлээн авах дүн: **{final_amount:,}** ₮",
                               color=GOLD_COLOR)
         view = ConfirmView()
         msg = await ctx.send(embed=embed, view=view)
         await view.wait()
         if view.value is not True:
             return await ctx.send("❌ Шилжүүлэг цуцлагдлаа.")
+        # Баталгаажуулах хугацаанд үлдэгдэл өөрчлөгдсөн байж болзошгүй тул
+        # шилжүүлэг хийхийн өмнө дахин шалгана (TOCTOU давхар шилжүүлэг үүсгэхээс сэргийлэх)
+        sender_bal = await self.get_balance(ctx.author.id, ctx.guild.id)
+        if sender_bal < amount:
+            return await ctx.send(embed=discord.Embed(
+                title="❌ Алдаа",
+                description=f"Баталгаажуулах хугацаанд үлдэгдэл өөрчлөгдсөн тул шилжүүлэг цуцлагдлаа. Одоогийн үлдэгдэл: {sender_bal:,}₮",
+                color=ERROR_COLOR,
+            ))
         await self.update_balance(ctx.author.id, ctx.guild.id, -amount, apply_tax=False)
         await self.update_balance(member.id, ctx.guild.id, final_amount, apply_tax=False)
         # Шилжүүлгийн татвар Ерөнхийлөгч/Захирал rolт хэрэглэгчид очно
@@ -788,18 +878,30 @@ class Economy(SupabaseCog):
 
     async def _role_income_loop(self):
         await self.bot.wait_until_ready()
+        self._role_income_last = {}
         while not self.bot.is_closed():
             try:
                 rows = await self.bot.db_manager.fetch_safe("role_income")
+                now = int(time.time())
                 for r in rows:
                     guild_id, role_id, amount, interval = r["guild_id"], r["role_id"], r["amount"], r["interval_seconds"]
+                    interval = int(interval or 0)
+                    if interval > 0:
+                        key = f"{guild_id}:{role_id}"
+                        last = self._role_income_last.get(key, 0)
+                        if now - last < interval:
+                            continue
                     guild = self.bot.get_guild(int(guild_id))
                     if not guild: continue
                     role = guild.get_role(int(role_id))
                     if not role: continue
+                    paid = False
                     for member in role.members:
                         if not member.bot:
                             await self.update_balance(member.id, guild.id, amount)
+                            paid = True
+                    if interval > 0 and paid:
+                        self._role_income_last[f"{guild_id}:{role_id}"] = now
             except Exception as e:
                 logger.error("Role income loop error (table may be missing): %s", e)
             await asyncio.sleep(60)

@@ -364,7 +364,7 @@ class InviteTracker(commands.Cog):
                     invites = await guild.invites()
                     self.invite_cache[guild.id] = {inv.code: inv.uses for inv in invites}
             except Exception as e:
-                logger.error("Failed to cache invites for guild %s: %s", guild.id, e)
+                logger.warning("Failed to cache invites for guild %s: %s", guild.id, e)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):

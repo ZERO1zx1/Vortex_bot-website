@@ -43,6 +43,8 @@ WEB_CAT = {
     "equip": "Economy", "equipped": "Economy", "iteminfo": "Economy", "sogtol": "Economy",
     "trade": "Games", "mp": "Games", "unequip": "Economy", "use": "Economy",
     "vape": "Economy", "inventory": "Utility",
+    "government": "Economy", "economy-config": "Economy",
+    "treasury": "Economy", "economy": "Economy",
     # Leveling
     "addxp": "Leveling", "removexp": "Leveling", "leveling_setup": "Leveling",
     "rank": "Leveling", "leaderboard": "Leveling", "serveractivity": "Leveling",

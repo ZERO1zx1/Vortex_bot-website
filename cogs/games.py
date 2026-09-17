@@ -575,8 +575,15 @@ class Games(commands.Cog):
         if won and money_change > 0:
             bonus = int(money_change * bonus_percent / 100)
             final_money += bonus
-        if economy and final_money != 0:
-            await economy.update_balance(ctx.author.id, ctx.guild.id, final_money)
+        if economy:
+            if money_change > 0:
+                # Хожоод: хожил + бонусыг бүрэн нэмнэ (бооцоог эхэнд хасчихсан)
+                await economy.update_balance(ctx.author.id, ctx.guild.id, final_money)
+            elif money_change == 0 and bet > 0:
+                # Тэнцээ: эхэнд хасчихсан бооцоог буцаана
+                await economy.update_balance(ctx.author.id, ctx.guild.id, bet)
+            # Хожигдол (<0): бооцоог эхэнд хасчихсан тул дахин хасахгүй —
+            # өмнө нь энд дахин хасаж давхар торгуулж байсан (C7 double-charge)
         if level and xp_amount > 0:
             if hasattr(level, 'add_xp'):
                 await level.add_xp(ctx.author.id, ctx.guild.id, xp_amount, member=ctx.author, check_mute=True, channel=ctx.channel)
@@ -617,21 +624,30 @@ class Games(commands.Cog):
             pass
 
     # ══════════════ ТОГЛООМЫН КОМАНДУУД ══════════════
-    async def start_game(self, ctx, command_name: str, amount: int, view_class, embed_title, embed_desc):
-        """Ерөнхий тоглоом эхлүүлэгч"""
+    async def _prep_bet(self, ctx, command_name: str, amount: int) -> bool:
+        """Нийтлэг хязгаарлалт, күүки шалгаж бооцоог урьдчилан хасна.
+        Амжилттай бол True; эсвэл хэрэглэгчдэд embed-р хариулж False."""
         if not await self.check_common_restrictions(ctx, amount):
-            return
+            return False
         # Күүки шалгах
         remaining = await self.is_on_cooldown(ctx.author.id, ctx.guild.id, command_name)
         if remaining > 0:
             m, s = divmod(remaining, 60)
-            return await ctx.send(embed=discord.Embed(title="⏳ КҮҮКИ", description=f"**{m}м {s}с** хүлээх хэрэгтэй.", color=WARNING_COLOR))
+            await ctx.send(embed=discord.Embed(title="⏳ КҮҮКИ", description=f"**{m}м {s}с** хүлээх хэрэгтэй.", color=WARNING_COLOR))
+            return False
         # Мөнгө хасах
         economy = self.bot.get_cog("Economy")
         if not economy:
-            return await ctx.send("❌ Эдийн засаг ажиллахгүй байна!")
+            await ctx.send("❌ Эдийн засаг ажиллахгүй байна!")
+            return False
         await economy.update_balance(ctx.author.id, ctx.guild.id, -amount)
         self.set_cooldown(ctx.author.id, ctx.guild.id, command_name)
+        return True
+
+    async def start_game(self, ctx, command_name: str, amount: int, view_class, embed_title, embed_desc):
+        """Ерөнхий тоглоом эхлүүлэгч"""
+        if not await self._prep_bet(ctx, command_name, amount):
+            return
         view = view_class(self, ctx, amount)
         embed = discord.Embed(title=embed_title, description=embed_desc, color=GOLD_COLOR)
         embed.set_footer(text=f"Бооцоо: {_format_money(amount)}")
@@ -677,6 +693,8 @@ class Games(commands.Cog):
     async def numberguess(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
+        if not await self._prep_bet(ctx, "numberguess", amount):
+            return
         secret = random.randint(1, 10)
         view = NumberGuessView(self, ctx, amount, secret)
         embed = discord.Embed(title="🔢 NUMBER GUESS", description=f"Бооцоо: **{_format_money(amount)}**\n1-10 хооронд тоо таа! (3x)", color=GOLD_COLOR)
@@ -687,6 +705,8 @@ class Games(commands.Cog):
     async def highcard(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
+        if not await self._prep_bet(ctx, "highcard", amount):
+            return
         view = HighCardView(ctx, self, amount)
         embed = discord.Embed(title="🃏 HIGH CARD", description="Доорх товчийг дарж хөзрөө илрүүл!", color=GOLD_COLOR)
         embed.add_field(name="🎴 ТАНЫ КАРТ", value="???")
@@ -698,6 +718,8 @@ class Games(commands.Cog):
     async def crash(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
+        if not await self._prep_bet(ctx, "crash", amount):
+            return
         view = CrashView(self, ctx, amount)
         await view.start()
 
