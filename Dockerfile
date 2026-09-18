@@ -17,4 +17,4 @@ COPY . .
 
 # Tokens / Supabase keys must be supplied at runtime via env or mounted .env.
 # The bot connects through the Discord gateway, so no inbound ports are exposed.
-CMD ["python", "main.py"]
+CMD ["python", "-m", "src.main"]

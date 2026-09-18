@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from utils.cog_loader import discover_cogs
+from src.utils.cog_loader import discover_cogs
 
 
 def test_discovers_every_public_cog(tmp_path: Path):

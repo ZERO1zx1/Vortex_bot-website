@@ -16,6 +16,7 @@ class StubDB:
     async def fetchone(self, *a, **k): return None
     async def fetch(self, *a, **k): return None
     async def fetchall(self, *a, **k): return []
+    async def fetch_safe(self, *a, **k): return None
     async def fetch_one(self, *a, **k): return None
     async def fetch_all(self, *a, **k): return []
     async def insert(self, *a, **k): return None
@@ -30,11 +31,11 @@ class StubDB:
 COGS = [
     "admin", "avatar_check", "cafe", "carts", "confessions",
     "counting", "economy", "fun", "games", "giveaway",
-    "help", "invite_tracker", "level", "level_admin", "mafia", "mines",
+    "help", "invite_tracker", "leveling", "level_admin", "mafia", "mines",
     "lang", "moderation", "pvp", "roles", "shop", "stock",
     "stick", "marriage", "announcement", "tempvoice", "trade",
     "quests", "leaderboard", "casino", "greetings", "presence",
-    "reaction_roles", "automod", "menu",
+    "reaction_roles", "automod", "menu", "government",
 ]
 
 
@@ -61,7 +62,7 @@ async def main():
     failed = []
     for name in COGS:
         try:
-            await asyncio.wait_for(bot.load_extension(f"cogs.{name}"), timeout=15)
+            await asyncio.wait_for(bot.load_extension(f"src.cogs.{name}"), timeout=15)
             print(f"[OK]   {name}")
         except asyncio.TimeoutError:
             failed.append(name)

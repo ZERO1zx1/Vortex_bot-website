@@ -1,10 +1,10 @@
 import os
 import sys, types, importlib
 
-# Tools/ хявтасаас ажиллахэд ч project root-г sys.path-д нэмэх (cogs/ импортлогдоно).
+# Tools/ хявтасаас ажиллахэд ч project root-г sys.path-д нэмэх (src/cogs импортлогдоно).
 def _root():
     d = os.path.dirname(os.path.abspath(__file__))
-    while not os.path.isdir(os.path.join(d, "cogs")):
+    while not os.path.isdir(os.path.join(d, "src", "cogs")):
         parent = os.path.dirname(d)
         if parent == d:
             break
@@ -14,7 +14,7 @@ sys.path.insert(0, _root())
 
 # Pre-mock external packages before any discord import.
 mocks = ("supabase", "psutil", "motor", "asyncpg", "psycopg2",
-         "config_manager", "database", "database.supabase_manager", "database.redis_manager")
+         "src.core.config", "src.database.db_manager")
 for mod in mocks:
     if mod not in sys.modules:
         sys.modules[mod] = types.ModuleType(mod)
@@ -25,9 +25,9 @@ from discord.ext import commands as real_commands  # noqa
 
 # Verify adapter presence in both staff cogs
 import inspect
-from cogs import admin as admin_cog
-from cogs import moderation as mod_cog
-from cogs import games as games_cog
+from src.cogs import admin as admin_cog
+from src.cogs import moderation as mod_cog
+from src.cogs import games as games_cog
 
 src_a = inspect.getsource(admin_cog.Admin)
 src_m = inspect.getsource(mod_cog.Moderation)

@@ -1,0 +1,403 @@
+import discord
+from discord.ext import commands
+import os
+import sys
+import time
+import asyncio
+import logging
+from pathlib import Path
+from logging.handlers import RotatingFileHandler
+from dotenv import load_dotenv
+
+# Ensure the project root is importable regardless of how main.py is launched
+# (python -m src.main or python src/main.py) so absolute `src.*` imports work.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.core.config import load_config
+from src.core.logger import setup_logging, get_logger
+from src.core.exceptions import DatabasePermissionError, DatabaseSchemaError
+from src.database.db_manager import SupabaseManager as DatabaseManager
+from src.utils.branding import BOT_NAME, BOT_FOOTER
+from src.utils.constants import DEFAULT_PREFIX
+from src.utils.cog_loader import discover_cogs
+from src.utils.log_filter import RateLimitFilter
+
+load_dotenv()
+TOKEN = os.getenv("DISCORD_TOKEN")
+if not TOKEN:
+    print("❌ DISCORD_TOKEN not found! Check your .env file.")
+    sys.exit(1)
+
+config = load_config()
+
+LOG_DIR = PROJECT_ROOT / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+# Бүх лог-ийн үндсэн тохиргоог тавина (bot.log + console + discord/httpx suppression)
+setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
+
+# cogs.log (WARNING+, RateLimitFilter)
+cogs_handler = RotatingFileHandler(
+    LOG_DIR / "cogs.log",
+    maxBytes=5 * 1024 * 1024,
+    backupCount=3,
+    encoding="utf-8",
+)
+cogs_handler.setLevel(logging.WARNING)
+cogs_handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+))
+cogs_handler.addFilter(RateLimitFilter(max_identical=2, quiet=300))
+
+# stock.log (WARNING+)
+stock_handler = RotatingFileHandler(
+    LOG_DIR / "stock.log",
+    maxBytes=5 * 1024 * 1024,
+    backupCount=3,
+    encoding="utf-8",
+)
+stock_handler.setLevel(logging.WARNING)
+stock_handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+))
+
+# TERMINAL LOG ТҮВШИН: config.json-ийн terminal_log_level-аар удирдагдана.
+LEVELS = {"DEBUG": logging.DEBUG, "INFO": logging.INFO,
+          "WARNING": logging.WARNING, "ERROR": logging.ERROR,
+          "CRITICAL": logging.CRITICAL}
+
+_term_level_name = str(config.get("terminal_log_level", "INFO")).strip().upper()
+if _term_level_name in ("OFF", "NONE"):
+    stream = logging.StreamHandler()
+    stream.setLevel(logging.CRITICAL + 1)
+else:
+    _term_level = LEVELS.get(_term_level_name, logging.INFO)
+    stream = logging.StreamHandler()
+    stream.setLevel(_term_level)
+
+# setup_logging-ийн console handler-ийг config-ийн terminal level-р солино.
+root = logging.getLogger()
+for h in list(root.handlers):
+    if isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler):
+        root.removeHandler(h)
+root.addHandler(stream)
+root.addHandler(cogs_handler)
+root.setLevel(logging.INFO)
+
+logger = get_logger("aether")
+logger.info("📟 Terminal log level: %s", _term_level_name)
+cogs_handler.setLevel(logging.WARNING)
+logging.getLogger("discord").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("src.cogs.stock").addHandler(stock_handler)
+logging.getLogger("asyncio").setLevel(logging.WARNING)
+
+
+class MyBot(commands.Bot):
+    def __init__(self):
+        intents = discord.Intents.default()
+        intents.message_content = True
+        intents.members = True
+        intents.voice_states = True
+        intents.presences = True  # online/offline статус харахад шаардлагатай (Dev Portal-оос мөн асаана)
+
+        raw_prefix = config.get("prefix", DEFAULT_PREFIX)
+        prefixes = [p.strip() for p in str(raw_prefix).split(",") if p.strip()] or [DEFAULT_PREFIX]
+
+        def _get_prefix(bot, message):
+            content = message.content or ""
+            lowered = content.lower()
+            for p in prefixes:
+                if lowered.startswith(p.lower()):
+                    return content[:len(p)]
+            return []
+
+        super().__init__(
+            command_prefix=_get_prefix,
+            intents=intents,
+            help_command=None,
+            case_insensitive=True,
+            allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, replied_user=True),
+        )
+
+        self.db_manager = DatabaseManager()
+        self.owner_ids = set()
+        owner = config.get("owner_id")
+        if owner:
+            self.owner_ids.add(int(owner))
+        for co in config.get("co_owner_ids", []):
+            self.owner_ids.add(int(co))
+
+        self.config = config
+        self.loaded_cogs = []
+        self.failed_cogs = []
+
+        # Wire slash-command errors to our handler.
+        # NOTE: discord.py's CommandTree.on_error only logs by default and
+        # does NOT dispatch Bot.on_app_command_error automatically, so without
+        # this assignment MissingPermissions/CheckFailure etc. end up as
+        # "Ignoring exception in command ..." ERROR spam with no user feedback.
+        self.tree.on_error = self.on_app_command_error
+
+    async def setup_hook(self):
+        # Connect to Supabase
+        try:
+            self.db_manager.connect()
+            logger.info("✅ Supabase connected")
+        except Exception as e:
+            logger.error("❌ Supabase connection error: %s", e)
+            raise RuntimeError("Could not connect to Supabase") from e
+
+        # Runtime key probe: a restricted `sb_secret_` key would otherwise
+        # 42501 on every heartbeat.  `probe_best_key` finds the first key
+        # (precedence: service_role > secret > key) that can read bot_status
+        # and switches the live client to it when a better one exists.
+        try:
+            best = await self.db_manager.probe_best_key()
+            if best and os.getenv(best, "").strip() != self.db_manager.key:
+                logger.info("⚙️ Supabase key probe: using env '%s' (insures heartbeat access)", best)
+                if not self.db_manager.switch_key(best):
+                    logger.warning(
+                        "⚠️ Supabase key switch to '%s' failed; continuing with current key", best,
+                    )
+        except Exception as e:
+            logger.warning("⚙️ Supabase key probe skipped: %s", e)
+
+        await self.db_manager.init_tables()
+
+        # Surface schema/privilege problems ONCE at startup instead of one
+        # full traceback per event all day long.
+        try:
+            report = await asyncio.wait_for(self.db_manager.health_check(), timeout=30)
+            broken = [r for r in report if r["status"] != "OK"]
+            if broken:
+                missing = ", ".join(r["table"] for r in broken if r["status"] == "MISSING")
+                denied = ", ".join(r["table"] for r in broken if r["status"] == "PERMISSION_DENIED")
+                other = ", ".join(f"{r['table']} ({r['status']})" for r in broken
+                                  if r["status"] not in ("MISSING", "PERMISSION_DENIED"))
+                if missing:
+                    logger.error(
+                        "Database schema incomplete: missing table(s) -> %s. "
+                        "Apply migrations src/database/migrations/20260101_001_initial_schema.sql "
+                        "then 20260813_002_missing_tables.sql and restart.",
+                        missing,
+                    )
+                if denied:
+                    logger.error(
+                        "Database privileges incomplete: %s need service_role "
+                        "grants. Apply migration src/database/migrations/"
+                        "20260918_003_repair_permissions.sql and restart.",
+                        denied,
+                    )
+                if other:
+                    logger.error("Database health problems: %s", other)
+            else:
+                logger.info("✅ Database health check OK (%d tables probed)", len(report))
+        except DatabasePermissionError as e:
+            logger.error(
+                "Database permission error during health check: %s "
+                "(apply src/database/migrations/20260918_003_repair_permissions.sql)", e
+            )
+        except DatabaseSchemaError as e:
+            logger.error(
+                "Database schema error during health check: %s "
+                "(apply migrations 20260101_001 then 20260813_002)", e
+            )
+        except Exception as e:
+            logger.error("Database health check failed (Supabase may be unreachable): %s", e)
+
+        # Load Cogs
+        logger.info("📂 Loading Cogs...")
+        cogs_to_load = discover_cogs(Path(__file__).parent / "cogs")
+
+        for cog in cogs_to_load:
+            start = time.perf_counter()
+            try:
+                logger.info("⏳ Loading %s.py...", cog)
+                await asyncio.wait_for(
+                    self.load_extension(f"src.cogs.{cog}"),
+                    timeout=15,
+                )
+                elapsed = time.perf_counter() - start
+                self.loaded_cogs.append(cog)
+                logger.info("  ✅ %s.py loaded in %.2fs", cog, elapsed)
+            except asyncio.TimeoutError:
+                self.failed_cogs.append(cog)
+                logger.error("  ❌ %s.py load timed out after 15s", cog)
+            except Exception as e:
+                self.failed_cogs.append(cog)
+                logger.exception("  ❌ Error loading %s.py", cog)
+
+        logger.info("📦 Cogs loaded: %d loaded, %d failed", len(self.loaded_cogs), len(self.failed_cogs))
+        if self.failed_cogs:
+            logger.warning("Failed cogs: %s", ", ".join(self.failed_cogs))
+
+        # Sync Slash Commands
+        try:
+            synced = await self.tree.sync()
+            logger.info("✅ %d slash commands synced.", len(synced))
+        except Exception as e:
+            logger.warning("⚠️ Slash command sync error: %s", e)
+
+    async def on_command_error(self, ctx, error):
+        """Text command алдааг ./logs/cogs.log руу бүртгэнэ."""
+        if isinstance(error, commands.CommandNotFound):
+            return  # танигдаагүй команд — файл хөлдөөхгүй
+
+        # Hybrid командын дотоод алдааг задлах
+        original = getattr(error, "original", None)
+        if isinstance(error, commands.HybridCommandError) and original is not None:
+            error = original
+
+        # ---------- Хэрэглэгчийн оруулсан буруу өгөгдөл — эелдэг мессеж илгээж дуусгана ----------
+        if isinstance(error, commands.MissingRequiredArgument):
+            param = error.param.name
+            await ctx.send(
+                f"❌ Дутуу аргумент: `{param}` байхгүй байна.\n"
+                f"💡 Зөв хэлбэр: `{ctx.prefix or ''}{ctx.command.qualified_name} <{param}>`",
+                ephemeral=True,
+            )
+            return
+        if isinstance(error, (commands.MemberNotFound, commands.UserNotFound)):
+            await ctx.send(
+                f"❌ Хэрэглэгч олдсонгүй: `{error.argument}`.\n"
+                f"💡 Хэрэглэгчийг @mention эсвэл зөв ID-гаар дурдана уу.",
+                ephemeral=True,
+            )
+            return
+        if isinstance(error, commands.BadArgument):
+            await ctx.send("❌ Аргументын формат буруу байна. Тусламжийг дахин шалгана уу.", ephemeral=True)
+            return
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(f"⏳ Хэтрүүлэн ашигласан тул {error.retry_after:.1f}с хүлээнэ үү.", ephemeral=True)
+            return
+        if isinstance(error, commands.MissingPermissions):
+            perms = ", ".join(error.missing_permissions)
+            await ctx.send(f"⛔ Танд энэ командын эрх байхгүй: {perms}", ephemeral=True)
+            return
+        if isinstance(error, commands.BotMissingPermissions):
+            perms = ", ".join(error.missing_permissions)
+            await ctx.send(f"⛔ Надад энэ командын эрх байхгүй: {perms}", ephemeral=True)
+            return
+        if isinstance(error, commands.NoPrivateMessage):
+            await ctx.send("❌ Энэ командыг зөвхөн серверт ашиглаж болно.", ephemeral=True)
+            return
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send("⛔ Та энэ командыг ашиглах эрхгүй байна.", ephemeral=True)
+            return
+
+        # Interaction хугацаа нь дууссан (Unknown interaction) — WARNING л болгох
+        if isinstance(error, discord.NotFound) and "10062" in str(error):
+            logger.warning("Interaction expired [%s] %s: %s", ctx.command, getattr(ctx.author, "id", "?"), error)
+            return
+
+        logger.error("Command error [%s] %s: %s", ctx.command, ctx.author, error, exc_info=error)
+
+    async def _safe_app_error_reply(self, interaction, content):
+        """Ephemeral хариу илгээх — response/followup ялгааг автоматаар зохицуулна."""
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(content, ephemeral=True)
+            else:
+                await interaction.response.send_message(content, ephemeral=True)
+        except discord.NotFound as e:
+            # 10062 Unknown interaction — хэрэглэгч аль хэдийн interaction цонхоо хаасан
+            logger.warning("Interaction expired, could not send error reply: %s", e)
+        except discord.HTTPException as e:
+            logger.warning("Failed to send slash error reply: %s", e)
+
+    async def on_app_command_error(self, interaction, error):
+        """Slash command алдааг ./logs/cogs.log руу бүртгэнэ."""
+        from discord import app_commands as _app
+
+        cmd = interaction.command.qualified_name if interaction.command else "unknown"
+
+        # CommandInvokeError доторх жинхэнэ алдааг задлах (invoke үеийн Forbidden гэх мэт)
+        original = getattr(error, "original", None)
+        err = original if isinstance(error, _app.CommandInvokeError) and original is not None else error
+
+        if isinstance(err, _app.CommandOnCooldown):
+            await self._safe_app_error_reply(
+                interaction, f"⏳ Хэтрүүлэн ашигласан тул {err.retry_after:.1f}с хүлээнэ үү."
+            )
+            logger.info("Slash cooldown [%s] %s", cmd, interaction.user)
+            return
+        if isinstance(err, _app.MissingPermissions):
+            perms = ", ".join(err.missing_permissions)
+            await self._safe_app_error_reply(
+                interaction, f"⛔ Танд энэ командын эрх байхгүй: {perms}"
+            )
+            logger.info("Slash MissingPermissions [%s] %s: %s", cmd, interaction.user, perms)
+            return
+        if isinstance(err, _app.BotMissingPermissions):
+            perms = ", ".join(err.missing_permissions)
+            await self._safe_app_error_reply(
+                interaction, f"⛔ Надад энэ командын эрх байхгүй: {perms}"
+            )
+            logger.warning("Slash BotMissingPermissions [%s] %s: %s", cmd, interaction.user, perms)
+            return
+        if isinstance(err, _app.NoPrivateMessage):
+            await self._safe_app_error_reply(
+                interaction, "❌ Энэ командыг зөвхөн серверт ашиглаж болно."
+            )
+            return
+        if isinstance(err, _app.CheckFailure):
+            await self._safe_app_error_reply(
+                interaction, "⛔ Та энэ командыг ашиглах эрхгүй байна."
+            )
+            logger.info("Slash CheckFailure [%s] %s: %s", cmd, interaction.user, err)
+            return
+        if isinstance(err, discord.Forbidden):
+            await self._safe_app_error_reply(
+                interaction, "⛔ Ботод энэ үйлдлийг гүйцэтгэх Discord эрх хүрэхгүй байна."
+            )
+            logger.warning("Slash Forbidden [%s] %s: %s", cmd, interaction.user, err)
+            return
+        if isinstance(error, (_app.TransformerError, _app.CommandInvokeError)):
+            inner = getattr(error, "original", None)
+            if isinstance(inner, discord.NotFound) and "10062" in str(inner):
+                logger.warning("Interaction expired [%s] %s: %s", cmd, interaction.user, inner)
+                return
+
+        logger.error("Slash error [%s] %s: %s", cmd, interaction.user, error, exc_info=error)
+
+    async def on_ready(self):
+        logger.info("✅ %s is online!", self.user)
+        logger.info("📊 Guilds: %d", len(self.guilds))
+        # Presence is now managed by PresenceCog (rotating activities)
+        # Website status heartbeat: ping Supabase every 60s
+        # (add_loop нь commands.Bot-д байхгүй тул create_task ашиглана)
+        # За давхар давтагдахаас сэргийлж task handle-г хадгална (reconnect-д дахин үүсгэхгүй)
+        if getattr(self, "_heartbeat_task", None) is None:
+            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+
+    async def _heartbeat_loop(self):
+        """Send a heartbeat to bot_status so the website shows the real Online/Offline state."""
+        try:
+            while not self.is_closed():
+                try:
+                    ok = await self.db_manager.ping_bot("online")
+                    if ok:
+                        logger.info("💓 Heartbeat sent (website status: Online)")
+                    else:
+                        logger.warning("⚠️ Heartbeat failed — website will show Offline")
+                except Exception:  # noqa: BLE001
+                    logger.warning("⚠️ Failed to send heartbeat")
+                await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            pass
+
+    async def close(self):
+        await self.db_manager.close()
+        await super().close()
+
+
+if __name__ == "__main__":
+    bot = MyBot()
+    try:
+        bot.run(TOKEN, reconnect=True)
+    except Exception as e:
+        logger.exception("❌ Fatal error: %s", e)
+        sys.exit(1)

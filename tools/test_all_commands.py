@@ -18,8 +18,8 @@ from unittest.mock import MagicMock
 import discord
 from discord.ext import commands
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from main import MyBot
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.main import MyBot
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("cmdtest")
@@ -171,7 +171,7 @@ async def run_all():
     )
     from dotenv import load_dotenv
     load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
-    from database.supabase_manager import SupabaseManager
+    from src.database.db_manager import SupabaseManager
     db = SupabaseManager()
     db.connect()
     bot.db_manager = db
@@ -193,7 +193,7 @@ async def run_all():
         "stick", "marriage", "announcement", "tempvoice", "trade",
         "quests", "leaderboard", "casino", "greetings"
     )
-    for ext in (f"cogs.{c}" for c in cogs_to_load):
+    for ext in (f"src.cogs.{c}" for c in cogs_to_load):
         try:
             await bot.load_extension(ext)
         except Exception as e:

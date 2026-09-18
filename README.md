@@ -30,23 +30,31 @@ A feature-rich Discord bot for the **𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹** communit
 
 ```
 .
-├── main.py                    # Bot entry point, cog loading, branding
-├── config.json                # Bot configuration (prefix, owner, co-owners)
-├── config_manager.py          # Config loader
+├── src/
+│   ├── main.py                    # Bot entry point, cog loading, branding
+│   ├── config.json                # Bot configuration (prefix, owner, co-owners)
+│   ├── core/
+│   │   └── config.py              # Config loader
+│   ├── database/
+│   │   ├── db_manager.py          # Async Supabase repository layer
+│   │   ├── schema.sql             # Original full schema + RPC functions
+│   │   └── migrations/            # Versioned SQL migrations (apply newest last)
+│   │       ├── 20260101_001_initial_schema.sql   # Consolidated non-destructive schema
+│   │       ├── 20260813_002_missing_tables.sql
+│   │       └── ...
+│   ├── utils/
+│   │   ├── branding.py            # Centralized 𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 branding
+│   │   ├── embeds.py              # UI embed helpers
+│   │   ├── constants.py           # Shared constants
+│   │   ├── font_utils.py          # Font loading
+│   │   └── supabase_cog.py        # Base cog with Supabase helpers
+│   └── cogs/                      # Feature modules (one per feature)
 ├── requirements.txt
-├── .env.example               # Environment template (copy to .env)
-├── database/
-│   ├── supabase_manager.py    # Async Supabase repository layer
-│   ├── supabase_schema.sql    # Original full schema + RPC functions
-│   └── migrations/
-│       └── 000_complete_schema.sql  # Consolidated non-destructive schema
-├── utils/
-│   ├── branding.py            # Centralized 𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 branding
-│   ├── embeds.py              # UI embed helpers
-│   ├── constants.py           # Shared constants
-│   ├── font_utils.py          # Font loading
-│   └── supabase_cog.py        # Base cog with Supabase helpers
-└── cogs/                      # Feature modules (one per feature)
+├── .env.example                   # Environment template (copy to .env)
+├── backend/                       # FastAPI status/statistics backend
+├── tools/                         # Dev/ops scripts
+├── tests/                         # Unit tests
+└── website/                       # Static marketing / command catalog site
 ```
 
 ## Setup
@@ -76,8 +84,8 @@ Edit `.env` and fill in:
 
 1. Create a Supabase project at [supabase.com](https://supabase.com)
 2. Open the **SQL Editor**
-3. Paste the contents of `database/migrations/000_complete_schema.sql` and run it
-4. This creates all tables, indexes, and the `increment()` RPC function without dropping existing data
+3. Paste the contents of `src/database/migrations/20260101_001_initial_schema.sql` and run it
+4. Then apply any later migrations in `src/database/migrations/` (newest last). This creates all tables, indexes, and the `increment()` RPC function without dropping existing data
 
 ### 4. Configure the bot
 
@@ -94,10 +102,10 @@ Edit `config.json`:
 ### 5. Run the bot
 
 ```bash
-# Use the same interpreter where requirements.txt was installed
-py -3.12 main.py
+# From the repository root. The src/ package is importable either way:
+py -3.12 -m src.main
 # Or:
-python main.py
+python -m src.main
 ```
 
 If you see `ModuleNotFoundError: No module named 'discord'`, install dependencies with the exact interpreter used to run the bot:
@@ -108,7 +116,7 @@ py -3.12 -m pip install -r requirements.txt
 
 ## Database Layer
 
-All cogs use the async repository layer in `database/supabase_manager.py`:
+All cogs use the async repository layer in `src/database/db_manager.py`:
 
 ```python
 # Fetch a single row
@@ -142,7 +150,7 @@ await self.bot.db_manager.increment("economy", {"user_id": "123"}, "balance", 10
 - Тохиргоо: `website/js/config.js`-с invite холбоосоо тохируулна (`INVITE_URL`)
 ## Branding
 
-All embeds and UI use the centralized branding layer in `utils/branding.py`:
+All embeds and UI use the centralized branding layer in `src/utils/branding.py`:
 
 ```python
 from utils.branding import BOT_NAME, BOT_ICON_URL, PRIMARY_COLOR, footer_text

@@ -1,4 +1,4 @@
-"""Diff the help catalog (COMMAND_INFO in cogs/help.py) against the commands
+"""Diff the help catalog (COMMAND_INFO in src/cogs/help.py) against the commands
 actually registered after loading all cogs offline.
 
 Reports:
@@ -22,8 +22,8 @@ from probe_load_all_cogs import StubDB, COGS
 
 
 def extract_command_info_keys():
-    """Parse COMMAND_INFO dict literal from cogs/help.py via AST."""
-    src_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cogs", "help.py")
+    """Parse COMMAND_INFO dict literal from src/cogs/help.py via AST."""
+    src_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "cogs", "help.py")
     tree = ast.parse(open(src_path, encoding="utf-8").read())
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):

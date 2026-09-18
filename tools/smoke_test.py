@@ -10,8 +10,7 @@ os.environ.setdefault("DISCORD_TOKEN", "mock-token")
 os.environ.setdefault("SUPABASE_URL", "https://mock.supabase.co")
 os.environ.setdefault("SUPABASE_KEY", "mock-key")
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def load_module(path, name):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -21,21 +20,28 @@ def load_module(path, name):
 
 
 # Бусад модулиудыг mock/авах
-config_manager = types.ModuleType("config_manager")
-config_manager.load_config = lambda: {'prefix': '!', 'bonus_percent': 10}
-sys.modules["config_manager"] = config_manager
+src_pkg = types.ModuleType("src")
+src_pkg.__path__ = []
+sys.modules["src"] = src_pkg
 
-utils_branding = types.ModuleType("utils.branding")
+core_pkg = types.ModuleType("src.core")
+core_pkg.__path__ = []
+sys.modules["src.core"] = core_pkg
+
+core_config = types.ModuleType("src.core.config")
+core_config.load_config = lambda: {'prefix': '!', 'bonus_percent': 10}
+sys.modules["src.core.config"] = core_config
+
+utils_branding = types.ModuleType("src.utils.branding")
 utils_branding.BOT_NAME = '𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹'
 utils_branding.BOT_FOOTER = 'test'
 utils_branding.footer_text = 'test'
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-utils_pkg = types.ModuleType("utils")
+utils_pkg = types.ModuleType("src.utils")
 utils_pkg.__path__ = []
-sys.modules["utils"] = utils_pkg
-sys.modules["utils.branding"] = utils_branding
+sys.modules["src.utils"] = utils_pkg
+sys.modules["src.utils.branding"] = utils_branding
 
-utils_constants = types.ModuleType("utils.constants")
+utils_constants = types.ModuleType("src.utils.constants")
 utils_constants.DEFAULT_PREFIX = '!'
 utils_constants.EMBED_COLOR = 0x2b2d31
 utils_constants.SUCCESS_COLOR = 0x57f287
@@ -43,13 +49,13 @@ utils_constants.ERROR_COLOR = 0xed4245
 utils_constants.WARNING_COLOR = 0xfee75c
 utils_constants.GOLD_COLOR = 0xfab387
 utils_constants.INFO_COLOR = 0x3498db
-sys.modules["utils.constants"] = utils_constants
+sys.modules["src.utils.constants"] = utils_constants
 
 def find_root(start: str):
-    """Tools/ хавтасаас ажиллахэд ч project root-г олох: cogs/ байгаа хүртэл дээшээ өөрнө."""
+    """Tools/ хавтасаас ажиллахэд ч project root-г олох: src/cogs байгаа хүртэл дээшээ өөрнө."""
     d = os.path.abspath(start)
     while True:
-        if os.path.isdir(os.path.join(d, "cogs")):
+        if os.path.isdir(os.path.join(d, "src", "cogs")):
             return d
         parent = os.path.dirname(d)
         if parent == d:
@@ -58,17 +64,17 @@ def find_root(start: str):
 
 
 base = find_root(__file__)
-for util_name, filename in [("fonts", "utils/fonts.py"), ("supabase_cog", "utils/supabase_cog.py")]:
+for util_name, filename in [("fonts", "src/utils/fonts.py"), ("supabase_cog", "src/utils/supabase_cog.py")]:
     path = os.path.join(base, filename)
     if os.path.exists(path):
         try:
-            mod = load_module(path, f"utils.{util_name}")
-            sys.modules[f"utils.{util_name}"] = mod
+            mod = load_module(path, f"src.utils.{util_name}")
+            sys.modules[f"src.utils.{util_name}"] = mod
         except Exception as e:
-            print(f"⚠ utils.{util_name} load skipped: {e}")
+            print(f"⚠ src.utils.{util_name} load skipped: {e}")
 
 # Үндсэн тест
-games_spec = importlib.util.spec_from_file_location("games", os.path.join(base, "cogs", "games.py"))
+games_spec = importlib.util.spec_from_file_location("games", os.path.join(base, "src", "cogs", "games.py"))
 games = importlib.util.module_from_spec(games_spec)
 sys.modules["games"] = games
 games_spec.loader.exec_module(games)  # noqa: E402

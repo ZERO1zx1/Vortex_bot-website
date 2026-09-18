@@ -37,7 +37,7 @@ async def main():
     bot.db_manager = StubDB()
     bot.config = {}
 
-    for ext in ("cogs.shop", "cogs.trade"):
+    for ext in ("src.cogs.shop", "src.cogs.trade"):
         try:
             await asyncio.wait_for(bot.load_extension(ext), timeout=15)
             print(f"[OK] loaded {ext}")

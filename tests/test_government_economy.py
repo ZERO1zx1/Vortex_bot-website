@@ -19,9 +19,9 @@ from types import SimpleNamespace
 
 import pytest
 
-import cogs.government as gov_mod
-from cogs.economy import Economy
-from cogs.government import Government
+import src.cogs.government as gov_mod
+from src.cogs.economy import Economy
+from src.cogs.government import Government
 
 
 # ══════════════ FAKES ══════════════

@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from utils.config_cache import ConfigCache
+from src.utils.config_cache import ConfigCache
 
 
 @pytest.mark.asyncio

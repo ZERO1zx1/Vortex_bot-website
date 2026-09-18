@@ -8,7 +8,7 @@ duplicating strings. Existing keys are never modified.
 import re
 import sys
 
-F = "/home/ubuntu/gurtendev/utils/i18n.py"
+F = "/home/ubuntu/gurtendev/src/utils/i18n.py"
 
 # New keys: {key: (mn, en)}
 NEW_KEYS = [

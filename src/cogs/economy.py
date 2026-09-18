@@ -1,0 +1,1078 @@
+from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
+from src.utils.branding import footer_text, BOT_NAME
+from src.utils.embed_style import style_embed, success_embed, error_embed, warning_embed, info_embed, gold_embed, add_box_field, format_command
+import discord
+from discord.ext import commands
+from discord import app_commands
+from discord.ui import View, Button, Modal, TextInput
+from src.utils.supabase_cog import SupabaseCog
+from src.utils import i18n
+import random
+import time
+import asyncio
+import io
+import os
+import aiohttp
+import logging
+from datetime import datetime, timezone
+from PIL import Image, ImageDraw, ImageFont
+
+logger = logging.getLogger(__name__)
+
+# ---------- Centralized Unicode-aware font management ----------
+from src.utils.fonts import load_font as _load_font
+
+# ---------- Өнгөний палитр ----------
+EMBED_COLOR   = 0x1e1e2f
+SUCCESS_COLOR = 0x57f287
+ERROR_COLOR   = 0xff0000
+WARNING_COLOR = 0xfee75c
+GOLD_COLOR    = 0xfab387
+INFO_COLOR    = 0x89b4fa
+NEON_GREEN    = (57, 255, 20, 255)
+NEON_YELLOW   = (204, 255, 0, 255)
+
+STARTING_BALANCE = 5000
+DAILY_MIN = 4000
+DAILY_MAX = 15000
+
+# ---------- Татварын систем ----------
+TAX_PERCENT = 10  # нийт систем дэх татварын хувь
+TAX_COLLECTOR_ROLES = ("Ерөнхийлөгч", "Захирал")  # татварын орлого очих ролууд
+
+# ---------- Балансын динамик роль ----------
+WEALTH_ROLES = [
+    ("Тэрбумтан", 100_000_000, 0xf1c40f),
+    ("Саятан",    10_000_000, 0x9b59b6),
+    ("Дундаж",     100_000,   0x3498db),
+    ("Ядуу",       0,         0x95a5a6),
+]
+
+# ---------- Ажлын түвшин (цалин өссөн) ----------
+JOB_LEVELS = {
+    1:   {"name":"Гудамжны цас цэвэрлэгч",           "min":1800,"max":5000,"emoji":"❄️"},
+    3:   {"name":"Хүнсний дэлгүүрийн ажилтан",        "min":2200,"max":5600,"emoji":"🛍️"},
+    5:   {"name":"Нарантуул дээр тэрэгчин",           "min":2600,"max":7000,"emoji":"🛒"},
+    8:   {"name":"Таксины жолооч",                    "min":3000,"max":7800,"emoji":"🚕"},
+    10:  {"name":"CU / GS25-ын кассчин",              "min":3400,"max":7600,"emoji":"🏪"},
+    12:  {"name":"Барилгын ажилтан",                  "min":4200,"max":8600,"emoji":"🧱"},
+    15:  {"name":"Хүргэлтийн курьер (Пицца)",         "min":3400,"max":7000,"emoji":"🍕"},
+    18:  {"name":"Бариста (Кофе шэй)",                "min":4000,"max":8000,"emoji":"☕"},
+    20:  {"name":"Фитнессийн зааварлагч",             "min":4700,"max":7400,"emoji":"💪"},
+    25:  {"name":"Компьютер форматлагч",              "min":5000,"max":9200,"emoji":"💻"},
+    30:  {"name":"График дизайнер (Freelancer)",       "min":5400,"max":7600,"emoji":"🎨"},
+    35:  {"name":"Сургуулийн багш",                   "min":6000,"max":10000,"emoji":"📚"},
+    40:  {"name":"Сошиал контент бүтээгч",            "min":6000,"max":9500,"emoji":"📱"},
+    45:  {"name":"Эмнэлгийн сувилагч",                "min":6600,"max":11200,"emoji":"🏥"},
+    50:  {"name":"Маркетингийн менежер",              "min":7000,"max":9500,"emoji":"📊"},
+    55:  {"name":"Дуучин / Хөгжимчин",                "min":8000,"max":13000,"emoji":"🎤"},
+    60:  {"name":"Төслийн удирдагч",                  "min":8000,"max":10500,"emoji":"📋"},
+    65:  {"name":"Хууль эрх зүйч",                    "min":8600,"max":14200,"emoji":"⚖️"},
+    70:  {"name":"Кибер аюулгүй байдлын мэргэжилтэн",  "min":5600,"max":13000,"emoji":"🔒"},
+    75:  {"name":"Архитектор",                        "min":8400,"max":15000,"emoji":"📐"},
+    80:  {"name":"Ахлах Программист",                 "min":7800,"max":14500,"emoji":"⌨️"},
+    85:  {"name":"Нефть-химийн инженер",               "min":10000,"max":17500,"emoji":"🛢️"},
+    90:  {"name":"Алтны уурхайн инженер",              "min":5100,"max":16000,"emoji":"⛏️"},
+    95:  {"name":"Супер модел",                       "min":11500,"max":20000,"emoji":"👗"},
+    100: {"name":"Хувийн бизнес эрхлэгч",             "min":13500,"max":17000,"emoji":"🏢"},
+    110: {"name":"Хөрөнгийн биржийн брокер",           "min":7500,"max":18500,"emoji":"📈"},
+    120: {"name":"Томоохон банкны захирал",           "min":14000,"max":20000,"emoji":"🏦"},
+    130: {"name":"Крипто трейдер",                    "min":11500,"max":23000,"emoji":"🪙"},
+    140: {"name":"Олон улсын нисгэгч",                "min":9500,"max":19000,"emoji":"✈️"},
+    150: {"name":"Клуб эзэмшигч",                     "min":15000,"max":25000,"emoji":"🎰"},
+    160: {"name":"Тэрбумтан хөрөнгө оруулагч",        "min":11000,"max":21000,"emoji":"💼"},
+    170: {"name":"Остров эзэмшигч",                   "min":17000,"max":27000,"emoji":"🏝️"},
+    180: {"name":"Сансрын нисгэгч",                    "min":10000,"max":24000,"emoji":"🚀"},
+    190: {"name":"Мультимиллиардер инвестор",          "min":20000,"max":33000,"emoji":"💹"},
+    200: {"name":"Дэлхийн Эзэн",                     "min":10000,"max":30000,"emoji":"🌍"},
+}
+
+# ---------- Гэмт хэрэг ----------
+CRIMES = [
+    {"name":"Банкны ATM дээрэмдэх","success_chance":0.45,"min_reward":5000,"max_reward":15000},
+    {"name":"Машин хулгайлах","success_chance":0.35,"min_reward":8000,"max_reward":20000},
+    {"name":"Хүн дээрэмдэх","success_chance":0.55,"min_reward":2000,"max_reward":8000},
+    {"name":"Дэлгүүр тонож байна","success_chance":0.50,"min_reward":4000,"max_reward":12000},
+    {"name":"Хакердах","success_chance":0.25,"min_reward":10000,"max_reward":25000},
+    {"name":"Гэмт бүлэгт элсэх","success_chance":0.15,"min_reward":1500,"max_reward":5000},
+]
+
+def _fmt_money(n: int) -> str:
+    if n >= 1_000_000_000: return f"{n/1_000_000_000:.1f}B ₮"
+    if n >= 1_000_000: return f"{n/1_000_000:.1f}M ₮"
+    return f"{n:,} ₮"
+
+# ================== MAIN ECONOMY COG ==================
+class Economy(SupabaseCog):
+    def __init__(self, bot):
+        super().__init__(bot)
+        self.bot = bot
+        self.max_balance = bot.config.get("max_balance", 100_000_000)
+        self.transfer_tax_percent = bot.config.get("tax_percent", bot.config.get("transfer_tax_percent", TAX_PERCENT))
+        self.bonus_percent = bot.config.get("bonus_percent", 10)
+        self.chat_money_cooldown = {}
+        self.use_default_replies = True
+        self._tax_collected = {}      # guild_id -> session нийт татвар
+        self._tax_distributed = {}    # guild_id -> session нийт хуваарилсан
+        self._collector_role_names = tuple(
+            bot.config.get("tax_collector_roles", TAX_COLLECTOR_ROLES)
+        )
+        self._wealth_task = None
+        # Per-user locks serializing balance read-modify-writes so two
+        # concurrent +delta operations (e.g. work + a role income tick)
+        # can never overwrite each other's update (lost update).
+        self._balance_locks = {}
+        # Serializes the /work claim for each user (double-claim guard).
+        self._work_locks = {}
+        # 30s per-guild cache of the active tax mode (rate, active, enabled) so
+        # the hot path (every positive balance change) avoids a DB read.
+        self._tax_mode_cache = {}
+        # Last-payment timestamp per "guild:role" for role-income interval gating.
+        self._role_income_last = {}
+
+    async def _get_user_lock(self, pool: dict, key):
+        lock = pool.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            pool[key] = lock
+        return lock
+
+    async def cog_load(self):
+        # Tables are pre-configured in Supabase
+        self.role_income_task = self.bot.loop.create_task(self._role_income_loop())
+        self._wealth_task = self.bot.loop.create_task(self._wealth_role_loop())
+
+    async def cog_unload(self):
+        """Docs extension-teardown best practice: cancel background tasks."""
+        for task in (self.role_income_task, self._wealth_task):
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+    async def ensure_user(self, uid, gid):
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        if not row:
+            await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+
+    async def get_balance(self, uid, gid):
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        return row.get("balance", 0) if row else 0
+
+    async def update_balance(self, uid, gid, delta, apply_tax: bool = None):
+        """Гар дээрх үлдэгдэл өөрчлөх. Эерэг орлогод татвар автан
+        (Government system идэвхтэй бол түүний хүлээн авагчдад, эс бөгөөс
+        Ерөнхийлөгч/Захирал ролттой хэрэглэгчид) автоматаар хуваарилагдана.
+        Татварын өөрөө хуваарилах үедээ apply_tax=False дамжуулна."""
+        lock = await self._get_user_lock(self._balance_locks, f"{uid}:{gid}")
+        async with lock:
+            await self.ensure_user(uid, gid)
+            if delta > 0 and (apply_tax if apply_tax is not None else True):
+                rate = await self.get_effective_rate(gid)
+                tax = int(delta * rate / 100)
+                credited = delta - tax
+                if tax > 0:
+                    await self.distribute_tax(gid, tax)
+            else:
+                tax = 0
+                credited = delta
+            cur = await self.get_balance(uid, gid)
+            new = cur + credited
+            if new < 0:
+                raise ValueError(
+                    f"Insufficient balance for user {uid} in guild {gid}: "
+                    f"current {cur} + delta {credited} would go below 0"
+                )
+            if new > self.max_balance:
+                new = self.max_balance
+            await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "balance": new})
+            return new
+
+    async def get_tax_collectors(self, gid):
+        """Ерөнхийлөгч / Захирал рольтой гишүүдийг олох."""
+        guild = self.bot.get_guild(int(gid))
+        if not guild:
+            return []
+        collectors = []
+        for role_name in self._collector_role_names:
+            role = discord.utils.find(
+                lambda r: r.name.lower() == role_name.lower(), guild.roles
+            )
+            if role:
+                collectors.extend(m for m in role.members if not m.bot)
+        # Давхардлыг арилгах
+        seen = set()
+        unique = []
+        for m in collectors:
+            if m.id not in seen:
+                seen.add(m.id)
+                unique.append(m)
+        return unique
+
+    def invalidate_tax_cache(self, gid):
+        self._tax_mode_cache.pop(str(gid), None)
+
+    async def get_tax_mode(self, gid):
+        """Return (rate, active, enabled) for the guild's tax.
+
+        When the Government system is active for the guild, the configured
+        government tax rate + enabled flag wins (30s cache). Otherwise the
+        legacy ``transfer_tax_percent`` applies and ``active`` is False so the
+        legacy collector-role path stays untouched.
+        """
+        key = str(gid)
+        now = time.monotonic()
+        cached = self._tax_mode_cache.get(key)
+        if cached and now - cached[0] < 30:
+            return cached[1]
+        mode = None
+        gov = self.bot.get_cog("Government")
+        if gov is not None and hasattr(gov, "government_tax"):
+            try:
+                res = await gov.government_tax(gid)
+                if res is not None:
+                    mode = (int(res[0]), True, bool(res[1]))
+            except Exception as e:
+                logger.warning("government_tax failed gid=%s: %s", gid, e)
+        if mode is None:
+            mode = (self.transfer_tax_percent, False, True)
+        self._tax_mode_cache[key] = (now, mode)
+        return mode
+
+    async def get_effective_rate(self, gid) -> int:
+        rate, _active, enabled = await self.get_tax_mode(gid)
+        return rate if enabled else 0
+
+    async def distribute_tax(self, gid, tax: int):
+        """Цугларсан татварыг хуваарилах.
+
+        Government system идэвхтэй бол Government cog-ийн тохируулсан
+        хүлээн авагчдад хуваарилагдана. Идэвхгүй бол легаси зан үйл:
+        Ерөнхийлөгч/Захирал ролт хэрэглэгчид. Татвар цуглуулагч байхгүй бол
+        орлого алдагдана (сан хөрөнгө)."""
+        self._tax_collected[gid] = self._tax_collected.get(gid, 0) + tax
+        gov = self.bot.get_cog("Government")
+        if gov is not None and hasattr(gov, "distribute_tax") and hasattr(gov, "is_government_active"):
+            try:
+                if await gov.is_government_active(gid):
+                    shipped = await gov.distribute_tax(gid, tax)
+                    self._tax_distributed[gid] = self._tax_distributed.get(gid, 0) + shipped
+                    return shipped
+            except Exception as e:
+                logger.warning("government distribute_tax failed gid=%s: %s", gid, e)
+        collectors = await self.get_tax_collectors(gid)
+        if not collectors or tax <= 0:
+            return 0
+        share = tax // len(collectors)
+        remainder = tax - share * len(collectors)
+        distributed = 0
+        for i, member in enumerate(collectors):
+            amount = share + (remainder if i == 0 else 0)
+            if amount <= 0:
+                continue
+            await self.ensure_user(member.id, gid)
+            cur = await self.get_balance(member.id, gid)
+            new = max(0, min(self.max_balance, cur + amount))
+            await self.update_data("economy", {"user_id": str(member.id), "guild_id": str(gid), "balance": new})
+            distributed += amount
+        self._tax_distributed[gid] = self._tax_distributed.get(gid, 0) + distributed
+        return distributed
+
+    async def get_bank(self, uid, gid):
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        return row.get("bank_balance", 0) if row else 0
+
+    async def update_bank(self, uid, gid, delta):
+        await self.ensure_user(uid, gid)
+        cur = await self.get_bank(uid, gid)
+        new = max(0, min(self.max_balance, cur + delta))
+        await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "bank_balance": new})
+        return new
+
+    async def get_top_balances(self, guild_id: int, limit=10, offset=0):
+        """Хамгийн их үлдэгдэлтэй хэрэглэгчид (Leaderboard ког ашиглах)."""
+        rows = await self.bot.db_manager.fetch_all(
+            "economy", {"guild_id": str(guild_id)},
+            order_by="balance", desc=True, limit=limit, offset=offset,
+        )
+        return [(int(r["user_id"]), r.get("balance", 0) or 0) for r in rows]
+
+    # ------- USER MANAGEMENT -------
+    async def check_registration(self, ctx):
+        await self.ensure_user(ctx.author.id, ctx.guild.id)
+        return True
+
+    # ------- HUNGER / MOOD -------
+    async def get_hunger_mood(self, uid, gid):
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        return (row.get("hunger", 0), row.get("mood", 0)) if row else (0, 0)
+
+    async def set_hunger_mood(self, uid, gid, hunger=None, mood=None):
+        updates = {}
+        if hunger is not None:
+            updates["hunger"] = max(0, min(100, hunger))
+        if mood is not None:
+            updates["mood"] = max(0, min(100, mood))
+        if updates:
+            await self.bot.db_manager.update(
+                "economy", {"user_id": str(uid), "guild_id": str(gid)}, updates
+            )
+
+    # ------- LEVEL / JOB -------
+    async def get_discord_level(self, uid, gid):
+        level_cog = self.bot.get_cog("Leveling")
+        if level_cog:
+            row = await self.get_data("levels", {"user_id": str(uid), "guild_id": str(gid)})
+            if row:
+                return row.get("level", 1)
+        return 1
+
+    def get_job_for_level(self, lvl):
+        for req in sorted(JOB_LEVELS.keys(), reverse=True):
+            if lvl >= req:
+                return req, JOB_LEVELS[req]
+        return 1, JOB_LEVELS[1]
+
+    # ------- PRISON / BANK PROTECTION -------
+    async def is_in_prison(self, uid, gid):
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        return row and row.get("prison_until") and row["prison_until"] > int(time.time())
+
+    async def set_prison(self, uid, gid, hours=2):
+        until = int(time.time()) + (hours * 3600)
+        await self.bot.db_manager.update(
+            "economy", {"user_id": str(uid), "guild_id": str(gid)}, {"prison_until": until}
+        )
+
+    async def set_bank_protection(self, uid, gid, hours=2):
+        until = int(time.time()) + (hours * 3600)
+        await self.bot.db_manager.update(
+            "economy", {"user_id": str(uid), "guild_id": str(gid)}, {"bank_protect_until": until}
+        )
+
+    async def get_bank_protection_remaining(self, uid, gid):
+        row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
+        if row and row.get("bank_protect_until") and row["bank_protect_until"] > int(time.time()):
+            return row["bank_protect_until"] - int(time.time())
+        return 0
+
+    async def is_bank_protected(self, uid, gid):
+        return await self.get_bank_protection_remaining(uid, gid) > 0
+
+    # ------- ADMIN CONFIG SETTERS -------
+    async def set_cooldown_cmd(self, interaction, command, seconds):
+        await self.bot.db_manager.upsert(
+            "economy_cooldowns_config",
+            {"guild_id": str(interaction.guild_id), "command": command, "cooldown_seconds": seconds},
+            on_conflict="guild_id,command",
+        )
+
+    async def set_fine_amount(self, interaction, command, mn, mx):
+        await self.bot.db_manager.upsert(
+            "economy_fines_config",
+            {"guild_id": str(interaction.guild_id), "command": command, "fine_min": mn, "fine_max": mx},
+            on_conflict="guild_id,command",
+        )
+
+    async def set_payout(self, interaction, command, mn, mx):
+        await self.bot.db_manager.upsert(
+            "economy_payouts_config",
+            {"guild_id": str(interaction.guild_id), "command": command, "payout_min": mn, "payout_max": mx},
+            on_conflict="guild_id,command",
+        )
+
+    async def set_fail_rate(self, interaction, command, rate):
+        await self.bot.db_manager.upsert(
+            "economy_fail_rates",
+            {"guild_id": str(interaction.guild_id), "command": command, "fail_rate": rate},
+            on_conflict="guild_id,command",
+        )
+
+    async def add_reply(self, interaction, command, text, rtype):
+        await self.bot.db_manager.insert(
+            "custom_replies",
+            {"guild_id": str(interaction.guild_id), "command": command, "type": rtype, "text": text},
+        )
+
+    # ================== COMMANDS ==================
+    @commands.command(name='admin-panel')
+    @commands.has_permissions(administrator=True)
+    async def admin_panel(self, ctx):
+        embed = discord.Embed(title="🛠️ **Админ Тохиргооны Самбар**",
+                              description="Товчлуураар тохиргоог хийх боломжтой.", color=INFO_COLOR)
+        view = AdminPanelView(self, ctx)
+        await ctx.send(embed=embed, view=view)
+
+    @commands.hybrid_command(name='workphrase', description='Ажлын өгүүлбэрийн тохиргоо (embed+button+modal)')
+    @commands.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
+    async def work_phrase_panel(self, ctx):
+        embed = discord.Embed(
+            title="📝 Ажлын өгүүлбэрийн тохиргоо",
+            description="Доорх товчлуураар өгүүлбэр нэмэх, хасах, жагсаалт харах эсвэл бүгдийг устгах боломжтой.",
+            color=GOLD_COLOR
+        )
+        embed.set_footer(text="Зөвхөн админ ашиглах боломжтой")
+        view = WorkPhraseView(self, ctx)
+        await ctx.send(embed=embed, view=view)
+
+    @commands.command(aliases=['bal','money','wallet','bank'])
+    async def balance(self, ctx, member: discord.Member = None):
+        if ctx.guild is None:
+            return await ctx.send("❌ Энэ командыг зөвхөн серверт ашиглаж болно.")
+        if not await self.check_registration(ctx): return
+        target = member or ctx.author
+        cash = await self.get_balance(target.id, ctx.guild.id)
+        bank = await self.get_bank(target.id, ctx.guild.id)
+        total = cash + bank
+        disc_level = await self.get_discord_level(target.id, ctx.guild.id)
+        job_level, job = self.get_job_for_level(disc_level)
+        color = 0xffd700 if total >= 50000 else EMBED_COLOR
+        embed = style_embed(f"{target.display_name} - САНХҮҮ", "", color, "bank")
+        embed.set_thumbnail(url=target.display_avatar.url)
+        add_box_field(embed, "ҮЛДЭГДЭЛ", [
+            f"╭ Гар дээр\n╰→ {cash:,} ₮",
+            f"╭ Банканд\n╰→ {bank:,} ₮",
+            f"╭ Нийт хөрөнгө\n╰→ {total:,} ₮",
+        ])
+        add_box_field(embed, "АЖИЛ БА ТҮВШИН", [
+            f"╭ Ажил\n╰→ {job['emoji']} {job['name']} (Түв.{job_level})",
+            f"╭ Discord түвшин\n╰→ {disc_level}",
+        ])
+        embed.set_footer(text=f"{BOT_NAME} • {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
+
+    @commands.command(name='work')
+    async def work(self, ctx, *, custom_text: str = None):
+        if not await self.check_registration(ctx): return
+        if await self.is_in_prison(ctx.author.id, ctx.guild.id):
+            return await ctx.send(embed=discord.Embed(title="🚔 Шорон", description="Та шоронгоос ажиллах боломжгүй.", color=ERROR_COLOR))
+        hunger, mood = await self.get_hunger_mood(ctx.author.id, ctx.guild.id)
+        if hunger >= 80:
+            return await ctx.send(embed=discord.Embed(title="🍔 Өлсөж байна!", description="`eat` командаар хоол идээрэй.", color=WARNING_COLOR))
+        if mood >= 80:
+            return await ctx.send(embed=discord.Embed(title="😡 Ууртай байна!", description="`relax` командаар амраарай.", color=WARNING_COLOR))
+
+        # Double-claim guard: the cooldown check + `last_work` write must be
+        # atomic per user so two rapid /work invocations pay only once.
+        work_lock = await self._get_user_lock(self._work_locks, f"{ctx.author.id}:{ctx.guild.id}")
+        async with work_lock:
+            now = int(time.time())
+            row = await self.bot.db_manager.fetch_one("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, selects="last_work")
+            last = row.get("last_work", 0) if row else 0
+            if last and now - last < 1800:
+                rem = 1800 - (now-last)
+                m, s = divmod(rem, 60)
+                return await ctx.send(embed=discord.Embed(title="⏳ АМРАЛТ", description=f"**{m}м {s}с** хүлээ.", color=WARNING_COLOR))
+
+            disc_level = await self.get_discord_level(ctx.author.id, ctx.guild.id)
+            gov = self.bot.get_cog("Government")
+            custom = None
+            if gov is not None and hasattr(gov, "resolve_user_job"):
+                try:
+                    if await gov.is_government_active(ctx.guild.id):
+                        custom = await gov.resolve_user_job(ctx.guild.id, disc_level, member=ctx.author)
+                except Exception:
+                    custom = None
+            if custom:
+                job = {"min": custom["min"], "max": custom["max"], "emoji": custom["emoji"], "name": custom["name"]}
+                job_level = custom["required_level"]
+            else:
+                job_level, job = self.get_job_for_level(disc_level)
+            pay = random.randint(job["min"], job["max"])
+            bonus = min(50, disc_level * 2)
+            if bonus: pay = int(pay * (1 + bonus/100))
+
+            if custom_text:
+                work_desc = custom_text
+            else:
+                rows = await self.bot.db_manager.fetch_safe(
+                    "work_phrases", {"guild_id": str(ctx.guild.id)}, selects="phrase"
+                )
+                if rows:
+                    work_desc = random.choice(rows)["phrase"]
+                else:
+                    work_desc = f"{job['emoji']} {job['name']} ажил"
+
+            await self.update_balance(ctx.author.id, ctx.guild.id, pay)
+            rate = await self.get_effective_rate(ctx.guild.id)
+            tax = int(pay * rate / 100)
+            hunger_inc = random.randint(10, 15)
+            mood_inc = random.randint(10, 15)
+            new_hunger = min(100, hunger+hunger_inc)
+            new_mood = min(100, mood+mood_inc)
+            await self.set_hunger_mood(ctx.author.id, ctx.guild.id, hunger=new_hunger, mood=new_mood)
+            await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_work": now})
+            leveling = self.bot.get_cog("Leveling")
+            if leveling:
+                try:
+                    await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(10, 20), member=ctx.author, check_mute=True, channel=ctx.channel)
+                except: pass
+
+            quests_cog = self.bot.get_cog("Quests")
+            try:
+                if quests_cog:
+                    await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "economy_work", 1)
+            except Exception as exc:
+                logger.warning("work quest trigger failed: %s", exc)
+
+        tax_line = f"\n🏛️ Татвар ({rate}%): -{tax:,} ₮ (Татвар-д)" if tax > 0 else ""
+        embed = discord.Embed(
+            title="💼 АЖИЛ АМЖИЛТТАЙ!",
+            description=f"{ctx.author.mention} **{work_desc}** хийж, **{pay:,}** ₮ оллоо!\n⭐ Урамшуулал: +{bonus}%{tax_line}",
+            color=SUCCESS_COLOR,
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(name="💰 Цалин", value=f"+ {pay:,} ₮", inline=True)
+        embed.add_field(name="🍔 Өлсгөлөн", value=f"+{hunger_inc}% (одоо {new_hunger}/100)", inline=True)
+        embed.add_field(name="😡 Уур", value=f"+{mood_inc}% (одоо {new_mood}/100)", inline=True)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        embed.set_footer(text="Дараагийн ажил 30 минутын дараа")
+        await ctx.send(embed=embed)
+
+    @commands.command(name='daily')
+    async def daily(self, ctx):
+        if not await self.check_registration(ctx): return
+        if await self.is_in_prison(ctx.author.id, ctx.guild.id):
+            return await ctx.send(embed=discord.Embed(title="🚔 Шорон", description="Та шоронгоос урамшуулал авах боломжгүй.", color=ERROR_COLOR))
+        # Double-claim guard: cooldown шалгалт + last_daily бичилтийг хэрэглэгч бүрт
+        # атомар болгох — /work-той ижилхэн (давхар авахаас сэргийлнэ).
+        daily_lock = await self._get_user_lock(self._work_locks, f"{ctx.author.id}:{ctx.guild.id}")
+        async with daily_lock:
+            now = int(time.time())
+            row = await self.bot.db_manager.fetch_one("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, selects="last_daily")
+            last = row.get("last_daily", 0) if row else 0
+            if last and now - last < 86400:
+                rem = 86400 - (now-last)
+                h, m, s = rem//3600, (rem%3600)//60, rem%60
+                lang = await i18n.get_guild_lang(ctx.guild.id)
+                time_left = f"{h}ч {m}м {s}с" if lang == "mn" else f"{h}h {m}m {s}s"
+                return await ctx.send(embed=discord.Embed(title="⏰ Daily", description=i18n.t_direct(lang, "economy.daily.already", time_left=time_left), color=WARNING_COLOR))
+            reward = random.randint(DAILY_MIN, DAILY_MAX)
+            await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_daily": now})
+            await self.update_balance(ctx.author.id, ctx.guild.id, reward)
+            rate = await self.get_effective_rate(ctx.guild.id)
+            tax_note = f"\n🏛️ Татвар ({rate}%): -{int(reward * rate / 100):,} ₮" if reward > 0 else ""
+            leveling = self.bot.get_cog("Leveling")
+            if leveling:
+                try: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(5, 10), member=ctx.author, check_mute=True, channel=ctx.channel)
+                except: pass
+            lang = await i18n.get_guild_lang(ctx.guild.id)
+            embed = discord.Embed(
+                title="🎉 Daily Reward",
+                description=i18n.t_direct(lang, "economy.daily.success", amount=reward),
+                color=SUCCESS_COLOR,
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.add_field(name=i18n.t_direct(lang, "economy.daily.reward_field", mn="💰 Шагнал", en="💰 Reward"), value=f"+ **{reward:,}** ₮{tax_note}")
+            embed.set_thumbnail(url=ctx.author.display_avatar.url)
+            embed.set_footer(text=i18n.t_direct(lang, "economy.daily.footer", mn="Дараагийн урамшуулал 24 цагийн дараа", en="Next reward in 24 hours"))
+            await ctx.send(embed=embed)
+
+    @commands.command(name='crime')
+    async def crime(self, ctx):
+        if not await self.check_registration(ctx): return
+        if await self.is_in_prison(ctx.author.id, ctx.guild.id):
+            return await ctx.send(embed=discord.Embed(title="🚔 Шорон", description="Та шоронд гэмт хэрэг үйлдэх боломжгүй.", color=ERROR_COLOR))
+        crime = random.choice(CRIMES)
+        if random.random() < crime["success_chance"]:
+            reward = random.randint(crime["min_reward"], crime["max_reward"])
+            await self.update_balance(ctx.author.id, ctx.guild.id, reward)
+            rate = await self.get_effective_rate(ctx.guild.id)
+            crime_tax_note = f"\n🏛️ Татвар ({rate}%): -{int(reward * rate / 100):,} ₮"
+            leveling = self.bot.get_cog("Leveling")
+            if leveling: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(10, 20), member=ctx.author, check_mute=True, channel=ctx.channel)
+            embed = discord.Embed(title="🎉 ГЭМТ ХЭРЭГ АМЖИЛТТАЙ!",
+                                  description=f"{ctx.author.mention} **{crime['name']}** үйлдэж, **{reward:,}** ₮ оллоо!{crime_tax_note}",
+                                  color=SUCCESS_COLOR,
+                                  timestamp=datetime.now(timezone.utc))
+            embed.add_field(name="💰 Шагнал", value=f"+ {reward:,} ₮")
+            embed.set_thumbnail(url=ctx.author.display_avatar.url)
+            await ctx.send(embed=embed)
+        else:
+            jail_time = random.randint(1, 3)
+            await self.set_prison(ctx.author.id, ctx.guild.id, hours=jail_time)
+            embed = discord.Embed(title="🚔 ТА ЦАГДААД БАРИГДЛАА!",
+                                  description=f"{ctx.author.mention} **{crime['name']}** үйлдэх гэж оролдсон боловч баригдлаа! {jail_time} цаг шоронд сууна.",
+                                  color=ERROR_COLOR,
+                                  timestamp=datetime.now(timezone.utc))
+            embed.set_thumbnail(url=ctx.author.display_avatar.url)
+            await ctx.send(embed=embed)
+
+    @commands.command(name='transfer', aliases=['send', 'give'])
+    async def transfer(self, ctx, member: discord.Member, amount_str: str):
+        if not await self.check_registration(ctx): return
+        if await self.is_in_prison(ctx.author.id, ctx.guild.id):
+            return await ctx.send(embed=discord.Embed(title="🚔 Шорон", description="Та шоронгоос мөнгө шилжүүлэх боломжгүй.", color=ERROR_COLOR))
+        if amount_str.lower() == 'all':
+            amount = await self.get_balance(ctx.author.id, ctx.guild.id)
+        else:
+            try: amount = int(amount_str)
+            except: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
+        if amount <= 0: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн эерэг байх ёстой.", color=ERROR_COLOR))
+        if member.id == ctx.author.id: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Өөртөө мөнгө шилжүүлэх боломжгүй.", color=ERROR_COLOR))
+        rate = await self.get_effective_rate(ctx.guild.id)
+        tax = int(amount * rate / 100)
+        final_amount = amount - tax
+        if final_amount <= 0: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Татварын дараа шилжих мөнгө 0 боллоо.", color=ERROR_COLOR))
+        sender_bal = await self.get_balance(ctx.author.id, ctx.guild.id)
+        if sender_bal < amount: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description=f"Танд {amount:,} ₮ хүрэлцэхгүй.", color=ERROR_COLOR))
+        embed = discord.Embed(title="💰 МӨНГӨ ШИЛЖҮҮЛЭХ",
+                              description=f"{ctx.author.mention} → {member.mention}\nДүн: **{amount:,}** ₮\nТатвар ({rate}%): **{tax:,}** ₮\nХүлээн авах дүн: **{final_amount:,}** ₮",
+                              color=GOLD_COLOR)
+        view = ConfirmView()
+        msg = await ctx.send(embed=embed, view=view)
+        await view.wait()
+        if view.value is not True:
+            return await ctx.send("❌ Шилжүүлэг цуцлагдлаа.")
+        # Баталгаажуулах хугацаанд үлдэгдэл өөрчлөгдсөн байж болзошгүй тул
+        # шилжүүлэг хийхийн өмнө дахин шалгана (TOCTOU давхар шилжүүлэг үүсгэхээс сэргийлэх)
+        sender_bal = await self.get_balance(ctx.author.id, ctx.guild.id)
+        if sender_bal < amount:
+            return await ctx.send(embed=discord.Embed(
+                title="❌ Алдаа",
+                description=f"Баталгаажуулах хугацаанд үлдэгдэл өөрчлөгдсөн тул шилжүүлэг цуцлагдлаа. Одоогийн үлдэгдэл: {sender_bal:,}₮",
+                color=ERROR_COLOR,
+            ))
+        await self.update_balance(ctx.author.id, ctx.guild.id, -amount, apply_tax=False)
+        await self.update_balance(member.id, ctx.guild.id, final_amount, apply_tax=False)
+        # Шилжүүлгийн татвар Ерөнхийлөгч/Захирал rolт хэрэглэгчид очно
+        if tax > 0:
+            await self.distribute_tax(ctx.guild.id, tax)
+        success_embed = discord.Embed(title="✅ ГҮЙЛГЭЭ АМЖИЛТТАЙ!",
+                                      description=f"{ctx.author.mention} → {member.mention} **{amount:,}** ₮ шилжүүллээ.",
+                                      color=SUCCESS_COLOR)
+        await ctx.send(embed=success_embed)
+        try: await member.send(f"📨 {ctx.author.display_name} танд **{final_amount:,}** ₮ шилжүүллээ!")
+        except: pass
+
+    @commands.command(name='deposit', aliases=['dep'])
+    async def deposit(self, ctx, amount_str: str):
+        if not await self.check_registration(ctx): return
+        cash = await self.get_balance(ctx.author.id, ctx.guild.id)
+        if amount_str.lower() == 'all': amt = cash
+        else:
+            try: amt = int(amount_str)
+            except: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
+        if amt <= 0 or cash < amt:
+            return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн буруу эсвэл мөнгө хүрэлцэхгүй.", color=ERROR_COLOR))
+        bank = await self.get_bank(ctx.author.id, ctx.guild.id)
+        if bank + amt > self.max_balance:
+            return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Банкны хязгаарт хүрнэ.", color=ERROR_COLOR))
+        await self.update_balance(ctx.author.id, ctx.guild.id, -amt)
+        await self.update_bank(ctx.author.id, ctx.guild.id, amt)
+        new_bank = await self.get_bank(ctx.author.id, ctx.guild.id)
+        embed = discord.Embed(title="🏦 БАНКАНД ХАДГАЛАВ",
+                              description=f"{ctx.author.mention} **{amt:,}** ₮ хадгаллаа.",
+                              color=SUCCESS_COLOR,
+                              timestamp=datetime.now(timezone.utc))
+        embed.add_field(name="💰 Шинэ банкны үлдэгдэл", value=f"**{new_bank:,}** ₮")
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
+
+    @commands.command(name='withdraw', aliases=['with'])
+    async def withdraw(self, ctx, amount_str: str):
+        if not await self.check_registration(ctx): return
+        bank = await self.get_bank(ctx.author.id, ctx.guild.id)
+        if amount_str.lower() == 'all': amt = bank
+        else:
+            try: amt = int(amount_str)
+            except: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
+        if amt <= 0 or bank < amt:
+            return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн буруу эсвэл банканд мөнгө хүрэлцэхгүй.", color=ERROR_COLOR))
+        cash = await self.get_balance(ctx.author.id, ctx.guild.id)
+        if cash + amt > self.max_balance:
+            return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Гар дээрх хязгаарт хүрнэ.", color=ERROR_COLOR))
+        await self.update_bank(ctx.author.id, ctx.guild.id, -amt)
+        await self.update_balance(ctx.author.id, ctx.guild.id, amt)
+        new_cash = await self.get_balance(ctx.author.id, ctx.guild.id)
+        embed = discord.Embed(title="🏦 БАНКНААС АВЛАА",
+                              description=f"{ctx.author.mention} **{amt:,}** ₮ авлаа.",
+                              color=SUCCESS_COLOR,
+                              timestamp=datetime.now(timezone.utc))
+        embed.add_field(name="💰 Шинэ гар дээрх үлдэгдэл", value=f"**{new_cash:,}** ₮")
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
+
+    @commands.command(name='eat')
+    async def eat(self, ctx):
+        if not await self.check_registration(ctx): return
+        bal = await self.get_balance(ctx.author.id, ctx.guild.id)
+        cost = 1500
+        if bal < cost: return await ctx.send(embed=discord.Embed(title="❌ Мөнгө хүрэлцэхгүй", description=f"Хоолны үнэ {cost:,} ₮.", color=ERROR_COLOR))
+        hunger, _ = await self.get_hunger_mood(ctx.author.id, ctx.guild.id)
+        if hunger == 0: return await ctx.send(embed=discord.Embed(title="🍔 Цадсан", description="Та аль хэдийн цадсан байна!", color=WARNING_COLOR))
+        await self.update_balance(ctx.author.id, ctx.guild.id, -cost)
+        new_hunger = max(0, hunger-50)
+        await self.set_hunger_mood(ctx.author.id, ctx.guild.id, hunger=new_hunger)
+        embed = discord.Embed(title="🍔 ХООЛ ИДЭВ",
+                              description=f"Өлсгөлөн **{hunger}** → **{new_hunger}**",
+                              color=SUCCESS_COLOR,
+                              timestamp=datetime.now(timezone.utc))
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
+
+    @commands.command(name='relax')
+    async def relax(self, ctx):
+        if not await self.check_registration(ctx): return
+        _, mood = await self.get_hunger_mood(ctx.author.id, ctx.guild.id)
+        if mood == 0: return await ctx.send(embed=discord.Embed(title="🧘 Тайван", description="Та аль хэдийн тайван байна!", color=WARNING_COLOR))
+        new_mood = max(0, mood-40)
+        await self.set_hunger_mood(ctx.author.id, ctx.guild.id, mood=new_mood)
+        embed = discord.Embed(title="🧘 АМРАВ",
+                              description=f"Уур бухимдал **{mood}** → **{new_mood}**",
+                              color=SUCCESS_COLOR,
+                              timestamp=datetime.now(timezone.utc))
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
+
+    @commands.command(name='bankprotect', aliases=['bp', 'block'])
+    async def bank_protect(self, ctx):
+        if not await self.check_registration(ctx): return
+        rem = await self.get_bank_protection_remaining(ctx.author.id, ctx.guild.id)
+        if rem > 0:
+            hours, minutes = rem//3600, (rem%3600)//60
+            return await ctx.send(embed=discord.Embed(title="🛡️ БАНК ХАМГААЛАГДСАН", description=f"Үлдсэн: {hours}ц {minutes}м", color=WARNING_COLOR))
+        await self.set_bank_protection(ctx.author.id, ctx.guild.id, hours=2)
+        embed = discord.Embed(title="🛡️ БАНК АМЖИЛТТАЙ ХАМГААЛАГДЛАА",
+                              description="2 цагийн турш хулгай, татвараас хамгаалагдлаа!",
+                              color=SUCCESS_COLOR,
+                              timestamp=datetime.now(timezone.utc))
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
+
+    @commands.command(name='bail', aliases=['шоронгоосгарах', 'bailout'])
+    async def bail(self, ctx):
+        if not await self.check_registration(ctx): return
+        if not await self.is_in_prison(ctx.author.id, ctx.guild.id):
+            return await ctx.send(embed=discord.Embed(title="❌ АЛДАА", description="Та шоронд байхгүй байна!", color=ERROR_COLOR))
+        fine = 5000
+        bal = await self.get_balance(ctx.author.id, ctx.guild.id)
+        if bal < fine:
+            return await ctx.send(embed=discord.Embed(
+                title="❌ МӨНГӨ ХҮРЭЛЦЭХГҮЙ",
+                description=f"Таны гар дээр {fine:,}₮ байхгүй байна. Одоогийн үлдэгдэл: {bal:,}₮",
+                color=ERROR_COLOR
+            ))
+        await self.update_balance(ctx.author.id, ctx.guild.id, -fine)
+        await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"prison_until": 0})
+        embed = discord.Embed(title="🕊️ ШОРОНГООС ГАРЛАА",
+                              description=f"{ctx.author.mention} та **{fine:,}₮** төлж шоронгоос гарлаа.",
+                              color=SUCCESS_COLOR,
+                              timestamp=datetime.now(timezone.utc))
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
+
+    @commands.command(name='jobs', aliases=['ajil', 'ажил'])
+    async def jobs_list(self, ctx):
+        """Бүх ажлын түвшин ба цалинг харах."""
+        lines = []
+        for req in sorted(JOB_LEVELS.keys()):
+            job = JOB_LEVELS[req]
+            lines.append(f"`Lvl {req:>3}` {job['emoji']} {job['name']} — {job['min']:,}-{job['max']:,} ₮")
+        embed = discord.Embed(
+            title=f"💼 АЖЛЫН ЖАГСААЛТ ({len(lines)} ажил)",
+            description="Discord түвшин өндөрлөх тусам илүү өндөр цалинтай ажилд орох боломжтой.",
+            color=GOLD_COLOR,
+        )
+        chunk = []
+        for i, line in enumerate(lines, 1):
+            chunk.append(line)
+            if len(chunk) == 12 or i == len(lines):
+                embed.add_field(name="\u200b", value="\n".join(chunk), inline=False)
+                chunk = []
+        embed.set_footer(text=f"Таны одоогийн ажлыг харах: {ctx.prefix}balance")
+        await ctx.send(embed=embed)
+
+    @commands.command(name='taxinfo', aliases=['татвар'])
+    async def tax_info(self, ctx):
+        """Татварын системийн мэдээлэл."""
+        gid = ctx.guild.id
+        collectors = await self.get_tax_collectors(gid)
+        embed = discord.Embed(title="🏛️ ТАТВАРЫН СИСТЕМ", color=GOLD_COLOR)
+        embed.add_field(name="📊 Татварын хувь", value=f"**{self.transfer_tax_percent}%** (нийт орлогод)", inline=True)
+        embed.add_field(name="💰 Энэ сессийн цугларсан", value=f"**{self._tax_collected.get(gid, 0):,}** ₮", inline=True)
+        embed.add_field(name="📤 Хуваарилсан", value=f"**{self._tax_distributed.get(gid, 0):,}** ₮", inline=True)
+        if collectors:
+            embed.add_field(
+                name="👑 Татвар хүлээн авагч",
+                value="\n".join(f"{m.mention} — {m.display_name}" for m in collectors[:10]),
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="👑 Татвар хүлээн авагч",
+                value=f"Байхгүй! `{', '.join(self._collector_role_names)}` ролуудын аль нэгийг зүүсэн хэрэглэгч татварын орлогыг авна.",
+                inline=False,
+            )
+        embed.set_footer(text="Татвар автоматаар цугларч, тухайн ролттой хэрэглэгчийн дансанд ордог.")
+        await ctx.send(embed=embed)
+
+    async def _wealth_role_loop(self):
+        """Балансаас хамаарч Ядуу/Дундаж/Саятан/Тэрбумтан ролуудыг автоматаар олгох."""
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            try:
+                for guild in self.bot.guilds:
+                    try:
+                        await self._update_wealth_roles(guild)
+                    except Exception:
+                        pass
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                pass
+            await asyncio.sleep(300)
+
+    async def _update_wealth_roles(self, guild: discord.Guild):
+        if not guild.me.guild_permissions.manage_roles:
+            return
+        rows = await self.bot.db_manager.fetch_all(
+            "economy", {"guild_id": str(guild.id)},
+            selects="user_id, balance, bank_balance",
+        )
+        if not rows:
+            return
+        role_objs = {}
+        for name, _threshold, color in WEALTH_ROLES:
+            role = discord.utils.find(lambda r, n=name: r.name.lower() == n.lower(), guild.roles)
+            if role is None:
+                try:
+                    role = await guild.create_role(name=name, color=discord.Color(color), reason="Санхүүгийн зэрэглэлийн роль")
+                except discord.Forbidden:
+                    return
+                except discord.HTTPException:
+                    continue
+            role_objs[name] = role
+        bot_top = guild.me.top_role.position
+        for row in rows:
+            try:
+                member = guild.get_member(int(row["user_id"]))
+            except (ValueError, TypeError):
+                continue
+            if not member or member.bot:
+                continue
+            total = (row.get("balance") or 0) + (row.get("bank_balance") or 0)
+            target_name = None
+            for name, threshold, _c in WEALTH_ROLES:
+                if total >= threshold:
+                    target_name = name
+                    break
+            target = role_objs.get(target_name) if target_name else None
+            to_remove = [
+                r for r in member.roles
+                if r.name in role_objs and (target is None or r.id != target.id)
+            ]
+            if target and target not in member.roles and target.position < bot_top:
+                try:
+                    await member.add_roles(target, reason=f"Санхүүгийн зэрэглэл: {target_name}")
+                except discord.HTTPException:
+                    pass
+            if to_remove:
+                try:
+                    await member.remove_roles(*to_remove, reason="Санхүүгийн зэрэглэл өөрчлөгдлөө")
+                except discord.HTTPException:
+                    pass
+
+    async def _role_income_loop(self):
+        await self.bot.wait_until_ready()
+        self._role_income_last = {}
+        while not self.bot.is_closed():
+            try:
+                rows = await self.bot.db_manager.fetch_safe("role_income")
+                now = int(time.time())
+                for r in rows:
+                    guild_id, role_id, amount, interval = r["guild_id"], r["role_id"], r["amount"], r["interval_seconds"]
+                    interval = int(interval or 0)
+                    if interval > 0:
+                        key = f"{guild_id}:{role_id}"
+                        last = self._role_income_last.get(key, 0)
+                        if now - last < interval:
+                            continue
+                    guild = self.bot.get_guild(int(guild_id))
+                    if not guild: continue
+                    role = guild.get_role(int(role_id))
+                    if not role: continue
+                    paid = False
+                    for member in role.members:
+                        if not member.bot:
+                            await self.update_balance(member.id, guild.id, amount)
+                            paid = True
+                    if interval > 0 and paid:
+                        self._role_income_last[f"{guild_id}:{role_id}"] = now
+            except Exception as e:
+                logger.error("Role income loop error (table may be missing): %s", e)
+            await asyncio.sleep(60)
+
+# ---------- VIEWS & MODALS ----------
+class ConfirmView(View):
+    def __init__(self, timeout=60):
+        super().__init__(timeout=timeout)
+        self.value = None
+    @discord.ui.button(label="Тийм ✅", style=discord.ButtonStyle.green)
+    async def confirm(self, interaction: discord.Interaction, button: Button):
+        self.value = True
+        self.stop()
+        await interaction.response.defer()
+    @discord.ui.button(label="Үгүй ❌", style=discord.ButtonStyle.red)
+    async def cancel(self, interaction: discord.Interaction, button: Button):
+        self.value = False
+        self.stop()
+        await interaction.response.defer()
+
+class AdminPanelView(View):
+    def __init__(self, cog, ctx):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.ctx = ctx
+
+    @discord.ui.button(label="⏱ Cooldown", style=discord.ButtonStyle.grey)
+    async def cooldown_btn(self, interaction: discord.Interaction, button: Button):
+        modal = CooldownModal()
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="💸 Торгууль", style=discord.ButtonStyle.grey)
+    async def fine_btn(self, interaction: discord.Interaction, button: Button):
+        modal = FineModal()
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="💰 Цалин (Payout)", style=discord.ButtonStyle.grey)
+    async def payout_btn(self, interaction: discord.Interaction, button: Button):
+        modal = PayoutModal()
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="🎲 Бүтэлгүйтэх %", style=discord.ButtonStyle.grey)
+    async def failrate_btn(self, interaction: discord.Interaction, button: Button):
+        modal = FailRateModal()
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="💬 Custom Reply", style=discord.ButtonStyle.blurple)
+    async def reply_btn(self, interaction: discord.Interaction, button: Button):
+        modal = CustomReplyModal()
+        await interaction.response.send_modal(modal)
+
+class CooldownModal(Modal, title="Cooldown тохируулах"):
+    command = TextInput(label="Командын нэр", placeholder="work", required=True)
+    seconds = TextInput(label="Cooldown (секунд)", placeholder="3600", required=True)
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            cog = interaction.client.get_cog("Economy")
+            cmd = self.command.value.lower()
+            sec = int(self.seconds.value)
+            await cog.set_cooldown_cmd(interaction, cmd, sec)
+            await interaction.response.send_message(f"✅ `{cmd}` cooldown {sec}с боллоо.", ephemeral=True)
+        except ValueError:
+            await interaction.response.send_message("❌ Тоо оруулна уу (жишээ: 3600).", ephemeral=True)
+
+class FineModal(Modal, title="Торгууль тохируулах"):
+    command = TextInput(label="Командын нэр", placeholder="rob")
+    fine_min = TextInput(label="Min торгууль", placeholder="100")
+    fine_max = TextInput(label="Max торгууль", placeholder="500")
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            cog = interaction.client.get_cog("Economy")
+            cmd = self.command.value.lower()
+            mn = int(self.fine_min.value)
+            mx = int(self.fine_max.value)
+            await cog.set_fine_amount(interaction, cmd, mn, mx)
+            await interaction.response.send_message(f"✅ `{cmd}` торгууль {mn}-{mx} боллоо.", ephemeral=True)
+        except ValueError:
+            await interaction.response.send_message("❌ Тоо оруулна уу (жишээ: 100, 500).", ephemeral=True)
+
+class PayoutModal(Modal, title="Цалин тохируулах"):
+    command = TextInput(label="Командын нэр", placeholder="work")
+    payout_min = TextInput(label="Min цалин")
+    payout_max = TextInput(label="Max цалин")
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            cog = interaction.client.get_cog("Economy")
+            cmd = self.command.value.lower()
+            mn = int(self.payout_min.value)
+            mx = int(self.payout_max.value)
+            await cog.set_payout(interaction, cmd, mn, mx)
+            await interaction.response.send_message(f"✅ `{cmd}` цалин {mn}-{mx} боллоо.", ephemeral=True)
+        except ValueError:
+            await interaction.response.send_message("❌ Тоо оруулна уу (жишээ: 100, 500).", ephemeral=True)
+
+class FailRateModal(Modal, title="Бүтэлгүйтэх магадлал"):
+    command = TextInput(label="Командын нэр")
+    rate = TextInput(label="Магадлал (0-1)", placeholder="0.5")
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            cog = interaction.client.get_cog("Economy")
+            cmd = self.command.value.lower()
+            r = float(self.rate.value)
+            await cog.set_fail_rate(interaction, cmd, r)
+            await interaction.response.send_message(f"✅ `{cmd}` бүтэлгүйтэх {r*100}% боллоо.", ephemeral=True)
+        except (ValueError, TypeError):
+            await interaction.response.send_message("❌ Буруу тоо. 0-1 хооронд оруулна уу (жишээ: 0.5).", ephemeral=True)
+
+class CustomReplyModal(Modal, title="Custom Reply нэмэх"):
+    command = TextInput(label="Команд")
+    reply_type = TextInput(label="Төрөл (success/fail)")
+    text = TextInput(label="Текст", style=discord.TextStyle.paragraph)
+    async def on_submit(self, interaction: discord.Interaction):
+        cog = interaction.client.get_cog("Economy")
+        await cog.add_reply(interaction, self.command.value, self.text.value, self.reply_type.value)
+        await interaction.response.send_message("✅ Custom reply нэмэгдлээ.", ephemeral=True)
+
+class WorkPhraseView(View):
+    def __init__(self, cog, ctx):
+        super().__init__(timeout=300)
+        self.cog = cog
+        self.ctx = ctx
+
+    @discord.ui.button(label="➕ Нэмэх", style=discord.ButtonStyle.green)
+    async def add_phrase(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_modal(AddPhraseModal(self.cog, interaction.guild_id))
+
+    @discord.ui.button(label="➖ Хасах", style=discord.ButtonStyle.red)
+    async def remove_phrase(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_modal(RemovePhraseModal(self.cog, interaction.guild_id))
+
+    @discord.ui.button(label="📋 Жагсаалт", style=discord.ButtonStyle.blurple)
+    async def list_phrases(self, interaction: discord.Interaction, button: Button):
+        rows = await self.cog.bot.db_manager.fetch_all("work_phrases", {"guild_id": str(interaction.guild_id)}, selects="id,phrase")
+        if not rows:
+            embed = discord.Embed(title="📋 Ажлын өгүүлбэрүүд", description="Хоосон", color=WARNING_COLOR)
+        else:
+            embed = discord.Embed(title="📋 Ажлын өгүүлбэрүүд", color=INFO_COLOR)
+            for r in rows[:20]:
+                embed.add_field(name=f"ID {r['id']}", value=r['phrase'], inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🧹 Бүгдийг устгах", style=discord.ButtonStyle.gray)
+    async def clear_phrases(self, interaction: discord.Interaction, button: Button):
+        await self.cog.bot.db_manager.delete("work_phrases", {"guild_id": str(interaction.guild_id)})
+        await interaction.response.send_message("✅ Бүх өгүүлбэр устгагдлаа.", ephemeral=True)
+
+class AddPhraseModal(Modal, title="Ажлын өгүүлбэр нэмэх"):
+    phrase = TextInput(label="Өгүүлбэр (хамгийн ихдээ 160 тэмдэгт)", placeholder="Жишээ: Кофе чанаж байна", max_length=160, required=True)
+    def __init__(self, cog, guild_id):
+        super().__init__()
+        self.cog = cog
+        self.guild_id = guild_id
+    async def on_submit(self, interaction: discord.Interaction):
+        if len(self.phrase.value) > 160:
+            return await interaction.response.send_message("❌ 160 тэмдэгтээс хэтрэхгүй байх ёстой.", ephemeral=True)
+        await self.cog.bot.db_manager.insert("work_phrases", {"guild_id": str(self.guild_id), "phrase": self.phrase.value})
+        await interaction.response.send_message(f"✅ Өгүүлбэр нэмэгдлээ: {self.phrase.value}", ephemeral=True)
+
+class RemovePhraseModal(Modal, title="Өгүүлбэр хасах"):
+    phrase_id = TextInput(label="ID дугаар", placeholder="Устгах өгүүлбэрийн ID", required=True)
+    def __init__(self, cog, guild_id):
+        super().__init__()
+        self.cog = cog
+        self.guild_id = guild_id
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            pid = int(self.phrase_id.value)
+        except ValueError:
+            return await interaction.response.send_message("❌ ID нь тоо байх ёстой.", ephemeral=True)
+        await self.cog.bot.db_manager.delete("work_phrases", {"guild_id": str(self.guild_id), "id": pid})
+        await interaction.response.send_message(f"✅ {pid} ID-тай өгүүлбэр устгагдлаа.", ephemeral=True)
+
+async def setup(bot):
+    await bot.add_cog(Economy(bot))

@@ -2,7 +2,7 @@
 """
 Supabase migration баталгаажуулах скрипт
 ========================================
-Таны PC дээр `database/migrations/000_complete_schema.sql` migration
+Таны PC дээр `src/database/migrations/20260101_001_initial_schema.sql` migration
 Supabase project-д амжилттай ажилласан эсэхийг шалгана.
 
 Хэрэглээ (PowerShell):
@@ -33,7 +33,7 @@ EXPECTED_TABLES = [
     "staff_activity", "leveling_config", "shop_stock",
 ]
 
-# Бүрэн schema-д байх ёстой бүх хүснэгтүүд (000_complete_schema.sql-аас).
+# Бүрэн schema-д байх ёстой бүх хүснэгтүүд (20260101_001_initial_schema.sql-аас).
 # Энэ жагсаалтыг ботын кодын бодит хэрэглээнээс (tools/scan_tables.py) гаргасан:
 # db_manager-ийн бүх insert/update/upsert/delete/fetch дуудлага + TABLE тогтмолууд
 # (automod_config, reaction_roles) + website heartbeat (bot_status).
@@ -83,13 +83,13 @@ def check_table(base_url: str, key: str, table: str) -> tuple[str, str]:
         if e.code == 404 or "PGRST205" in body:
             return "MISSING", (
                 f"ХҮСНЭГТ БАЙХГҮЙ (PGRST205 / HTTP 404) — "
-                f"000_complete_schema.sql (эсвэл 20260914_repair_runtime_schema.sql) ажиллуулаагүй"
+                f"20260101_001_initial_schema.sql (эсвэл 20260914_repair_runtime_schema.sql) ажиллуулаагүй"
             )
         if e.code in (401, 403):
             if "42501" in body or "permission denied" in body.lower():
                 return "PERMISSION", (
                     f"ЭРХ БАЙХГҮЙ (42501 permission denied) — тухайн рольд (энэ key) SELECT "
-                    f"GRANT алга. database/migrations/20260914_repair_runtime_schema.sql ажиллуул."
+                    f"GRANT алга. src/database/migrations/20260914_repair_runtime_schema.sql ажиллуул."
                 )
             return "PERMISSION", (
                 f"Холбогдох эрхгүй (HTTP {e.code}) — ашиглаж буй key нь anon бол RLS/GRANT "
@@ -156,9 +156,9 @@ def main() -> int:
         print("Migration бүрэн ажилласан. Bot-оо restart хийж болно.")
         return 0
     if counts_all["MISSING"]:
-        print("-> Хүснэгтүүд дутуу: '000_complete_schema.sql' (эсвэл '20260914_repair_runtime_schema.sql') ажиллуул.")
+        print("-> Хүснэгтүүд дутуу: '20260101_001_initial_schema.sql' (эсвэл '20260914_repair_runtime_schema.sql') ажиллуул.")
     if counts_all["PERMISSION"]:
-        print("-> GRANT алдсан: 'database/migrations/20260914_repair_runtime_schema.sql' ажиллуул "
+        print("-> GRANT алдсан: 'src/database/migrations/20260914_repair_runtime_schema.sql' ажиллуул "
               "(service_role-д SELECT/INSERT/UPDATE/DELETE GRANT-ддаг).")
     if counts_all["UNAVAILABLE"]:
         print("-> Зарим хүснэгт холболтын алдаагаар шалгагдаагүй; дахин ажиллуул.")

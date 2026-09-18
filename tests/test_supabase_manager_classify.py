@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from database.supabase_manager import (
+from src.database.db_manager import (
     _TableErrorTracker,
     classify_supabase_error,
     DatabasePermissionError,
@@ -81,7 +81,7 @@ class TestTableErrorTracker:
         error_lines = [r for r in caplog.records if r.name == "aether.db.test"]
         # 1 detailed log + 0 repeats within the dedup window
         assert len(error_lines) == 1
-        assert "000_complete_schema.sql" in error_lines[0].getMessage()
+        assert "20260101_001_initial_schema.sql" in error_lines[0].getMessage()
 
     def test_window_elapse_emits_compact_summary(self, caplog, monkeypatch):
         tracker = _TableErrorTracker(logger_name="aether.db.test")
@@ -92,7 +92,7 @@ class TestTableErrorTracker:
         def fake_monotonic():
             return next(monotonic_ticks)
 
-        monkeypatch.setattr("database.supabase_manager.time.monotonic", fake_monotonic)
+        monkeypatch.setattr("src.database.db_manager.time.monotonic", fake_monotonic)
 
         with caplog.at_level("ERROR", logger="aether.db.test"):
             tracker.report("counting_config", "denied")   # window start, full guidance
@@ -108,7 +108,7 @@ class TestTableErrorTracker:
         assert len(repeated) == 1
         assert "2 repeat error(s)" in repeated[0]
         # no full-traceback-style guidance spam for repeats
-        assert all("000_complete_schema.sql" not in m for m in repeated)
+        assert all("20260101_001_initial_schema.sql" not in m for m in repeated)
 
     def test_tables_log_independently(self, caplog):
         tracker = _TableErrorTracker(logger_name="aether.db.test")

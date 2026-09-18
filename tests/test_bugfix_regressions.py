@@ -29,17 +29,17 @@ from types import SimpleNamespace
 import discord
 import pytest
 
-import cogs.casino as casino_mod
-import cogs.economy as econ_mod
-from cogs.automod import AutoModeration
-from cogs.casino import BlackjackView, Casino
-from cogs.confessions import Confessions
-from cogs.counting import evaluate_expression
-from cogs.economy import Economy
-from cogs.games import Games
-from cogs.pvp import PVP, PVPView
-from cogs.reaction_roles import ReactionRoles
-from cogs.trade import Marketplace
+import src.cogs.casino as casino_mod
+import src.cogs.economy as econ_mod
+from src.cogs.automod import AutoModeration
+from src.cogs.casino import BlackjackView, Casino
+from src.cogs.confessions import Confessions
+from src.cogs.counting import evaluate_expression
+from src.cogs.economy import Economy
+from src.cogs.games import Games
+from src.cogs.pvp import PVP, PVPView
+from src.cogs.reaction_roles import ReactionRoles
+from src.cogs.trade import Marketplace
 
 
 # ══════════════ FAKES ══════════════
@@ -496,7 +496,7 @@ async def test_transfer_aborts_when_balance_drops_during_confirm(monkeypatch):
             row["balance"] = 30
             return None
 
-    monkeypatch.setattr("cogs.economy.ConfirmView", FakeConfirmView)
+    monkeypatch.setattr("src.cogs.economy.ConfirmView", FakeConfirmView)
 
     member = SimpleNamespace(id=8, mention="<@8>", display_name="r")
     ctx, sent = make_context(eco.bot)
@@ -675,7 +675,7 @@ async def test_trade_buy_selected_handles_dict_listing(monkeypatch):
         async def wait(self):
             return None
 
-    monkeypatch.setattr("cogs.trade.ConfirmView", FakeConfirmView)
+    monkeypatch.setattr("src.cogs.trade.ConfirmView", FakeConfirmView)
 
     view = Marketplace.ListingsView(mkt, buyer_id=7, page=0)
     view.selected_listing_id = 1

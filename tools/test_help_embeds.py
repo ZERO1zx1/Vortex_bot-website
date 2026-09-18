@@ -9,6 +9,7 @@ import importlib.util
 import sys
 import os
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("DISCORD_TOKEN", "0")
 os.environ.setdefault("SUPABASE_URL", "https://fake.supabase.co")
@@ -18,7 +19,7 @@ import discord  # noqa: E402
 from discord import ui  # noqa: E402
 from unittest.mock import MagicMock
 
-spec = importlib.util.spec_from_file_location("help_cog", "cogs/help.py")
+spec = importlib.util.spec_from_file_location("help_cog", "src/cogs/help.py")
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 

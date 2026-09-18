@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from cogs.mines import GRID_COLS, GRID_SIZE, SAFE_COUNT, MinesGame, MinesView
+from src.cogs.mines import GRID_COLS, GRID_SIZE, SAFE_COUNT, MinesGame, MinesView
 
 
 class FakeResponse:

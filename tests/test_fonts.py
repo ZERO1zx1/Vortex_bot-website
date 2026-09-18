@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from PIL import Image, ImageDraw, ImageFont
 
-from utils.fonts import (
+from src.utils.fonts import (
     FontManager,
     get_font_manager,
     load_font,
@@ -22,7 +22,7 @@ from utils.fonts import (
     draw_text_with_fallback,
     is_emoji,
 )
-from utils.branding import BOT_NAME
+from src.utils.branding import BOT_NAME
 
 
 class TestFontDiscovery(unittest.TestCase):
