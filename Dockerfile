@@ -19,6 +19,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Application code (src/ package + config.json inside src/, assets for fonts/gifs)
+COPY main.py ./main.py
 COPY src/ ./src/
 COPY assets/ ./assets/
 COPY .env.example ./
