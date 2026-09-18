@@ -23,7 +23,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "https://onpxpvemmjesobxpilgd.supabase.
 # Server-side key: зөвхөн service_role / sb_secret_ — bot guild_config-ийг
 # анон key-ээр бичиж болохгүй (42501). ANON key нь зөвхөн website-д зориулагдсан.
 from src.core.config import pick_server_supabase_key as _pick_server_key
-SUPABASE_ANON_KEY = _pick_server_key() or os.getenv("SUPABASE_ANON_KEY", "")
+SUPABASE_ANON_KEY = _pick_server_key()
 
 logger = logging.getLogger("aether.i18n")
 
