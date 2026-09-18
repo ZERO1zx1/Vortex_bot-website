@@ -20,9 +20,10 @@ import os
 from typing import Any, Dict, Optional
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://onpxpvemmjesobxpilgd.supabase.co")
-# ANON/publishable key: SUPABASE_ANON_KEY гэх замаар, байхгүй бол хуучин
-# нэрийн SUPABASE_KEY-г (публишable ключ) ашиглана.
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY", "")
+# Server-side key: зөвхөн service_role / sb_secret_ — bot guild_config-ийг
+# анон key-ээр бичиж болохгүй (42501). ANON key нь зөвхөн website-д зориулагдсан.
+from src.core.config import pick_server_supabase_key as _pick_server_key
+SUPABASE_ANON_KEY = _pick_server_key() or os.getenv("SUPABASE_ANON_KEY", "")
 
 logger = logging.getLogger("aether.i18n")
 
@@ -260,7 +261,7 @@ async def set_guild_lang(guild_id: Any, lang: str) -> bool:
         return False  # DB бичилт амжилтгүй → False буцаана (cache шинэчлэгдсэн ч DB-д үлдэхгүй)
 
 
-# ── Supabase холболт (анон key, bot_status-тэй ижил горим) ─
+# ── Supabase холболт (сервер-level key, guild_config бичих зориулалттай) ─
 
 def _sb_headers():
     return {

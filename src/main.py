@@ -150,14 +150,15 @@ class MyBot(commands.Bot):
             logger.error("❌ Supabase connection error: %s", e)
             raise RuntimeError("Could not connect to Supabase") from e
 
-        # Runtime key probe: a restricted `sb_secret_` key would otherwise
-        # 42501 on every heartbeat.  `probe_best_key` finds the first key
-        # (precedence: service_role > secret > key) that can read bot_status
-        # and switches the live client to it when a better one exists.
+        # Runtime key probe: an anon/publishable key (or restricted `sb_secret_`)
+        # would otherwise 42501 on every read.  `probe_best_key` finds the first
+        # server-level key (precedence: service_role > secret > key) that can
+        # read leveling_config (anon CANNOT satisfy this probe) and switches
+        # the live client to it so the startup health-check is accurate.
         try:
             best = await self.db_manager.probe_best_key()
             if best and os.getenv(best, "").strip() != self.db_manager.key:
-                logger.info("⚙️ Supabase key probe: using env '%s' (insures heartbeat access)", best)
+                logger.info("⚙️ Supabase key probe: using env '%s' (server-level key)", best)
                 if not self.db_manager.switch_key(best):
                     logger.warning(
                         "⚠️ Supabase key switch to '%s' failed; continuing with current key", best,

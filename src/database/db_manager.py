@@ -33,6 +33,7 @@ except ImportError:
 _NETWORK_EXCEPTIONS = tuple({t for t in _NETWORK_EXCEPTIONS})
 
 
+from src.core.config import pick_server_supabase_key
 from src.core.exceptions import (
     DatabaseUnavailableError,
     DatabasePermissionError,
@@ -164,12 +165,10 @@ def _is_retryable(exc: BaseException) -> bool:
 class SupabaseManager:
     """Async-first data access layer for Supabase."""
 
-    # Key precedence — эмпирик шалтгаан: зарим legacy проект-д шинэ
-    # `sb_secret_` key нь service_role биш хязгаарлагдмал role руу ордог
-    # (25+ хүснэгтэд 42501). Legacy JWT service_role key түрүүнд,
-    # байхгүй бол SECRET (шинэ проект-д энэ нь л бүрэн эрхтэй role),
-    # сүүлийн нөөцөд хуучин SUPABASE_KEY.  Runtime дээр probe хийгээд
-    # эрхгүй key-г алгасна (``probe_best_key``).
+    # Key precedence — anon/publishable key-ээс зайлсхийх (42501).
+    # Зөвхөн server-level key (JWT role=service_role эсвэл sb_secret_)
+    # сонгогдоно — ``pick_server_supabase_key()`` үүнийг баталгаажуулна.
+    # Үлдсэн дараалал нь миграци probe-д ашиглагдана.
     KEY_CANDIDATE_ENVS = (
         "SUPABASE_SERVICE_ROLE_KEY",
         "SUPABASE_SECRET_KEY",
@@ -178,7 +177,7 @@ class SupabaseManager:
 
     def __init__(self):
         self.url: str = os.getenv("SUPABASE_URL", "")
-        self.key: str = self._pick_first_defined()
+        self.key: str = pick_server_supabase_key()
         self.using_legacy_env_name = bool(
             not os.getenv("SUPABASE_SERVICE_ROLE_KEY")
             and not os.getenv("SUPABASE_SECRET_KEY")
@@ -188,11 +187,7 @@ class SupabaseManager:
         self._table_error_tracker = _TableErrorTracker()
 
     def _pick_first_defined(self) -> str:
-        for env in self.KEY_CANDIDATE_ENVS:
-            value = os.getenv(env, "").strip()
-            if value:
-                return value
-        return ""
+        return pick_server_supabase_key()
 
     def available_keys(self) -> List[Dict[str, str]]:
         """All key env names that have a value, in precedence order."""
@@ -202,13 +197,18 @@ class SupabaseManager:
             if os.getenv(env, "").strip()
         ]
 
-    async def probe_best_key(self, probe_table: str = "bot_status") -> Optional[str]:
+    async def probe_best_key(self, probe_table: str = "leveling_config") -> Optional[str]:
         """Find the first key (in precedence order) that can read ``probe_table``.
 
-        Runs at startup after connection so a restricted ``sb_secret_`` key
-        is silently replaced by the working legacy JWT / anon key instead of
-        failing every heartbeat with 42501.  Returns the env var name of the
-        chosen key, or None if nothing works (caller keeps the first key).
+        Runs at startup after connection so a restricted key is silently
+        replaced by the working server key instead of failing every heartbeat
+        with 42501.  Returns the env var name of the chosen key, or None if
+        nothing works (caller keeps the first key).
+
+        ``bot_status`` is deliberately NOT the probe target: the permission
+        migration grants ``SELECT ON bot_status TO anon`` for the website
+        heartbeat, so an anon key would pass that probe and the real failure
+        (42501 on ``leveling_config``/``shop_stock`` etc.) would stay hidden.
         """
         candidates = self.available_keys()
         if not candidates:
