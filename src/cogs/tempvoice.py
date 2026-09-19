@@ -101,7 +101,7 @@ class KickUserSelect(ui.View):
             self.stop()
             try:
                 await interaction.message.delete()
-            except:
+            except Exception:
                 pass
 
         select.callback = kick_callback
@@ -247,7 +247,7 @@ class TempVoice(commands.Cog):
 
     async def reload_setup_views(self):
         rows = await self.bot.db_manager.fetch_safe("tempvoice_setup_msg", {})
-        for row in rows:
+        for row in rows or []:
             guild_id = row.get("guild_id")
             channel_id = row.get("channel_id")
             message_id = row.get("message_id")
@@ -299,13 +299,13 @@ class TempVoice(commands.Cog):
                 ch = guild.get_channel(ch_id)
                 if ch:
                     try: await ch.delete(reason="TempVoice шинэ суурилуулалт")
-                    except: pass
+                    except Exception: pass
         old_cat_id = config["category_id"]
         if old_cat_id:
             cat = guild.get_channel(old_cat_id)
             if cat and len(cat.channels) == 0:
                 try: await cat.delete(reason="TempVoice шинэ суурилуулалт")
-                except: pass
+                except Exception: pass
 
         overwrites_cat = {guild.default_role: discord.PermissionOverwrite(view_channel=True)}
         category = await guild.create_category("🔊 Түр суваг", overwrites=overwrites_cat)
@@ -374,7 +374,7 @@ class TempVoice(commands.Cog):
                 count = len(temp_rows)
                 if count >= max_channels:
                     try: await member.send(f"❌ Хамгийн ихдээ {max_channels} түр суваг үүсгэх боломжтой.")
-                    except: pass
+                    except Exception: pass
                     await member.move_to(None)
                     return
 
@@ -408,7 +408,7 @@ class TempVoice(commands.Cog):
                     await asyncio.sleep(3)
                     if len(channel.members) == 0:
                         try: await channel.delete(reason="Хоосон түр суваг")
-                        except: pass
+                        except Exception: pass
                         await self.bot.db_manager.delete(
                             "temp_channels", {"channel_id": str(channel.id)}
                         )

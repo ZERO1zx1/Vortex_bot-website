@@ -153,7 +153,7 @@ class Fun(commands.Cog):
                     embed = discord.Embed(title="🐶 Сайн уу нохой!", color=0xffcc00)
                     embed.set_image(url=data['message'])
                     await ctx.send(embed=embed)
-            except:
+            except Exception:
                 await ctx.send("❌ Нохойн зураг авахад алдаа гарлаа.")
 
     @commands.command(name='cat')
@@ -168,7 +168,7 @@ class Fun(commands.Cog):
                         await ctx.send(embed=embed)
                     else:
                         await ctx.send("❌ Муур олдсонгүй.")
-            except:
+            except Exception:
                 await ctx.send("❌ Муурны зураг авахад алдаа гарлаа.")
 
     @commands.command(name='fox')
@@ -180,7 +180,7 @@ class Fun(commands.Cog):
                     embed = discord.Embed(title="🦊 Үнэг ирлээ!", color=0xff6600)
                     embed.set_image(url=data['image'])
                     await ctx.send(embed=embed)
-            except:
+            except Exception:
                 await ctx.send("❌ Үнэгний зураг авахад алдаа гарлаа.")
 
     # ==================== ACTION COMMANDS ====================

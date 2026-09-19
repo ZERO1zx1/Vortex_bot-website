@@ -49,7 +49,7 @@ class PVPView(View):
         if self.message:
             try:
                 await self.message.edit(view=self)
-            except:
+            except Exception:
                 pass
 
     async def send_round_embed(self):
@@ -176,7 +176,7 @@ class PVPView(View):
         if leveling:
             try:
                 await leveling.add_xp(user_id, guild_id, amount, check_mute=False)
-            except:
+            except Exception:
                 pass
 
     async def process_round(self):
@@ -254,7 +254,7 @@ class PVPView(View):
         if self.message:
             try:
                 await self.message.edit(embed=embed, view=self)
-            except:
+            except Exception:
                 pass
         self.round_active = True
         await self.start_round_timer()   # 30 секундын таймер эхлүүлэх
@@ -320,7 +320,7 @@ class PVPView(View):
             try:
                 await games_cog.update_stats(winner.id, guild_id, True, self.bet_amount, total_win)
                 await games_cog.update_stats(loser.id, guild_id, False, self.bet_amount, 0)
-            except:
+            except Exception:
                 pass
 
         await self.channel.send(embed=embed)
@@ -357,7 +357,7 @@ class PVPView(View):
         if self.message:
             try:
                 await self.message.edit(embed=await self.send_round_embed())
-            except:
+            except Exception:
                 pass
         await self.check_round_complete()
 
@@ -475,7 +475,7 @@ class PVP(commands.Cog):
                 if self.message:
                     try:
                         await self.message.edit(view=self)
-                    except:
+                    except Exception:
                         pass
 
             @discord.ui.button(label="✅ ЗӨВШӨӨРӨХ", style=discord.ButtonStyle.success)
@@ -534,7 +534,7 @@ class PVP(commands.Cog):
                     if self.message:
                         try:
                             await self.message.edit(embed=embed, view=None)
-                        except:
+                        except Exception:
                             pass
 
         embed = discord.Embed(

@@ -118,7 +118,7 @@ class BlackjackView(View):
                     hand_status.append(f"👉 Гар {i+1} (идэвхтэй): {self.hand_value(hand)}")
                 else:
                     status = "тоглож байна" if not self.all_hands_resolved else f"үр дүн: {self.hand_value(hand)}"
-                    hand_status.append(f"✋ Гар {i+1}: {self.hand_value(hand)}")
+                    hand_status.append(f"✋ Гар {i+1} ({status}): {self.hand_value(hand)}")
             embed.add_field(name="🤲 ХУВААСАН ГАРУУД", value="\n".join(hand_status), inline=False)
 
         embed.description = f"💰 **Бооцоо:** {self.bet:,}₮"
@@ -701,7 +701,7 @@ class Casino(commands.Cog):
             if amount <= 0: return await ctx.send("❌ Мөнгөгүй.")
         else:
             try: amount = int(amount_str)
-            except: return await ctx.send("❌ Дүн тоо эсвэл 'all'")
+            except Exception: return await ctx.send("❌ Дүн тоо эсвэл 'all'")
         if amount <= 0: return await ctx.send("❌ Дүн эерэг байх ёстой!")
         if choice is None:
             view = HighLowView(self, ctx, amount)

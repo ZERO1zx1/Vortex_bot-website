@@ -26,7 +26,7 @@ async def fetch_avatar_image(session, url, size=64):
     try:
         async with session.get(url) as resp: data = await resp.read()
         img = Image.open(io.BytesIO(data)).convert("RGBA").resize((size, size))
-    except:
+    except Exception:
         img = Image.new("RGBA", (size, size), (88,101,242,255))
     mask = Image.new("L", (size, size), 0); draw = ImageDraw.Draw(mask)
     draw.ellipse((0, 0, size, size), fill=255); img.putalpha(mask)
@@ -342,7 +342,7 @@ class LeaderboardView(ui.View):
                 member = self.ctx.guild.get_member(uid)
                 if not member:
                     try: member = await self.ctx.bot.fetch_user(uid)
-                    except: member = None
+                    except Exception: member = None
                 name = member.display_name if member else f"ID {uid}"
 
                 if callable(label_func):

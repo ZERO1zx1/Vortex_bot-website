@@ -16,7 +16,10 @@ class StubDB:
     async def fetchone(self, *a, **k): return None
     async def fetch(self, *a, **k): return None
     async def fetchall(self, *a, **k): return []
-    async def fetch_safe(self, *a, **k): return None
+    async def fetch_safe(self, *a, single=False, **k):
+        # Mirror SupabaseManager.fetch_safe semantics: single=True → None,
+        # multi-row reads → [] so cogs that iterate the result stay safe.
+        return None if single else []
     async def fetch_one(self, *a, **k): return None
     async def fetch_all(self, *a, **k): return []
     async def insert(self, *a, **k): return None

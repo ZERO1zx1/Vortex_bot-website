@@ -160,7 +160,7 @@ class SetupView(ui.View):
                 for child in self.children:
                     child.disabled = True
                 await self.message.edit(view=self)
-            except:
+            except Exception:
                 pass
 
 # ==================== ҮНДСЭН COG ====================
@@ -234,7 +234,7 @@ class Confessions(commands.Cog):
                 await interaction.followup.send(msg, ephemeral=True)
             else:
                 try: await user.send(msg)
-                except: pass
+                except Exception: pass
             return
 
         # Хар жагсаалт шалгах
@@ -247,7 +247,7 @@ class Confessions(commands.Cog):
                     await interaction.followup.send(msg, ephemeral=True)
                 else:
                     try: await user.send(msg)
-                    except: pass
+                    except Exception: pass
                 return
 
         # Гаралтын сувагт илгээх
@@ -295,7 +295,7 @@ class Confessions(commands.Cog):
             await interaction.followup.send(f"✅ Таны нууц захиа (#{confess_id}) амжилттай илгээгдлээ.", ephemeral=True)
         else:
             try: await user.send(f"✅ Таны нууц захиа (#{confess_id}) амжилттай илгээгдлээ.")
-            except: pass
+            except Exception: pass
 
     # ----- SLASH COMMANDS -----
     @app_commands.command(name="confess", description="Нууц захиа илгээх (модал)")
@@ -368,7 +368,7 @@ class Confessions(commands.Cog):
             try:
                 msg = await channel.fetch_message(msg_id)
                 await msg.delete()
-            except:
+            except Exception:
                 pass
         await self.bot.db_manager.delete(
             "confession_messages",
@@ -422,7 +422,7 @@ class Confessions(commands.Cog):
                 logger.warning("confession error in guild %s: %s", message.guild.id, exc, exc_info=True)
         try:
             await message.delete()
-        except:
+        except Exception:
             pass
 
     async def cog_load(self):

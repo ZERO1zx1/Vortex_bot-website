@@ -40,4 +40,5 @@ bot_output.txt
 # Firebase CLI local cache
 .firebase/
 
-.agents/
+# AgentCore runtime data (local checkpoints / artifacts / reports)
+.agentcore/

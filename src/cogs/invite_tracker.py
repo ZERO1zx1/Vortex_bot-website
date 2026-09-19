@@ -126,7 +126,7 @@ class InviteSetupView(ui.View):
             for child in self.children:
                 child.disabled = True
             try: await self.message.edit(view=self)
-            except: pass
+            except Exception: pass
 
 
 class InviteTracker(commands.Cog):

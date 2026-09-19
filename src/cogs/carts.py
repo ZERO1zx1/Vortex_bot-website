@@ -306,14 +306,14 @@ class Cards(commands.Cog):
                     if resp.status == 200:
                         data = await resp.read()
                         img = Image.open(io.BytesIO(data)).convert("RGBA")
-            except:
+            except Exception:
                 pass
         else:
             path = self._find_asset_path(bg_url)
             if path:
                 try:
                     img = Image.open(path).convert("RGBA")
-                except:
+                except Exception:
                     pass
 
         if img:
@@ -333,12 +333,12 @@ class Cards(commands.Cog):
         hunger, mood = 0, 0
         try:
             hunger, mood = await eco.get_hunger_mood(member.id, guild_id)
-        except:
+        except Exception:
             pass
         disc_level = 0
         try:
             disc_level = await eco.get_discord_level(member.id, guild_id)
-        except:
+        except Exception:
             pass
 
         xp, level = 0, 1
@@ -349,20 +349,20 @@ class Cards(commands.Cog):
             if row:
                 xp = row.get("xp", 0) or 0
                 level = row.get("level", 1) or 1
-        except:
+        except Exception:
             pass
 
         next_xp = 100 * level
         try:
             cfg = await lvl.get_config(guild_id)
             next_xp = lvl.xp_for_level(level, cfg)
-        except:
+        except Exception:
             pass
 
         title, badge = "Энгийн", "⭐"
         try:
             title, badge = lvl.get_rank_info(level)
-        except:
+        except Exception:
             pass
 
         rank = 1
@@ -373,7 +373,7 @@ class Cards(commands.Cog):
             )
             level_rows.sort(key=lambda r: (r.get("level", 0) or 0, r.get("xp", 0) or 0), reverse=True)
             rank = next((i for i, r in enumerate(level_rows, 1) if str(r.get("user_id")) == str(member.id)), len(level_rows) + 1)
-        except:
+        except Exception:
             pass
 
         job_emoji, job_name = "💼", "Ажилгүй"
@@ -381,7 +381,7 @@ class Cards(commands.Cog):
             _, job = eco.get_job_for_level(disc_level)
             job_emoji = job['emoji']
             job_name = job['name']
-        except:
+        except Exception:
             pass
 
         drunk_level = 0
@@ -391,7 +391,7 @@ class Cards(commands.Cog):
             )
             if drunk_row:
                 drunk_level = min(100, drunk_row.get("level", 0) or 0)
-        except:
+        except Exception:
             pass
 
         equip_emojis = ""
@@ -401,7 +401,7 @@ class Cards(commands.Cog):
                 equips = await shop.get_equips(member.id, guild_id)
                 if equips:
                     equip_emojis = " ".join(i["emoji"] for i in equips.values())
-        except:
+        except Exception:
             pass
 
         url = member.display_avatar.replace(size=256, format="png").url
@@ -597,7 +597,7 @@ class Cards(commands.Cog):
             try:
                 cfg = await level_cog.get_config(ctx.guild.id)
                 bg_url = cfg.get("background_url")
-            except:
+            except Exception:
                 pass
         background = await self._load_background(ctx.guild.id, bg_url)
 

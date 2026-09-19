@@ -439,7 +439,7 @@ class Marketplace(commands.Cog):
             seller_member = interaction.guild.get_member(int(seller_id))
             if seller_member:
                 try: await seller_member.send(f"✅ Таны {item_str} x{quantity} зарагдлаа! +{total_price:,}₮")
-                except: pass
+                except Exception: pass
 
             quests_cog = await self.cog.get_quests_cog()
             if quests_cog:

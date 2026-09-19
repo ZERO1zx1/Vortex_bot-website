@@ -19,7 +19,10 @@ import discord  # noqa: E402
 from discord import ui  # noqa: E402
 from unittest.mock import MagicMock
 
-spec = importlib.util.spec_from_file_location("help_cog", "src/cogs/help.py")
+spec = importlib.util.spec_from_file_location(
+    "help_cog",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "cogs", "help.py"),
+)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
@@ -41,7 +44,7 @@ fake_ctx.author = fake_author
 for category in mod.CATEGORY_EMOJIS:
     view = mod.HelpView(fake_ctx, default_category=category)
     try:
-        embed = view.build_embed(category)
+        embed = view.build_category_embed(category)
         # replicate discord.py embed length validation
         total = len(embed.title or "") + len(embed.description or "")
         for f in embed.fields:
@@ -55,7 +58,7 @@ for category in mod.CATEGORY_EMOJIS:
         BUILD_EMBED_OK += 1
     except Exception as exc:
         BUILD_EMBED_FAIL += 1
-        FAILURES.append(f"build_embed({category}): {exc}")
+        FAILURES.append(f"build_category_embed({category}): {exc}")
 
 # ---- 2. Command detail embeds ----
 for cmd, info in mod.COMMAND_INFO.items():

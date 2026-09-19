@@ -311,7 +311,7 @@ class GiveawaySetupView(ui.View):
                 for child in self.children:
                     child.disabled = True
                 await self.message.edit(view=self)
-            except:
+            except Exception:
                 pass
 
 
@@ -400,7 +400,7 @@ class Giveaway(commands.Cog):
             return await interaction.followup.send(embed=discord.Embed(title="❌ Суваг олдсонгүй.", color=ERROR_COLOR))
         try:
             message = await channel.fetch_message(msg_id)
-        except:
+        except Exception:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Мессеж олдсонгүй.", color=ERROR_COLOR))
 
         entries = await self.get_entries(gid, req_role_id, interaction.guild)
@@ -428,7 +428,7 @@ class Giveaway(commands.Cog):
             return await interaction.followup.send(embed=discord.Embed(title="❌ Суваг олдсонгүй.", color=ERROR_COLOR))
         try:
             await channel.fetch_message(msg_id)
-        except:
+        except Exception:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Мессеж олдсонгүй.", color=ERROR_COLOR))
 
         entries = await self.get_entries(gid, req_role_id, interaction.guild)
@@ -475,7 +475,7 @@ class Giveaway(commands.Cog):
                     color=ERROR_COLOR
                 )
                 await message.edit(embed=embed, view=None)
-            except:
+            except Exception:
                 pass
 
         await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": True})

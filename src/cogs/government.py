@@ -1197,10 +1197,16 @@ class GovBase(View):
         self.perms = perms or GovPerms()
 
     async def _respond_once(self, interaction, *, content=None, embed=None, view=None, ephemeral=True):
+        # discord.py expects an actual View (or an omitted argument) here;
+        # passing view=None reaches View.is_finished() and raises an
+        # AttributeError before Discord can receive the response.
+        payload = {"content": content, "embed": embed, "ephemeral": ephemeral}
+        if view is not None:
+            payload["view"] = view
         if not interaction.response.is_done():
-            await interaction.response.send_message(content=content, embed=embed, view=view, ephemeral=ephemeral)
+            await interaction.response.send_message(**payload)
         else:
-            await interaction.followup.send(content=content, embed=embed, view=view, ephemeral=ephemeral)
+            await interaction.followup.send(**payload)
 
     async def _swap(self, interaction, embed, view=None):
         if not interaction.response.is_done():

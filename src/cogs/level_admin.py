@@ -50,7 +50,7 @@ class LevelRewardManagerView(ui.View):
             try:
                 money = int(money_input.value)
                 if money <= 0: raise ValueError
-            except: return await inter.response.send_message("❌ Эерэг бүхэл тоо оруулна уу.", ephemeral=True)
+            except Exception: return await inter.response.send_message("❌ Эерэг бүхэл тоо оруулна уу.", ephemeral=True)
             await self.cog.set_level_reward(self.ctx.guild.id, self.selected_level, money)
             await inter.response.send_message(f"✅ Level {self.selected_level} → {money:,} ₮ тохируулагдлаа.", ephemeral=True)
             await self.refresh_message(inter)
@@ -168,7 +168,7 @@ class LevelingSetupView(ui.View):
             try:
                 m = int(msg_inp.value); r = int(react_inp.value)
                 if m<=0 or r<=0: raise ValueError
-            except: return await inter.response.send_message("❌ Эерэг бүхэл тоо оруулна уу.", ephemeral=True)
+            except Exception: return await inter.response.send_message("❌ Эерэг бүхэл тоо оруулна уу.", ephemeral=True)
             cfg = await get_config(self.cog.bot.db_manager, self.ctx.guild.id)
             cfg["msg_cooldown"] = m; cfg["react_cooldown"] = r
             await set_config(self.cog.bot.db_manager, self.ctx.guild.id, cfg)
@@ -207,7 +207,7 @@ class LevelAdmin(commands.Cog):
         try:
             cfg = self.bot.config
             return user.id == cfg.get("owner_id") or user.id in cfg.get("co_owner_ids", [])
-        except: return False
+        except Exception: return False
 
     def _engine(self) -> Optional[Leveling]:
         return self.bot.get_cog("Leveling")

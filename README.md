@@ -30,32 +30,42 @@ A feature-rich Discord bot for the **𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹** communit
 
 ```
 .
+├── main.py                        # Deploy shim → re-invokes src.main (Railway legacy start cmd)
 ├── src/
-│   ├── main.py                    # Bot entry point, cog loading, branding
+│   ├── main.py                    # Bot entry point, cog loading, error handlers
 │   ├── config.json                # Bot configuration (prefix, owner, co-owners)
-│   ├── core/
-│   │   └── config.py              # Config loader
+│   ├── core/                      # config loader, logging setup, exceptions
 │   ├── database/
-│   │   ├── db_manager.py          # Async Supabase repository layer
+│   │   ├── db_manager.py          # Async Supabase repository layer (retry + error classify)
 │   │   ├── schema.sql             # Original full schema + RPC functions
 │   │   └── migrations/            # Versioned SQL migrations (apply newest last)
-│   │       ├── 20260101_001_initial_schema.sql   # Consolidated non-destructive schema
-│   │       ├── 20260813_002_missing_tables.sql
-│   │       └── ...
-│   ├── utils/
-│   │   ├── branding.py            # Centralized 𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 branding
-│   │   ├── embeds.py              # UI embed helpers
-│   │   ├── constants.py           # Shared constants
-│   │   ├── font_utils.py          # Font loading
-│   │   └── supabase_cog.py        # Base cog with Supabase helpers
-│   └── cogs/                      # Feature modules (one per feature)
+│   ├── utils/                     # branding, embeds, fonts, i18n, caches, cog loader
+│   └── cogs/                      # 36 feature modules (auto-discovered, one per feature)
+├── assets/gifs/                   # Action-command GIF sets (hug, kiss, slap, ...)
+├── backend/                       # FastAPI status/leaderboard/giveaway API (+ data/commands.json)
+├── website/                       # Static marketing site (Firebase Hosting)
+│   ├── index.html, css/, js/      # config.js = single place for links/keys
+│   └── tools/                     # Website-specific sync scripts (commands, i18n)
+├── tools/                         # Dev/ops scripts (offline probes, smoke tests, migrations)
+├── tests/                         # pytest unit tests (offline, no Discord/Supabase)
+├── docs/                          # Audit & repair reports, production hardening notes
 ├── requirements.txt
 ├── .env.example                   # Environment template (copy to .env)
-├── backend/                       # FastAPI status/statistics backend
-├── tools/                         # Dev/ops scripts
-├── tests/                         # Unit tests
-└── website/                       # Static marketing / command catalog site
+├── Dockerfile / railway.json      # Container deploy (Railway: python -m src.main)
+└── firebase.json / .firebaserc    # Website hosting deploy
 ```
+
+House rules:
+
+- **Бүх Python код** `src/` package дотор; root-д зөвхөн `main.py` shim.
+- **Нэг удаагийн codemod/миграц скрипт** ажилласныхаа дараа `tools/`-ээс устгана
+  эсвэл `docs/`-д тайлан болгон архивлана — `tools/` зөвхөн дахин хэрэглэгдэх
+  probe/smoke/sync скриптүүдийг хадгална.
+- **Generated зүйлс** (`__pycache__/`, `.pytest_cache/`, `.firebase/`, `logs/`,
+  `.agentcore/`) хэзээ ч commit хийхгүй — `.gitignore`-д бүртгэлтэй.
+- **AgentCore audit** (сонголтоор): `python tools/agentcore_audit.py . --mode FULL`
+  — repo-г real deterministic шалгалтаар (pytest/compileall/node + бүтцийн
+  hygiene) үнэлж, `.agentcore/` дотор checkpoint + artifact + тайлан үлдээнэ.
 
 ## Setup
 

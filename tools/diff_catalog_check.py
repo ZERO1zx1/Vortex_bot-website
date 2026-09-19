@@ -50,7 +50,7 @@ async def main():
     failures = []
     for name in COGS:
         try:
-            await bot.load_extension(f"cogs.{name}")
+            await bot.load_extension(f"src.cogs.{name}")
         except Exception as e:
             failures.append((name, f"{type(e).__name__}: {e}"))
     if failures:

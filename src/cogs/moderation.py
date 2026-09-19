@@ -158,7 +158,7 @@ class StaffSetupView(ui.View):
             for child in self.children:
                 child.disabled = True
             try: await self.message.edit(view=self)
-            except: pass
+            except Exception: pass
 
 # ==================== ҮНДСЭН COG ====================
 class Moderation(SupabaseCog):
@@ -959,7 +959,7 @@ class Moderation(SupabaseCog):
             try:
                 mod = await self.bot.fetch_user(int(mod_id))
                 mod_name = mod.name
-            except:
+            except Exception:
                 mod_name = "Тодорхойгүй"
             embed.add_field(name=f"#{wid} | {ts_str}", value=f"👮 Модератор: `{mod_name}`\n📝 Шалтгаан: `{reason}`", inline=False)
         if len(rows) > 10:
@@ -991,7 +991,7 @@ class Moderation(SupabaseCog):
             try:
                 user = await self.bot.fetch_user(int(user_id))
                 name = user.name
-            except:
+            except Exception:
                 name = "Тодорхойгүй"
             embed.add_field(name=f"👤 {name}", value=f"🆔 ID: `{user_id}`\n⚠️ Анхааруулга: **{cnt}**\n📅 Сүүлийн: `{last_str}`", inline=False)
         embed.set_footer(text="Хамгийн их 20 хэрэглэгч")

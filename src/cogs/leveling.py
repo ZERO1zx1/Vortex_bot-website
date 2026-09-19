@@ -58,11 +58,11 @@ _CACHE_TTL = 20.0
 # ── Safe converters ──
 def _safe_int(value, default=0):
     try: return int(value)
-    except: return default
+    except Exception: return default
 
 def _safe_float(value, default=0.0):
     try: return float(value)
-    except: return default
+    except Exception: return default
 
 def _safe_bool(value, default=False):
     if isinstance(value, bool): return value
@@ -94,7 +94,7 @@ def xp_for_message(content: str, cfg: Dict[str, Any]) -> int:
     tiers = cfg.get("xp_tiers", DEFAULT_XP_TIERS)
     if isinstance(tiers, str):
         try: tiers = json.loads(tiers)
-        except: tiers = DEFAULT_XP_TIERS
+        except Exception: tiers = DEFAULT_XP_TIERS
     for tier in sorted(tiers, key=lambda t: int(t["max_words"])):
         if words <= int(tier["max_words"]): return int(tier["xp"])
     return int(tiers[-1]["xp"]) if tiers else 5
@@ -106,7 +106,7 @@ async def fetch_avatar(url, size=128):
             async with session.get(url, timeout=10) as resp:
                 data = await resp.read()
         img = Image.open(io.BytesIO(data)).convert("RGBA").resize((size,size), resample=Resampling.LANCZOS)
-    except:
+    except Exception:
         img = Image.new("RGBA",(size,size),(88,101,242,255))
     mask = Image.new("L",(size,size),0)
     ImageDraw.Draw(mask).ellipse((0,0,size,size),fill=255)
@@ -123,7 +123,7 @@ async def _load_background_image(url: Optional[str]):
                     if resp.status == 200:
                         data = await resp.read()
                         return Image.open(io.BytesIO(data)).convert("RGBA")
-        except:
+        except Exception:
             return None
     if isinstance(url, str):
         candidate_paths = []
@@ -139,7 +139,7 @@ async def _load_background_image(url: Optional[str]):
             if path and os.path.exists(path):
                 try:
                     return Image.open(path).convert("RGBA")
-                except:
+                except Exception:
                     pass
     return None
 
@@ -156,14 +156,14 @@ async def _load_overlay(overlay_name: str, width: int, height: int):
             try:
                 overlay = Image.open(path).convert("RGBA")
                 return overlay.resize((width, height), resample=Resampling.LANCZOS)
-            except:
+            except Exception:
                 pass
     return None
 
 def _load_asset_font(size: int, bold: bool = True):
     try:
         return _load_font(size, bold)
-    except:
+    except Exception:
         return ImageFont.load_default()
 
 # ── Config load/save (with TTL cache) ──
@@ -384,14 +384,14 @@ class Leveling(SupabaseCog):
                     buff = cafe.get_buff(user_id, guild_id)
                     if asyncio.iscoroutine(buff): buff = await buff
                     if buff and buff.get('type') == 'xp_boost': mult *= buff.get('xp_mult', 1.0)
-        except: pass
+        except Exception: pass
         try:
             marriage = self.bot.get_cog("Marriage")
             if marriage and hasattr(marriage, 'get_married_bonus'):
                 bonus = marriage.get_married_bonus(user_id, guild_id)
                 if asyncio.iscoroutine(bonus): bonus = await bonus
                 if bonus: mult *= (1 + bonus)
-        except: pass
+        except Exception: pass
         return mult
 
     async def _add_xp(self, user_id, guild_id, amount, member=None, check_mute=True, channel=None):
@@ -400,12 +400,12 @@ class Leveling(SupabaseCog):
             try:
                 if member.timed_out_until and member.timed_out_until > datetime.now(timezone.utc): return
                 if hasattr(member,'voice') and member.voice and (member.voice.mute or member.voice.self_mute): return
-            except: pass
+            except Exception: pass
         if amount > 0:
             try:
                 multiplier = await self.get_active_buff(user_id, guild_id)
                 amount = int(amount * multiplier)
-            except: pass
+            except Exception: pass
         row = await self.bot.db_manager.fetch_one(
             "levels", {"user_id": str(user_id), "guild_id": str(guild_id)}
         )
@@ -434,7 +434,7 @@ class Leveling(SupabaseCog):
             try:
                 quests = self.bot.get_cog("Quests")
                 if quests and hasattr(quests,'trigger_event'): await quests.trigger_event(member.id, guild_id, "level_up", 1)
-            except: pass
+            except Exception: pass
 
     async def _announce_level_up(self, member, old, new, current_xp, source_channel):
         guild = member.guild
@@ -452,8 +452,8 @@ class Leveling(SupabaseCog):
                     ch = guild.get_channel(cfg.get("announce_channel")) if cfg.get("announce_channel") else source_channel
                     if ch:
                         try: await ch.send(embed=embed)
-                        except: pass
-        except: pass
+                        except Exception: pass
+        except Exception: pass
         # Level role (Supabase may return IDs as str — coerce to int)
         try:
             role_row = await self.bot.db_manager.fetch_one(
@@ -476,11 +476,11 @@ class Leveling(SupabaseCog):
             if buf:
                 file = discord.File(buf, filename="levelup.png")
                 try: await channel.send(content=member.mention, file=file)
-                except: pass
+                except Exception: pass
             else:
                 embed = discord.Embed(title="🎉 Түвшин ахисан!", description=f"{member.mention} Lv.{new} хүрлээ!", color=GOLD_COLOR)
                 try: await channel.send(embed=embed)
-                except: pass
+                except Exception: pass
         except Exception as e: log.error(f"Level up announcement: {e}")
 
     # ========== PUBLIC API ==========
@@ -640,7 +640,7 @@ class Leveling(SupabaseCog):
                 await self.bot.db_manager.insert("levels", {
                     "user_id": str(message.author.id), "guild_id": str(message.guild.id), "message_count": 1,
                 })
-        except: pass
+        except Exception: pass
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -669,7 +669,7 @@ class Leveling(SupabaseCog):
                 await self.bot.db_manager.insert("levels", {
                     "user_id": str(payload.user_id), "guild_id": str(payload.guild_id), "reaction_count": 1,
                 })
-        except: pass
+        except Exception: pass
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -719,7 +719,7 @@ class Leveling(SupabaseCog):
                                         await self.bot.db_manager.insert("levels", {
                                             "user_id": str(member.id), "guild_id": str(guild.id), "voice_seconds": VOICE_INTERVAL_SECS,
                                         })
-                                except: pass
+                                except Exception: pass
             except Exception as e: log.error(f"Voice XP loop: {e}")
             await asyncio.sleep(30)
 
@@ -783,7 +783,7 @@ class Leveling(SupabaseCog):
                 "levels", {"guild_id": str(guild.id)}
             )
             active_chatters = sum(1 for r in lvl_rows if (r.get("message_count", 0) or 0) > 0)
-        except: pass
+        except Exception: pass
 
         embed = discord.Embed(title=f"📈 {guild.name} - Server Activity", color=SUCCESS_COLOR)
         embed.add_field(name="👥 Members", value=f"Total: {guild.member_count}\nOnline: {online}\nOffline: {offline}")

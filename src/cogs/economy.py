@@ -509,7 +509,7 @@ class Economy(SupabaseCog):
             if leveling:
                 try:
                     await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(10, 20), member=ctx.author, check_mute=True, channel=ctx.channel)
-                except: pass
+                except Exception: pass
 
             quests_cog = self.bot.get_cog("Quests")
             try:
@@ -558,7 +558,7 @@ class Economy(SupabaseCog):
             leveling = self.bot.get_cog("Leveling")
             if leveling:
                 try: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(5, 10), member=ctx.author, check_mute=True, channel=ctx.channel)
-                except: pass
+                except Exception: pass
             lang = await i18n.get_guild_lang(ctx.guild.id)
             embed = discord.Embed(
                 title="🎉 Daily Reward",
@@ -610,7 +610,7 @@ class Economy(SupabaseCog):
             amount = await self.get_balance(ctx.author.id, ctx.guild.id)
         else:
             try: amount = int(amount_str)
-            except: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
+            except Exception: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
         if amount <= 0: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн эерэг байх ёстой.", color=ERROR_COLOR))
         if member.id == ctx.author.id: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Өөртөө мөнгө шилжүүлэх боломжгүй.", color=ERROR_COLOR))
         rate = await self.get_effective_rate(ctx.guild.id)
@@ -646,7 +646,7 @@ class Economy(SupabaseCog):
                                       color=SUCCESS_COLOR)
         await ctx.send(embed=success_embed)
         try: await member.send(f"📨 {ctx.author.display_name} танд **{final_amount:,}** ₮ шилжүүллээ!")
-        except: pass
+        except Exception: pass
 
     @commands.command(name='deposit', aliases=['dep'])
     async def deposit(self, ctx, amount_str: str):
@@ -655,7 +655,7 @@ class Economy(SupabaseCog):
         if amount_str.lower() == 'all': amt = cash
         else:
             try: amt = int(amount_str)
-            except: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
+            except Exception: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
         if amt <= 0 or cash < amt:
             return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн буруу эсвэл мөнгө хүрэлцэхгүй.", color=ERROR_COLOR))
         bank = await self.get_bank(ctx.author.id, ctx.guild.id)
@@ -679,7 +679,7 @@ class Economy(SupabaseCog):
         if amount_str.lower() == 'all': amt = bank
         else:
             try: amt = int(amount_str)
-            except: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
+            except Exception: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
         if amt <= 0 or bank < amt:
             return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн буруу эсвэл банканд мөнгө хүрэлцэхгүй.", color=ERROR_COLOR))
         cash = await self.get_balance(ctx.author.id, ctx.guild.id)

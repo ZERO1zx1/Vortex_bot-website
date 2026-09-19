@@ -408,7 +408,7 @@ class Greetings(commands.Cog):
         if log_channel:
             try:
                 await log_channel.send(embed=discord.Embed(description=message, color=ERROR_COLOR))
-            except:
+            except Exception:
                 pass
 
     # ================= SLASH COMMANDS =================

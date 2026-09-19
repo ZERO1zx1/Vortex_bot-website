@@ -282,7 +282,7 @@ class CountingSetupView(ui.View):
                 for child in self.children:
                     child.disabled = True
                 await self.message.edit(view=self)
-            except:
+            except Exception:
                 pass
 
 # ==================== ҮНДСЭН COG ====================
@@ -448,12 +448,12 @@ class Counting(commands.Cog):
                 await message.channel.send(embed=embed)
                 if cfg["delete_messages"]:
                     try: await message.delete()
-                    except: pass
+                    except Exception: pass
                 if cfg["failed_role_id"]:
                     role = message.guild.get_role(cfg["failed_role_id"])
                     if role:
                         try: await message.author.add_roles(role, reason="Тооллогын алдаа")
-                        except: pass
+                        except Exception: pass
                 return
 
             new_streak = prog["streak"] + 1 if prog["last_user"] == message.author.id else 1
@@ -466,7 +466,7 @@ class Counting(commands.Cog):
                 await quests_cog.trigger_event(message.author.id, message.guild.id, "counting_participate", 1)
             
             try: await message.add_reaction("✅")
-            except: pass
+            except Exception: pass
 
             if expected > cfg["high_score"]:
                 await self.update_high_score(message.guild.id, expected)
@@ -488,7 +488,7 @@ class Counting(commands.Cog):
                     try:
                         await message.author.add_roles(role, reason="50 дараалсан зөв тоололт")
                         await message.channel.send(f"🌟 {message.author.mention} та найдвартай тоологч боллоо!", delete_after=5)
-                    except: pass
+                    except Exception: pass
 
         except Exception as exc:
             # Protect on_message from transient DB failures per event.

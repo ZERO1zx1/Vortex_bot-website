@@ -88,7 +88,7 @@ class MafiaSetupView(ui.View):
             for child in self.children:
                 child.disabled = True
             try: await self.message.edit(view=self)
-            except: pass
+            except Exception: pass
 
 # ══════════════ Лобби самбар ══════════════
 class MafiaLobbyView(ui.View):
@@ -180,7 +180,7 @@ class Mafia(commands.Cog):
             embed = discord.Embed(title=title, description=desc, color=color)
             if thumbnail: embed.set_thumbnail(url=thumbnail)
             await member.send(embed=embed)
-        except: pass
+        except Exception: pass
 
     def role_name(self, role: str) -> str:
         return {
@@ -298,7 +298,7 @@ class Mafia(commands.Cog):
             del self.games[game.channel.id]
         try:
             await self.send_embed(game.channel, "⏹️ **ТОГЛООМ ЗОГСЛОО**", reason, WARNING_COLOR)
-        except: pass
+        except Exception: pass
 
     # ────── Дүр тараалт ──────
     def generate_roles(self, count: int) -> List[str]:
@@ -369,7 +369,7 @@ class Mafia(commands.Cog):
                 channel = await guild.create_text_channel("mafia-chat", category=cat, overwrites=overwrites)
                 game.mafia_channel = channel
                 await channel.send(embed=discord.Embed(title="🔪 МАФИ ЧАТ", description="Энд хэлэлцэж, `kill <дугаар>` командаар алах хүнээ шийднэ.", color=MAFIA_RED))
-            except: pass
+            except Exception: pass
 
         # Цагдаагийн суваг
         detective_players = [p for p in game.players if p.role == "detective"]
@@ -381,18 +381,18 @@ class Mafia(commands.Cog):
                 channel = await guild.create_text_channel("detective-chat", category=cat, overwrites=overwrites)
                 game.detective_channel = channel
                 await channel.send(embed=discord.Embed(title="👮 ЦАГДАА ЧАТ", description="Энд мэдээллээ хуваалцаж, `investigate <дугаар>` командаар хэнийг шалгахаа шийднэ.", color=INFO_COLOR))
-            except: pass
+            except Exception: pass
 
     async def delete_faction_channels(self, game: MafiaGame):
         for ch in [game.mafia_channel, game.detective_channel]:
             if ch:
                 try: await ch.delete()
-                except: pass
+                except Exception: pass
         if game.game_category:
             try:
                 if not game.game_category.channels:
                     await game.game_category.delete()
-            except: pass
+            except Exception: pass
 
     # ────── Шөнийн фаза ──────
     async def night_phase_timer(self, game: MafiaGame):
@@ -596,7 +596,7 @@ class Mafia(commands.Cog):
                         parts = content.split()
                         if len(parts) != 2: return
                         target_num = int(parts[1])
-                    except: return
+                    except Exception: return
                     voter = next((p for p in game.players if p.member.id == message.author.id), None)
                     if not voter or not voter.alive:
                         await message.delete()
@@ -634,7 +634,7 @@ class Mafia(commands.Cog):
                 return
             action, target_str = parts[0], parts[1]
             try: target_num = int(target_str)
-            except:
+            except Exception:
                 await message.channel.send(f"{message.author.mention} ❌ **Зөвхөн тоо оруулна уу.**")
                 return
 
@@ -703,7 +703,7 @@ class Mafia(commands.Cog):
                     return
                 action, target_str = parts[0], parts[1]
                 try: target_num = int(target_str)
-                except:
+                except Exception:
                     await message.channel.send("❌ **Зөвхөн тоо оруулна уу.**")
                     return
 

@@ -280,7 +280,7 @@ class AnnouncementView(ui.View):
                 child.disabled = True
             try:
                 await self.message.edit(view=self)
-            except:
+            except Exception:
                 pass
 
 

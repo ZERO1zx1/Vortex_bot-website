@@ -103,7 +103,7 @@ class ProposalView(View):
             child.disabled = True
         if self.message:
             try: await self.message.edit(view=self)
-            except: pass
+            except Exception: pass
 
 class AdoptView(View):
     def __init__(self, bot, guild_id, parent_id, child_id, proposal_type="adoption"):
@@ -163,7 +163,7 @@ class AdoptView(View):
             child.disabled = True
         if self.message:
             try: await self.message.edit(view=self)
-            except: pass
+            except Exception: pass
 
 # ══════════════ АДМИН САМБАР ══════════════
 class MarriageSetupView(View):
@@ -240,7 +240,7 @@ class MaxSpousesModal(ui.Modal, title="Хамгийн их гэрлэх тоо")
             await self.view.cog.set_guild_config(self.view.guild_id, max_spouses=val)
             await interaction.response.send_message(f"✅ {val}", ephemeral=True)
             await self.view.refresh(interaction)
-        except: await interaction.response.send_message("❌ Буруу утга.", ephemeral=True)
+        except Exception: await interaction.response.send_message("❌ Буруу утга.", ephemeral=True)
 
 class MarriageRoleModal(ui.Modal, title="Гэрлэлтийн роль ID"):
     role_id = ui.TextInput(label="Роль ID", placeholder="123456789", required=True)
@@ -253,7 +253,7 @@ class MarriageRoleModal(ui.Modal, title="Гэрлэлтийн роль ID"):
             await self.view.cog.set_guild_config(self.view.guild_id, marriage_role=rid)
             await interaction.response.send_message(f"✅ {role.mention}", ephemeral=True)
             await self.view.refresh(interaction)
-        except: await interaction.response.send_message("❌ Буруу ID.", ephemeral=True)
+        except Exception: await interaction.response.send_message("❌ Буруу ID.", ephemeral=True)
 
 # ══════════════ ҮНДСЭН COG ══════════════
 class Marriage(SupabaseCog):
@@ -290,7 +290,7 @@ class Marriage(SupabaseCog):
             role = guild.get_role(cfg["marriage_role"])
             if role and role not in member.roles:
                 try: await member.add_roles(role, reason="Гэрлэлт")
-                except: pass
+                except Exception: pass
 
     async def remove_marriage_role(self, guild, member):
         cfg = await self.get_guild_config(guild.id)
@@ -298,7 +298,7 @@ class Marriage(SupabaseCog):
             role = guild.get_role(cfg["marriage_role"])
             if role and role in member.roles:
                 try: await member.remove_roles(role, reason="Салалт")
-                except: pass
+                except Exception: pass
 
     async def announce_marriage(self, guild, user1, user2):
         cfg = await self.get_guild_config(guild.id)
@@ -448,7 +448,7 @@ class Marriage(SupabaseCog):
     async def get_anniversary(self, marriage_date):
         if not marriage_date: return None
         try: marriage_date = int(marriage_date)
-        except: return None
+        except Exception: return None
         today = datetime.datetime.now(datetime.timezone.utc).date()
         mar_date = datetime.datetime.fromtimestamp(marriage_date).date()
         days = (today - mar_date).days
@@ -489,7 +489,7 @@ class Marriage(SupabaseCog):
         try:
             async with sess.get(url) as resp: data = await resp.read()
             img = Image.open(io.BytesIO(data)).convert("RGBA").resize((size, size))
-        except: img = Image.new("RGBA", (size, size), (88, 101, 242, 255))
+        except Exception: img = Image.new("RGBA", (size, size), (88, 101, 242, 255))
         mask = Image.new("L", (size, size), 0)
         ImageDraw.Draw(mask).ellipse((0, 0, size, size), fill=255)
         img.putalpha(mask)

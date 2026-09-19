@@ -739,7 +739,7 @@ class Games(commands.Cog):
         try:
             msg = await self.bot.wait_for('message', timeout=10.0, check=check)
             answer_idx = int(msg.content) - 1
-        except:
+        except Exception:
             return await ctx.send("⏰ Хугацаа дууссан!")
 
         xp = random.randint(5, 15)

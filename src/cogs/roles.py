@@ -29,7 +29,7 @@ class RoleManagement(commands.Cog):
     def cog_unload(self):
         try:
             self.temprole_loop.cancel()
-        except:
+        except Exception:
             pass
 
     async def cog_load(self):
@@ -318,7 +318,7 @@ class RoleManagement(commands.Cog):
             if role and role in user.roles:
                 try:
                     await user.remove_roles(role, reason=f"Түр үүргүүд цуцлагдсан: {ctx.author}")
-                except:
+                except Exception:
                     pass
         await self.bot.db_manager.delete(
             "temproles", {"guild_id": str(ctx.guild.id), "user_id": str(user.id)}
@@ -344,7 +344,7 @@ class RoleManagement(commands.Cog):
         await self.bot.wait_until_ready()
         now = int(datetime.now(timezone.utc).timestamp())
         rows = await self.bot.db_manager.fetch_safe("temproles", {})
-        expired = [r for r in rows if (r.get("end_time") or 0) <= now]
+        expired = [r for r in (rows or []) if (r.get("end_time") or 0) <= now]
 
         for r in expired:
             eid = r.get("id")
