@@ -4,6 +4,7 @@ Change the bot's public identity here instead of searching through cogs.
 """
 
 from typing import Optional
+from datetime import datetime, timezone
 
 BOT_NAME = "𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹"
 BOT_DESCRIPTION = (
@@ -19,12 +20,14 @@ WEBSITE_URL = None
 INVITE_URL = None
 
 # Brand color
-PRIMARY_COLOR = 0x1E1E2F
+PRIMARY_COLOR = 0x171827
 SUCCESS_COLOR = 0xA6E3A1
 ERROR_COLOR = 0xF38BA8
 WARNING_COLOR = 0xF9E2AF
 GOLD_COLOR = 0xFAB387
 INFO_COLOR = 0x89B4FA
+ACCENT_COLOR = 0xCBA6F7
+MUTED_COLOR = 0x6C7086
 
 
 def footer_text(user: Optional[str] = None) -> str:
@@ -32,3 +35,7 @@ def footer_text(user: Optional[str] = None) -> str:
     if user:
         return f"{user} • {BOT_FOOTER}"
     return BOT_FOOTER
+
+
+def timestamp_now() -> datetime:
+    return datetime.now(timezone.utc)

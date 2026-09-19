@@ -1,6 +1,7 @@
 const fs = require('fs');
 const vm = require('vm');
-const source = fs.readFileSync('js/commands.js', 'utf8');
+const path = require('path');
+const source = fs.readFileSync(path.join(__dirname, 'js', 'commands.js'), 'utf8');
 const context = { window: {} };
 vm.createContext(context);
 vm.runInContext(source, context);

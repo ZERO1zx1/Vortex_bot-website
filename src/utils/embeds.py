@@ -10,14 +10,20 @@ from src.utils.branding import (
     WARNING_COLOR,
     GOLD_COLOR,
     INFO_COLOR,
+    ACCENT_COLOR,
+    timestamp_now,
 )
 
 
 def brand_embed(title=None, description=None, color=PRIMARY_COLOR, footer=BOT_FOOTER) -> discord.Embed:
-    embed = discord.Embed(title=title, description=description, color=color)
+    embed = discord.Embed(title=title, description=description, color=color, timestamp=timestamp_now())
     if footer:
         embed.set_footer(text=footer)
     return embed
+
+
+def accent_embed(title=None, description=None, footer=BOT_FOOTER) -> discord.Embed:
+    return brand_embed(title=title, description=description, color=ACCENT_COLOR, footer=footer)
 
 
 def success_embed(title=None, description=None, footer=BOT_FOOTER) -> discord.Embed:
@@ -62,16 +68,19 @@ async def safe_defer(target, ephemeral=False):
 async def safe_respond(target, content=None, embed=None, view=None, ephemeral=False, delete_after=None):
     """Safely respond to an Interaction or Context, respecting response state."""
     if isinstance(target, discord.Interaction):
+        payload = {"content": content, "embed": embed, "ephemeral": ephemeral}
+        if view is not None:
+            payload["view"] = view
         try:
             if target.response.is_done():
-                await target.followup.send(content=content, embed=embed, view=view, ephemeral=ephemeral)
+                await target.followup.send(**payload)
             else:
-                await target.response.send_message(content=content, embed=embed, view=view, ephemeral=ephemeral)
+                await target.response.send_message(**payload)
         except discord.InteractionResponded:
-            await target.followup.send(content=content, embed=embed, view=view, ephemeral=ephemeral)
+            await target.followup.send(**payload)
         except discord.HTTPException:
             try:
-                await target.followup.send(content=content, embed=embed, view=view, ephemeral=ephemeral)
+                await target.followup.send(**payload)
             except Exception:
                 pass
         return

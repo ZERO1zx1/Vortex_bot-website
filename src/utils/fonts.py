@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 import unicodedata
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -33,8 +34,14 @@ log = logging.getLogger("aether.fonts")
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-ASSETS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ASSETS_DIR = str(PROJECT_ROOT / "assets")
 FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
+IMAGE_ASSETS_DIR = os.path.join(ASSETS_DIR, "images")
+LEVEL_FONT_PATHS = (
+    os.path.join(ASSETS_DIR, "levelfont.otf"),
+    os.path.join(IMAGE_ASSETS_DIR, "levelfont.otf"),
+)
 
 # ---------------------------------------------------------------------------
 # Font fallback chain (ordered by priority)
@@ -134,10 +141,10 @@ class FontManager:
                 found.append((fpath, is_bold))
 
         # 2. Check assets root for levelfont.otf
-        lf = os.path.join(ASSETS_DIR, "levelfont.otf")
-        if os.path.isfile(lf) and lf not in seen_paths:
-            seen_paths.add(lf)
-            found.append((lf, True))
+        for lf in LEVEL_FONT_PATHS:
+            if os.path.isfile(lf) and lf not in seen_paths:
+                seen_paths.add(lf)
+                found.append((lf, True))
 
         # 3. Check candidate system paths
         for path, is_bold in _FONT_CANDIDATES:
@@ -229,14 +236,14 @@ class FontManager:
             return self._font_cache[key]
 
         # Always try levelfont.otf first for consistent branding across all cards
-        lf = os.path.join(ASSETS_DIR, "levelfont.otf")
-        if os.path.isfile(lf):
-            try:
-                font = ImageFont.truetype(lf, size)
-                self._font_cache[key] = font
-                return font
-            except Exception as e:
-                log.debug("Failed to load levelfont.otf: %s", e)
+        for lf in LEVEL_FONT_PATHS:
+            if os.path.isfile(lf):
+                try:
+                    font = ImageFont.truetype(lf, size)
+                    self._font_cache[key] = font
+                    return font
+                except Exception as e:
+                    log.debug("Failed to load level font %s: %s", lf, e)
 
         fonts = self._discover_fonts()
         for path, is_bold in fonts:
@@ -279,16 +286,15 @@ class FontManager:
             return self._font_cache[key]
 
         # Try levelfont.otf first (project asset)
-        lf = os.path.join(ASSETS_DIR, "levelfont.otf")
-        if os.path.isfile(lf):
-            try:
-                font = ImageFont.truetype(lf, size)
-                # Verify it can render the bot name
-                if self._font_has_glyph(font, "𝓐"):
-                    self._font_cache[key] = font
-                    return font
-            except Exception:
-                pass
+        for lf in LEVEL_FONT_PATHS:
+            if os.path.isfile(lf):
+                try:
+                    font = ImageFont.truetype(lf, size)
+                    if self._font_has_glyph(font, "𝓐"):
+                        self._font_cache[key] = font
+                        return font
+                except Exception:
+                    pass
 
         # A single font rarely covers both Mathematical Script and CJK.
         # Pick one that renders at least one distinctive branding glyph;

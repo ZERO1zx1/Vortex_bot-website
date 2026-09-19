@@ -4,36 +4,42 @@ import random
 import os
 import aiohttp
 from typing import Optional
+from pathlib import Path
+
+from src.utils.embeds import brand_embed, success_embed, info_embed, error_embed
+from src.utils.branding import PRIMARY_COLOR, ACCENT_COLOR, BOT_FOOTER
 
 class Fun(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         # gifs хавтас assets/gifs/ замд байх ёстой
-        self.gifs_base = os.path.abspath("./assets/gifs")
+        self.gifs_base = Path(__file__).resolve().parents[2] / "assets" / "gifs"
 
     def _get_random_gif(self, action: str):
         """Тухайн үйлдлийн хавтсаас санамсаргүй .gif файл буцаана"""
-        folder = os.path.join(self.gifs_base, action)
-        if not os.path.isdir(folder):
+        folder = self.gifs_base / action
+        if not folder.is_dir():
             return None
         try:
-            files = [f for f in os.listdir(folder) if f.endswith(".gif")]
+            files = [f for f in folder.iterdir() if f.is_file() and f.suffix.lower() == ".gif"]
         except OSError:
             return None
         if not files:
             return None
-        filepath = os.path.join(folder, random.choice(files))
-        return discord.File(filepath, filename=f"{action}.gif")
+        filepath = random.choice(files)
+        return discord.File(str(filepath), filename=f"{action}.gif")
+
+    @staticmethod
+    def _embed(title: str, description: str = "", color: int = PRIMARY_COLOR) -> discord.Embed:
+        embed = brand_embed(title=title, description=description, color=color, footer=BOT_FOOTER)
+        return embed
 
     async def _send_action(self, ctx, action: str, texts: list, title: str, color, target: discord.Member = None):
         """Текст болон (боломжтой бол) гифтэй embed илгээх"""
         gif = self._get_random_gif(action)
-        embed = discord.Embed(
-            title=title,
-            description=random.choice(texts),
-            color=color
-        )
-        embed.set_footer(text=str(ctx.author), icon_url=ctx.author.display_avatar.url)
+        embed = self._embed(title, random.choice(texts), color.value if hasattr(color, "value") else color)
+        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
+        embed.set_footer(text=f"{BOT_FOOTER} • {action}")
 
         # Даалгаврын системд мэдэгдэх
         quests_cog = self.bot.get_cog("Quests")
@@ -49,15 +55,16 @@ class Fun(commands.Cog):
     # ==================== ҮНДСЭН ====================
     @commands.command(name='ping')
     async def ping(self, ctx):
-        embed = discord.Embed(title="🏓 Pong!", description=f"Пинг: {round(self.bot.latency * 1000)} ms", color=discord.Color.green())
+        embed = success_embed("🏓 Pong!", f"Latency: **{round(self.bot.latency * 1000)} ms**")
+        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
     @commands.command(name='avatar', aliases=['av'])
     async def avatar(self, ctx, member: discord.Member = None):
         target = member or ctx.author
-        embed = discord.Embed(title=f"🖼️ {target.display_name} - ИЙН АВАТААР", color=discord.Color.blue())
+        embed = info_embed(f"🖼️ {target.display_name}-ийн аватар", "")
         embed.set_image(url=target.display_avatar.url)
-        embed.set_footer(text=f"Хүсэлт гаргасан: {ctx.author}", icon_url=ctx.author.display_avatar.url)
+        embed.set_author(name=f"Хүсэлт гаргасан: {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
     # ==================== ЛОКАЛ ГИФ ХАЙЛТ ====================
@@ -101,7 +108,7 @@ class Fun(commands.Cog):
             gif_path = random.choice(matched)
 
         file = discord.File(gif_path, filename=os.path.basename(gif_path))
-        embed = discord.Embed(title=f"🔍 Гиф: {query or 'Санамсаргүй'}", color=0x00ffff)
+        embed = self._embed(f"🎞️ GIF • {query or 'Санамсаргүй'}", "Reaction library-ээс сонголоо.", ACCENT_COLOR)
         embed.set_image(url=f"attachment://{os.path.basename(gif_path)}")
         await ctx.send(embed=embed, file=file)
 

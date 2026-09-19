@@ -5,6 +5,7 @@
 
 # Python
 __pycache__/
+assets/fonts/node_modules/
 *.py[cod]
 *$py.class
 *.so
@@ -12,6 +13,7 @@ __pycache__/
 dist/
 build/
 .eggs/
+.pytest_cache/
 
 # Virtual environments
 venv/

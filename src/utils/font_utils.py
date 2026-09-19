@@ -7,6 +7,7 @@ This module now delegates to the centralized Unicode-aware font manager in
 """
 
 import os
+from pathlib import Path
 from typing import List, Optional
 
 from PIL import ImageFont
@@ -35,7 +36,7 @@ __all__ = [
 ]
 
 # Keep the original FONTS_DIR for backward compatibility
-ASSETS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
+ASSETS_DIR = str(Path(__file__).resolve().parents[2] / "assets")
 FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
 
 

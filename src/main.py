@@ -69,6 +69,10 @@ LEVELS = {"DEBUG": logging.DEBUG, "INFO": logging.INFO,
           "CRITICAL": logging.CRITICAL}
 
 _term_level_name = str(config.get("terminal_log_level", "INFO")).strip().upper()
+terminal_formatter = logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 if _term_level_name in ("OFF", "NONE"):
     stream = logging.StreamHandler()
     stream.setLevel(logging.CRITICAL + 1)
@@ -76,6 +80,7 @@ else:
     _term_level = LEVELS.get(_term_level_name, logging.INFO)
     stream = logging.StreamHandler()
     stream.setLevel(_term_level)
+stream.setFormatter(terminal_formatter)
 
 # setup_logging-ийн console handler-ийг config-ийн terminal level-р солино.
 root = logging.getLogger()

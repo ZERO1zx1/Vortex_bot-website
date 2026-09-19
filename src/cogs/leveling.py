@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import os
+from pathlib import Path
 import time
 import random
 from datetime import datetime, timezone
@@ -25,8 +26,8 @@ from src.utils import journal_style as journal
 log = logging.getLogger(__name__)
 
 # ── Asset paths ──
-ASSETS_DIR = os.path.abspath("./assets")
-DEFAULT_ASSET_FONT = os.path.join(ASSETS_DIR, "levelfont.otf")
+ASSETS_DIR = str(Path(__file__).resolve().parents[2] / "assets")
+DEFAULT_ASSET_FONT = os.path.join(ASSETS_DIR, "images", "levelfont.otf")
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
 # ── Color constants (single source) ──

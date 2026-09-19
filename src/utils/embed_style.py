@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from src.utils.branding import timestamp_now
 from discord import Embed
 from src.utils.branding import BOT_NAME
 from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
@@ -77,7 +77,7 @@ SEP = "━" * 30
 def style_embed(title: str, description: str = "", color: int = EMBED_COLOR, icon_key: str = "") -> Embed:
     icon = ICONS.get(icon_key, "")
     full_title = f"{icon}  {title}  {icon}" if icon else title
-    ts = datetime.now(timezone.utc)
+    ts = timestamp_now()
     e = Embed(title=full_title, description=description, color=color, timestamp=ts)
     e.set_footer(text=f"{BOT_NAME} • {ts.strftime('%H:%M:%S')}")
     return e

@@ -22,7 +22,7 @@ window.AETHER_CONFIG = {
    * Бот унтарвал last_ping хуучирч, сайт автоматаар "Offline" +
    * "сүүлд X цагын өмнө асаагдсан" гэж харуулна.
    */
-HEARTBEAT_POLL_MS: 60000,       // мс — 60 сек тутам дахин шалгана
+  HEARTBEAT_POLL_MS: 120000,       // мс — 2 min тутам дахин шалгана
   /*
    * SUPABASE heartbeat (backend байхгүй үед шууд уншилт):
    * Бот 60 сек тутам bot_status(id=1) рүү "last_ping" бичдэг.
