@@ -31,12 +31,12 @@ DEFAULT_ASSET_FONT = os.path.join(ASSETS_DIR, "images", "levelfont.otf")
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
 # ── Color constants (single source) ──
-EMBED_COLOR   = 0x1e1e2f
-SUCCESS_COLOR = 0xa6e3a1
-GOLD_COLOR    = 0xfab387
-WARNING_COLOR = 0xf9e2af
-ERROR_COLOR   = 0xf38ba8
-INFO_COLOR    = 0x89b4fa
+EMBED_COLOR   = 0x090B1A
+SUCCESS_COLOR = 0x72F1B8
+GOLD_COLOR    = 0xFFB86B
+WARNING_COLOR = 0xFFD166
+ERROR_COLOR   = 0xFF5C8A
+INFO_COLOR    = 0x63D9FF
 
 # ── Defaults ──
 DEFAULT_XP_TIERS = [{"max_words":10,"xp":5},{"max_words":30,"xp":10},{"max_words":999,"xp":20}]
@@ -293,6 +293,8 @@ async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, backgr
         font_seal = _load_asset_font(24, bold=True)
 
         journal.banner(draw, (268, 36, 650, 84), member.display_name[:24], font_main, seed=seed)
+        draw_text_with_fallback(draw, (272, 92), "ANIME RANK RECORD", font_small,
+                                fill=journal.INK_SOFT, size=17, bold=True)
         journal.wax_seal(draw, (772, 92), 58, f"LVL {level}", font_seal, seed=seed)
 
         journal.patch(draw, (636, 168, 856, 204))
@@ -473,7 +475,7 @@ class Leveling(SupabaseCog):
         needed = xp_for_level(new, cfg)
         rank_pos = await self.get_rank_position(member.id, guild.id)
         try:
-            buf = await render_dlc_card(member, new, current_xp, needed, rank_pos, cfg.get("background_url"), stamp_text="LEVEL UP!")
+            buf = await render_dlc_card(member, new, current_xp, needed, rank_pos, cfg.get("background_url"), stamp_text="ASCEND!")
             if buf:
                 file = discord.File(buf, filename="levelup.png")
                 try: await channel.send(content=member.mention, file=file)
@@ -760,11 +762,11 @@ class Leveling(SupabaseCog):
                 file = discord.File(buf, filename="rank.png")
                 embed = discord.Embed(color=0x7289da)
                 embed.set_image(url="attachment://rank.png")
-                embed.set_footer(text=f"Rank #{rank}  •  Total XP: {total_xp:,}")
+                embed.set_footer(text=f"Aether Guild • Anime Rank #{rank} • Total XP: {total_xp:,}")
                 await ctx.send(embed=embed, file=file)
             else:
                 embed = discord.Embed(title=f"📊 {target.display_name}", description=f"**Level:** {level}\n**XP:** {xp_in_level}/{needed}\n**Rank:** #{rank}", color=0x7289da)
-                embed.set_footer(text=f"Total XP: {total_xp:,}")
+                embed.set_footer(text=f"Aether Guild • Total XP: {total_xp:,}")
                 await ctx.send(embed=embed)
         except Exception as e: await ctx.send(f"❌ Rank карт үүсгэхэд алдаа гарлаа: {e}", ephemeral=True)
 

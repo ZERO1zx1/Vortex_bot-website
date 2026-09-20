@@ -441,6 +441,7 @@ class Cards(commands.Cog):
 
         # Нэрийн тууз
         journal.banner(draw, (176, 24, 596, 64), member.display_name[:20], font_name, seed=seed)
+        draw.text((180, 72), "ANIME PROFILE", font=font_small, fill=journal.INK_SOFT)
         uname_line = f"@{member.name}"
         if data.get("equips"):
             uname_line += f"  {data['equips']}"
@@ -496,7 +497,7 @@ class Cards(commands.Cog):
         # Толгой: хөрөг + тууз + багтаамжийн зам
         journal.sketch_frame(img, (40, 28, 85, 73), avatar_img, seed=seed)
         draw = ImageDraw.Draw(img)
-        journal.banner(draw, (104, 24, 480, 60), f"{member.display_name[:18]}'s Satchel", font_title, seed=seed)
+        journal.banner(draw, (104, 24, 480, 60), f"{member.display_name[:18]}'s Anime Satchel", font_title, seed=seed)
         cap_txt = f"Багтаамж: {used_slots}/{total_slots}"
         await self._draw_text_with_emoji(img, draw, 500, 30, cap_txt, font=font_sub, fill=journal.INK_SOFT)
         journal.watercolor_bar(draw, (500, 52, 740, 66), used_slots / total_slots if total_slots else 0,
@@ -574,7 +575,7 @@ class Cards(commands.Cog):
         buf = await self._render_inventory_card(member, avatar_img, page_items, used_slots, max_slots, buffs, page, total_pages)
         embed = discord.Embed(color=JOURNAL_EMBED_COLOR)
         embed.set_image(url="attachment://inventory.png")
-        embed.set_footer(text=f"{member.guild.name} • {member.display_name}")
+        embed.set_footer(text=f"{member.guild.name} • Anime Satchel • {member.display_name}")
         return embed, discord.File(buf, filename="inventory.png")
 
     # ═══════════════ КОМАНДУУД ═══════════════
@@ -604,7 +605,7 @@ class Cards(commands.Cog):
         buf = await self._render_profile_card(target, data, background)
         embed = discord.Embed(color=JOURNAL_EMBED_COLOR)
         embed.set_image(url="attachment://profilecard.png")
-        embed.set_footer(text=f"{ctx.guild.name} • {target.display_name}")
+        embed.set_footer(text=f"{ctx.guild.name} • Anime Profile • {target.display_name}")
         await ctx.send(embed=embed, file=discord.File(buf, filename="profilecard.png"))
 
     @commands.command(name='inventory', aliases=['inv', 'icard'], description="Инвентар картаа харах")

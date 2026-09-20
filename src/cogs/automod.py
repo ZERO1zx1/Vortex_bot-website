@@ -1,10 +1,9 @@
 """Auto-moderation — анти-спам, антиссылка, анти-райд.
 Тохиргоо: /automod toggle <функц> /automod status
 Хадгалалт: Supabase automod_config хүснэгт (guild_id, feature, enabled)
-i18n: guild lang-аар хариу
+Монгол хэл дээрх тогтмол хариу
 
 v2.5 засварууд:
-- get_guild_lang async дуудлага засагдсан (await)
 - re import module level-д
 - RaidTracker: cooldown дуусахад deque цэвэрлэгдэнэ (memory leak засагдсан)
 - asyncio.get_running_loop() хэрэглэнэ (deprecated loop засагдсан)
@@ -18,7 +17,6 @@ import logging
 from collections import defaultdict, deque
 from src.utils.constants import SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR, INFO_COLOR
 from src.utils.supabase_cog import SupabaseCog
-from src.utils.i18n import t_direct, get_guild_lang
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -168,7 +166,6 @@ class AutoModeration(SupabaseCog):
     async def automod(self, interaction: discord.Interaction, action: app_commands.Choice[str],
                       feature: app_commands.Choice[str]):
         guild_id = interaction.guild.id
-        lang = await get_guild_lang(guild_id)
         feats = self.enabled.setdefault(guild_id, set(DEFAULT_ON))
         if action.value == "toggle":
             if feature.value in feats:
@@ -176,13 +173,13 @@ class AutoModeration(SupabaseCog):
                 await self.db.execute(TABLE, {
                     "guild_id": str(guild_id), "feature": feature.value, "enabled": False,
                     "created_at": discord.utils.utcnow().isoformat()})
-                desc = t_direct(lang, "am.off", feature_mn=feature.name)
+                desc = f"❌ {feature.name} унтарлаа."
             else:
                 feats.add(feature.value)
                 await self.db.execute(TABLE, {
                     "guild_id": str(guild_id), "feature": feature.value, "enabled": True,
                     "created_at": discord.utils.utcnow().isoformat()})
-                desc = t_direct(lang, "am.on", feature_mn=feature.name)
+                desc = f"✅ {feature.name} аслаа."
             return await interaction.response.send_message(embed=discord.Embed(
                 title="🛡️ Auto-moderation", description=desc, color=SUCCESS_COLOR))
         # status

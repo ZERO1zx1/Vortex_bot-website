@@ -53,19 +53,19 @@ class GuildConfig:
 # ===== DEFAULT TEMPLATES =====
 DEFAULT_TEMPLATES = {
     "welcome": {
-        "title": "🌟 Сайн байна уу, {user:name}!",
+        "title": "✦ New Star Arrival — {user:name}",
         "description": (
-            "**{server:name}** серверт тавтай морил! 🎉\n"
-            "Та манай **{server:members}** дахь гишүүн боллоо.\n\n"
-            "📜 <#123456789> дүрмийг уншина уу.\n"
-            "💬 Ерөнхий чатад өөрийгөө танилцуулаарай!"
+            "🌸 **{server:name}** anime guild-д тавтай морил!\n"
+            "Та манай **{server:members}** дахь шинэ гишүүн боллоо.\n\n"
+            "📜 Дүрмээ уншаад, 💬 ерөнхий чатад өөрийгөө танилцуулаарай.\n"
+            "*Таны anime story эндээс эхэлнэ.*"
         ),
-        "color": 0xFFB6C1,
+        "color": 0x63D9FF,
         "thumbnail": "{user:avatar}",
         "image": "",
         "author_name": "",
         "author_icon": "",
-        "footer_text": "Тавтай морил! • {date}",
+        "footer_text": "Aether Guild • Anime Chronicle • {date}",
         "footer_icon": "{server:icon}",
         "buttons": [
             {"label": "📜 Дүрэм", "url": "https://discord.com/channels/...", "style": 5},
@@ -73,35 +73,35 @@ DEFAULT_TEMPLATES = {
         ]
     },
     "goodbye": {
-        "title": "👋 Баяртай, {user:name}!",
+        "title": "🌙 Until Next Episode — {user:name}",
         "description": (
-            "{user:mention} манай серверийг орхисонд харамсалтай байна. 😢\n"
-            "Одоо серверт **{server:members}** гишүүн үлдлээ.\n\n"
-            "Бид таныг үргэлж санаж байх болно. 💕"
+            "{user:mention} дараагийн адал явдал руугаа мордлоо.\n"
+            "Guild-д **{server:members}** гишүүн үлдлээ.\n\n"
+            "🌸 Зам тань үргэлж гэрэлтэй байх болтугай."
         ),
-        "color": 0x95A5A6,
+        "color": 0xC77DFF,
         "thumbnail": "{user:avatar}",
         "image": "",
         "author_name": "",
         "author_icon": "",
-        "footer_text": "Баяртай! • {date}",
+        "footer_text": "Aether Guild • Until we meet again • {date}",
         "footer_icon": "{server:icon}",
         "buttons": []
     },
     "boost": {
-        "title": "💎 Шинэ Server Boost!",
+        "title": "✦ Starry Boost!",
         "description": (
-            "{user:mention} сая серверийг **Boost** хийлээ! 🚀\n"
-            "Маш их баярлалаа! ✨\n\n"
+            "{user:mention} guild-ийн оддыг улам тодрууллаа! ✨\n"
+            "Маш их баярлалаа!\n\n"
             "Одоо сервер **{server:boost_level}** түвшинд хүрлээ!\n"
-            "Нийт boost: **{server:boost_count}** 🎁"
+            "Нийт boost: **{server:boost_count}** 🌠"
         ),
-        "color": 0xF47FFF,
+        "color": 0xFF5C8A,
         "thumbnail": "{user:avatar}",
         "image": "",
         "author_name": "",
         "author_icon": "",
-        "footer_text": "Шинэ Boost • {date}",
+        "footer_text": "Aether Guild • Starry power awakened • {date}",
         "footer_icon": "{server:icon}",
         "buttons": []
     }
@@ -328,7 +328,7 @@ class Greetings(commands.Cog):
         embed = discord.Embed(
             title=self.resolve_placeholders(template.get("title", ""), member) or None,
             description=self.resolve_placeholders(template.get("description", ""), member),
-            color=template.get("color", 0x2b2d31),
+            color=template.get("color", 0x090B1A),
             timestamp=discord.utils.utcnow()
         )
         if template.get("author_name"):
@@ -347,6 +347,8 @@ class Greetings(commands.Cog):
                 text=self.resolve_placeholders(template["footer_text"], member),
                 icon_url=self.resolve_placeholders(template.get("footer_icon", ""), member) or None
             )
+        else:
+            embed.set_footer(text="𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 • Anime Chronicle")
         return embed
 
     def build_buttons(self, template: Dict) -> Optional[View]:

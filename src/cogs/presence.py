@@ -20,12 +20,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger("bot.presence")
 
 # (activity_type, display_text) pairs shown under the bot name
-# i18n friendly: short labels that work in both MN and EN
 ACTIVITIES: list[tuple[discord.ActivityType, str]] = [
     (discord.ActivityType.playing, "𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹"),
     (discord.ActivityType.listening, "A!help"),
     (discord.ActivityType.watching, "蒼穹 тэнгэрийн дор"),
-    (discord.ActivityType.competing, "A!mafia"),
+    (discord.ActivityType.competing, "A!game"),
     (discord.ActivityType.listening, "A!daily"),
     (discord.ActivityType.watching, "A!rank"),
     (discord.ActivityType.playing, "A!gamble"),
@@ -34,15 +33,6 @@ ACTIVITIES: list[tuple[discord.ActivityType, str]] = [
 
 # Placeholder — replaced after ready() with real member count
 _MEMBER_WATCH = 6  # index in ACTIVITIES ("... members" entry)
-
-
-def _sync_lang(gid: str) -> str:
-    """Blocking call to fetch guild language via Supabase REST (runs in to_thread)."""
-    from src.utils.i18n import _sb_get_lang, DEFAULT_LANG  # noqa: WPS433
-    try:
-        return _sb_get_lang(gid) or DEFAULT_LANG
-    except Exception:
-        return DEFAULT_LANG
 
 
 class PresenceCog(commands.Cog):
@@ -89,16 +79,7 @@ class PresenceCog(commands.Cog):
             return
         guild = self.bot.guilds[0]  # single-server private bot
         count = guild.member_count or 0
-        # Build a short localized watch text (MN/EN based on guild lang)
         text = f"{count:,} гишүүд"
-        try:
-            from src.utils.i18n import get_guild_lang, t_direct  # noqa: WPS433
-            import asyncio as _asyncio
-
-            lang = await _asyncio.to_thread(lambda: _sync_lang(str(guild.id)))
-            text = t_direct(lang, "presence.watchers", count=count)
-        except Exception:  # noqa: BLE001
-            text = f"{count:,} members"
         ACTIVITIES[_MEMBER_WATCH] = (discord.ActivityType.watching, text)
         # If we are currently showing this slot, re-apply it
         if self._current == _MEMBER_WATCH and self.bot.user is not None:

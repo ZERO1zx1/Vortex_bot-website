@@ -6,7 +6,6 @@ from discord.ext import commands
 from discord import app_commands
 from discord.ui import View, Button, Modal, TextInput
 from src.utils.supabase_cog import SupabaseCog
-from src.utils import i18n
 import random
 import time
 import asyncio
@@ -291,6 +290,56 @@ class Economy(SupabaseCog):
         await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "bank_balance": new})
         return new
 
+    async def move_cash_and_bank(self, uid, gid, amount: int, *, to_bank: bool):
+        """Atomically move funds between one member's cash and bank balances."""
+        lock = await self._get_user_lock(self._balance_locks, f"{uid}:{gid}")
+        async with lock:
+            await self.ensure_user(uid, gid)
+            row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)}) or {}
+            cash, bank = int(row.get("balance") or 0), int(row.get("bank_balance") or 0)
+            source, target = (cash, bank) if to_bank else (bank, cash)
+            if amount <= 0 or source < amount or target + amount > self.max_balance:
+                raise ValueError("Invalid internal money transfer")
+            cash, bank = (cash - amount, bank + amount) if to_bank else (cash + amount, bank - amount)
+            await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid)}, {"balance": cash, "bank_balance": bank})
+            return cash, bank
+
+    async def record_money(self, gid, uid, actor_id, transaction_type, amount,
+                           balance_before=None, balance_after=None, reason=None, metadata=None):
+        """Best-effort immutable money audit; a log failure never breaks payment."""
+        try:
+            await self.bot.db_manager.insert("economy_ledger", {
+                "guild_id": str(gid), "user_id": str(uid) if uid is not None else None,
+                "actor_id": str(actor_id) if actor_id is not None else None,
+                "transaction_type": transaction_type, "amount": int(amount),
+                "balance_before": balance_before, "balance_after": balance_after,
+                "reason": reason, "metadata": metadata, "created_at": int(time.time()),
+            })
+        except Exception as exc:
+            logger.warning("economy ledger write failed: %s", exc)
+
+    @commands.command(name="transactions", aliases=["tx", "history"])
+    async def transactions(self, ctx, member: discord.Member = None):
+        target = member or ctx.author
+        if target.id != ctx.author.id and not ctx.author.guild_permissions.manage_guild:
+            return await ctx.send(embed=discord.Embed(title="⛔ Эрх хүрэхгүй", description="Бусдын гүйлгээг зөвхөн Manage Server эрхтэй хүн харна.", color=ERROR_COLOR))
+        rows = await self.bot.db_manager.fetch_all(
+            "economy_ledger", {"guild_id": str(ctx.guild.id), "user_id": str(target.id)},
+            order_by="created_at", desc=True, limit=10,
+        )
+        if not rows:
+            return await ctx.send(embed=info_embed("Гүйлгээний түүх", "Одоогоор бүртгэл алга."))
+        labels = {"work": "💼 Ажил", "daily": "🎁 Daily", "transfer_out": "📤 Шилжүүлсэн",
+                  "transfer_in": "📥 Хүлээн авсан", "deposit": "🏦 Хадгалсан", "withdraw": "💵 Татан авсан"}
+        lines = []
+        for row in rows:
+            amount = int(row.get("amount") or 0)
+            sign = "+" if amount > 0 else ""
+            when = f"<t:{int(row.get('created_at') or 0)}:R>"
+            lines.append(f"{labels.get(row.get('transaction_type'), '💠 Гүйлгээ')} • **{sign}{amount:,} ₮** • {when}")
+        embed = discord.Embed(title=f"💳 {target.display_name} — Сүүлийн гүйлгээ", description="\n".join(lines), color=GOLD_COLOR)
+        await ctx.send(embed=embed)
+
     async def get_top_balances(self, guild_id: int, limit=10, offset=0):
         """Хамгийн их үлдэгдэлтэй хэрэглэгчид (Leaderboard ког ашиглах)."""
         rows = await self.bot.db_manager.fetch_all(
@@ -496,7 +545,8 @@ class Economy(SupabaseCog):
                 else:
                     work_desc = f"{job['emoji']} {job['name']} ажил"
 
-            await self.update_balance(ctx.author.id, ctx.guild.id, pay)
+            before = await self.get_balance(ctx.author.id, ctx.guild.id)
+            after = await self.update_balance(ctx.author.id, ctx.guild.id, pay)
             rate = await self.get_effective_rate(ctx.guild.id)
             tax = int(pay * rate / 100)
             hunger_inc = random.randint(10, 15)
@@ -505,6 +555,7 @@ class Economy(SupabaseCog):
             new_mood = min(100, mood+mood_inc)
             await self.set_hunger_mood(ctx.author.id, ctx.guild.id, hunger=new_hunger, mood=new_mood)
             await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_work": now})
+            await self.record_money(ctx.guild.id, ctx.author.id, ctx.author.id, "work", after - before, before, after, job["name"])
             leveling = self.bot.get_cog("Leveling")
             if leveling:
                 try:
@@ -547,28 +598,28 @@ class Economy(SupabaseCog):
             if last and now - last < 86400:
                 rem = 86400 - (now-last)
                 h, m, s = rem//3600, (rem%3600)//60, rem%60
-                lang = await i18n.get_guild_lang(ctx.guild.id)
-                time_left = f"{h}ч {m}м {s}с" if lang == "mn" else f"{h}h {m}m {s}s"
-                return await ctx.send(embed=discord.Embed(title="⏰ Daily", description=i18n.t_direct(lang, "economy.daily.already", time_left=time_left), color=WARNING_COLOR))
+                time_left = f"{h}ч {m}м {s}с"
+                return await ctx.send(embed=discord.Embed(title="⏰ Daily", description=f"Дахин авах хүртэл: **{time_left}**", color=WARNING_COLOR))
             reward = random.randint(DAILY_MIN, DAILY_MAX)
             await self.bot.db_manager.update("economy", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}, {"last_daily": now})
-            await self.update_balance(ctx.author.id, ctx.guild.id, reward)
+            before = await self.get_balance(ctx.author.id, ctx.guild.id)
+            after = await self.update_balance(ctx.author.id, ctx.guild.id, reward)
+            await self.record_money(ctx.guild.id, ctx.author.id, ctx.author.id, "daily", after - before, before, after, "Daily reward")
             rate = await self.get_effective_rate(ctx.guild.id)
             tax_note = f"\n🏛️ Татвар ({rate}%): -{int(reward * rate / 100):,} ₮" if reward > 0 else ""
             leveling = self.bot.get_cog("Leveling")
             if leveling:
                 try: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(5, 10), member=ctx.author, check_mute=True, channel=ctx.channel)
                 except Exception: pass
-            lang = await i18n.get_guild_lang(ctx.guild.id)
             embed = discord.Embed(
                 title="🎉 Daily Reward",
-                description=i18n.t_direct(lang, "economy.daily.success", amount=reward),
+                description=f"Өдрийн шагнал: **{reward:,} ₮**",
                 color=SUCCESS_COLOR,
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.add_field(name=i18n.t_direct(lang, "economy.daily.reward_field", mn="💰 Шагнал", en="💰 Reward"), value=f"+ **{reward:,}** ₮{tax_note}")
+            embed.add_field(name="💰 Шагнал", value=f"+ **{reward:,}** ₮{tax_note}")
             embed.set_thumbnail(url=ctx.author.display_avatar.url)
-            embed.set_footer(text=i18n.t_direct(lang, "economy.daily.footer", mn="Дараагийн урамшуулал 24 цагийн дараа", en="Next reward in 24 hours"))
+            embed.set_footer(text="Дараагийн урамшуулал 24 цагийн дараа")
             await ctx.send(embed=embed)
 
     @commands.command(name='crime')
@@ -636,11 +687,17 @@ class Economy(SupabaseCog):
                 description=f"Баталгаажуулах хугацаанд үлдэгдэл өөрчлөгдсөн тул шилжүүлэг цуцлагдлаа. Одоогийн үлдэгдэл: {sender_bal:,}₮",
                 color=ERROR_COLOR,
             ))
-        await self.update_balance(ctx.author.id, ctx.guild.id, -amount, apply_tax=False)
-        await self.update_balance(member.id, ctx.guild.id, final_amount, apply_tax=False)
+        sender_before = await self.get_balance(ctx.author.id, ctx.guild.id)
+        receiver_before = await self.get_balance(member.id, ctx.guild.id)
+        sender_after = await self.update_balance(ctx.author.id, ctx.guild.id, -amount, apply_tax=False)
+        receiver_after = await self.update_balance(member.id, ctx.guild.id, final_amount, apply_tax=False)
         # Шилжүүлгийн татвар Ерөнхийлөгч/Захирал rolт хэрэглэгчид очно
         if tax > 0:
             await self.distribute_tax(ctx.guild.id, tax)
+        await self.record_money(ctx.guild.id, ctx.author.id, ctx.author.id, "transfer_out", -amount,
+                                sender_before, sender_after, f"To {member.id}", f"tax={tax}")
+        await self.record_money(ctx.guild.id, member.id, ctx.author.id, "transfer_in", final_amount,
+                                receiver_before, receiver_after, f"From {ctx.author.id}", f"tax={tax}")
         success_embed = discord.Embed(title="✅ ГҮЙЛГЭЭ АМЖИЛТТАЙ!",
                                       description=f"{ctx.author.mention} → {member.mention} **{amount:,}** ₮ шилжүүллээ.",
                                       color=SUCCESS_COLOR)
@@ -661,9 +718,13 @@ class Economy(SupabaseCog):
         bank = await self.get_bank(ctx.author.id, ctx.guild.id)
         if bank + amt > self.max_balance:
             return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Банкны хязгаарт хүрнэ.", color=ERROR_COLOR))
-        await self.update_balance(ctx.author.id, ctx.guild.id, -amt)
-        await self.update_bank(ctx.author.id, ctx.guild.id, amt)
-        new_bank = await self.get_bank(ctx.author.id, ctx.guild.id)
+        try:
+            old_cash = cash
+            new_cash, new_bank = await self.move_cash_and_bank(ctx.author.id, ctx.guild.id, amt, to_bank=True)
+        except ValueError:
+            return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Үлдэгдэл өөрчлөгдсөн тул дахин оролдоно уу.", color=ERROR_COLOR))
+        await self.record_money(ctx.guild.id, ctx.author.id, ctx.author.id, "deposit", -amt,
+                                old_cash, new_cash, "Cash to bank")
         embed = discord.Embed(title="🏦 БАНКАНД ХАДГАЛАВ",
                               description=f"{ctx.author.mention} **{amt:,}** ₮ хадгаллаа.",
                               color=SUCCESS_COLOR,
@@ -685,9 +746,13 @@ class Economy(SupabaseCog):
         cash = await self.get_balance(ctx.author.id, ctx.guild.id)
         if cash + amt > self.max_balance:
             return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Гар дээрх хязгаарт хүрнэ.", color=ERROR_COLOR))
-        await self.update_bank(ctx.author.id, ctx.guild.id, -amt)
-        await self.update_balance(ctx.author.id, ctx.guild.id, amt)
-        new_cash = await self.get_balance(ctx.author.id, ctx.guild.id)
+        try:
+            old_cash = cash
+            new_cash, _ = await self.move_cash_and_bank(ctx.author.id, ctx.guild.id, amt, to_bank=False)
+        except ValueError:
+            return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Үлдэгдэл өөрчлөгдсөн тул дахин оролдоно уу.", color=ERROR_COLOR))
+        await self.record_money(ctx.guild.id, ctx.author.id, ctx.author.id, "withdraw", amt,
+                                old_cash, new_cash, "Bank to cash")
         embed = discord.Embed(title="🏦 БАНКНААС АВЛАА",
                               description=f"{ctx.author.mention} **{amt:,}** ₮ авлаа.",
                               color=SUCCESS_COLOR,

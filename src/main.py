@@ -21,7 +21,7 @@ from src.core.exceptions import DatabasePermissionError, DatabaseSchemaError
 from src.database.db_manager import SupabaseManager as DatabaseManager
 from src.utils.branding import BOT_NAME, BOT_FOOTER
 from src.utils.constants import DEFAULT_PREFIX
-from src.utils.cog_loader import discover_cogs
+from src.utils.cog_loader import ACTIVE_COGS, discover_cogs
 from src.utils.log_filter import RateLimitFilter
 
 load_dotenv()
@@ -186,15 +186,14 @@ class MyBot(commands.Bot):
                 if missing:
                     logger.error(
                         "Database schema incomplete: missing table(s) -> %s. "
-                        "Apply migrations src/database/migrations/20260101_001_initial_schema.sql "
-                        "then 20260813_002_missing_tables.sql and restart.",
+                        "Apply src/database/migrations/000_aether_complete.sql and restart.",
                         missing,
                     )
                 if denied:
                     logger.error(
                         "Database privileges incomplete: %s need service_role "
                         "grants. Apply migration src/database/migrations/"
-                        "20260918_003_repair_permissions.sql and restart.",
+                        "000_aether_complete.sql and restart.",
                         denied,
                     )
                 if other:
@@ -204,19 +203,21 @@ class MyBot(commands.Bot):
         except DatabasePermissionError as e:
             logger.error(
                 "Database permission error during health check: %s "
-                "(apply src/database/migrations/20260918_003_repair_permissions.sql)", e
+                "(apply src/database/migrations/000_aether_complete.sql)", e
             )
         except DatabaseSchemaError as e:
             logger.error(
                 "Database schema error during health check: %s "
-                "(apply migrations 20260101_001 then 20260813_002)", e
+                "(apply src/database/migrations/000_aether_complete.sql)", e
             )
         except Exception as e:
             logger.error("Database health check failed (Supabase may be unreachable): %s", e)
 
         # Load Cogs
         logger.info("📂 Loading Cogs...")
-        cogs_to_load = discover_cogs(Path(__file__).parent / "cogs")
+        # Only the maintained product modules are registered.  Retired cogs
+        # stay on disk until they are deliberately archived to trash/.
+        cogs_to_load = discover_cogs(Path(__file__).parent / "cogs", enabled=ACTIVE_COGS)
 
         for cog in cogs_to_load:
             start = time.perf_counter()

@@ -24,6 +24,8 @@ REPO = os.path.dirname(WEB)                                # repo root
 HELP = os.path.join(REPO, "src", "cogs", "help.py")
 WEB_JS = os.path.join(WEB, "js", "commands.js")
 BACKEND_JSON = os.path.join(REPO, "backend", "data", "commands.json")
+COGS_DIR = os.path.join(REPO, "src", "cogs")
+LOADER = os.path.join(REPO, "src", "utils", "cog_loader.py")
 
 CAT_ORDER = ["Economy", "Leveling", "Social", "Games", "Moderation", "Admin", "Utility"]
 CAT_ICON = {
@@ -110,17 +112,84 @@ HELP_CAT_FALLBACK = {
     "Даалгавар": "Utility",
     "Урилга": "Admin",
     "Giveaway": "Games",
+    "Казино": "Games",
+    "Хөгжилтэй": "Utility",
+    "Нууц": "Social",
+    "Хоол": "Economy",
+    "Ticket": "Admin",
+    "Automation": "Admin",
 }
 
 def load_help():
-    src = open(HELP, encoding="utf-8").read()
+    src = open(HELP, encoding="utf-8-sig").read()
     tree = ast.parse(src)
+    info = None
     for node in tree.body:
         if isinstance(node, ast.Assign):
             for t in node.targets:
                 if isinstance(t, ast.Name) and t.id == "COMMAND_INFO":
-                    return ast.literal_eval(node.value)
-    raise SystemExit("COMMAND_INFO not found")
+                    info = ast.literal_eval(node.value)
+        elif (
+            info is not None and isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Attribute)
+            and isinstance(node.value.func.value, ast.Name)
+            and node.value.func.value.id == "COMMAND_INFO"
+            and node.value.func.attr == "update"
+            and node.value.args
+        ):
+            info.update(ast.literal_eval(node.value.args[0]))
+    if info is None:
+        raise SystemExit("COMMAND_INFO not found")
+    return info
+
+
+def active_command_roots():
+    """Read the active cog manifest and discover command roots without imports."""
+    loader_tree = ast.parse(open(LOADER, encoding="utf-8-sig").read())
+    active_cogs = set()
+    for node in loader_tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "ACTIVE_COGS" for t in node.targets
+        ):
+            call = node.value
+            if isinstance(call, ast.Call) and call.args:
+                active_cogs = set(ast.literal_eval(call.args[0]))
+    if not active_cogs:
+        raise SystemExit("ACTIVE_COGS not found")
+
+    roots = set()
+    for cog in active_cogs:
+        path = os.path.join(COGS_DIR, f"{cog}.py")
+        tree = ast.parse(open(path, encoding="utf-8-sig").read())
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for dec in node.decorator_list:
+                    call = dec if isinstance(dec, ast.Call) else None
+                    fn = call.func if call else dec
+                    if not isinstance(fn, ast.Attribute) or fn.attr not in {"command", "hybrid_command"}:
+                        continue
+                    name = node.name
+                    if call:
+                        for kw in call.keywords:
+                            if kw.arg == "name" and isinstance(kw.value, ast.Constant):
+                                name = kw.value.value
+                    roots.add(name)
+                    if isinstance(fn.value, ast.Name) and fn.value.id not in {"commands", "app_commands"}:
+                        roots.add(fn.value.id)
+            elif isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+                fn = node.value.func
+                if isinstance(fn, ast.Attribute) and fn.attr == "Group":
+                    group_name = None
+                    for kw in node.value.keywords:
+                        if kw.arg == "name" and isinstance(kw.value, ast.Constant):
+                            group_name = kw.value.value
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            roots.add(target.id)
+                    if group_name:
+                        roots.add(group_name)
+    return roots
 
 def existing_icons():
     if not os.path.exists(WEB_JS):
@@ -142,6 +211,8 @@ def parse_args(usage):
 
 def main():
     info = load_help()
+    active_roots = active_command_roots()
+    info = {name: data for name, data in info.items() if name.split()[0] in active_roots}
     icons = existing_icons()
 
     missing = [

@@ -81,7 +81,7 @@ class TestTableErrorTracker:
         error_lines = [r for r in caplog.records if r.name == "aether.db.test"]
         # 1 detailed log + 0 repeats within the dedup window
         assert len(error_lines) == 1
-        assert "20260101_001_initial_schema.sql" in error_lines[0].getMessage()
+        assert "000_aether_complete.sql" in error_lines[0].getMessage()
 
     def test_window_elapse_emits_compact_summary(self, caplog, monkeypatch):
         tracker = _TableErrorTracker(logger_name="aether.db.test")
@@ -108,7 +108,7 @@ class TestTableErrorTracker:
         assert len(repeated) == 1
         assert "2 repeat error(s)" in repeated[0]
         # no full-traceback-style guidance spam for repeats
-        assert all("20260101_001_initial_schema.sql" not in m for m in repeated)
+        assert all("000_aether_complete.sql" not in m for m in repeated)
 
     def test_tables_log_independently(self, caplog):
         tracker = _TableErrorTracker(logger_name="aether.db.test")

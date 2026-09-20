@@ -426,6 +426,20 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   const filters = document.getElementById('cmd-filters');
   let currentCat = 'all';
 
+  const catalog = window.COMMAND_LIST || [];
+  const slashCount = catalog.filter(c => c.type === 'slash').length;
+  const textCount = catalog.length - slashCount;
+  const totalEl = document.getElementById('command-total');
+  const heroTotalEl = document.getElementById('hero-command-total');
+  const breakdownEl = document.getElementById('command-breakdown');
+  const statEl = document.getElementById('command-stat');
+  const statLabel = document.getElementById('command-stat-label');
+  if (totalEl) totalEl.textContent = catalog.length;
+  if (heroTotalEl) heroTotalEl.textContent = catalog.length;
+  if (breakdownEl) breakdownEl.textContent = `${slashCount} slash / ${textCount} text`;
+  if (statEl) statEl.dataset.count = String(catalog.length);
+  if (statLabel) statLabel.textContent = `Команд (${slashCount} slash / ${textCount} text)`;
+
   /* URL-ээс хайлтын query авах: #commands?q=work эсвэл #commands?cmd=marry эсвэл &cat=Economy (W1 fix) */
   const safeDecode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };  // W4 fix
   const parseHash = () => (window.location.hash || '').match(/[?&]q=([^&#]+)/i);
@@ -1428,15 +1442,8 @@ const AETHER_I18N = {
     /* Командын карт болон категорын шошгыг дахин зурна */
     if (typeof window.__aetherRender === 'function') window.__aetherRender();
   };
-  let lang = 'mn';
-  try { lang = localStorage.getItem('aether-lang') || 'mn'; } catch { }
-  const switcher = document.getElementById('lang-switcher');
-  if (switcher) {
-    switcher.querySelectorAll('.lang-btn').forEach(b => {
-      b.addEventListener('click', () => applyLang(b.getAttribute('data-lang')));
-    });
-  }
-  applyLang(lang);
+  try { localStorage.removeItem('aether-lang'); } catch { }
+  applyLang('mn');
 })();
 
 /* ---------------- Command detail modal (click a card) ---------------- */

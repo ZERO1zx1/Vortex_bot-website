@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Монгол Discord Бот &amp; Gaming Community</title>
   <meta name="description"
-    content="Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, мафия, модерац — 205 командтай Монгол Discord бот. AETHER gaming community-ийн албан ёсны сайт." />
+    content="Эдийн засаг, тоглоом, түвшин, profile, shop, giveaway, ticket, moderation, automation, marriage, fun, confessions бүхий Монгол Discord бот." />
   <meta name="keywords"
     content="Discord bot, Монгол бот, Aether, AETHER, Discord, economy bot, leveling, marriage, moderation, Roblox, gaming community" />
   <meta name="author" content="Vortex | 虚空" />
@@ -19,7 +19,7 @@
   <meta property="og:site_name" content="𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹" />
   <meta property="og:title" content="𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Монгол Discord Бот &amp; AETHER Community" />
   <meta property="og:description"
-    content="Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, мафия, модерац — бүгдийг нэг ботонд. 205 команд · 36 cog · 24/7 online." />
+    content="Aether — Economy, Games, Leveling, Profile, Shop, Giveaway, Ticket, Moderation, Automation, Marriage, Fun болон Confessions." />
   <meta property="og:url" content="https://aether-c1915.web.app/" />
   <meta property="og:image" content="https://aether-c1915.web.app/assets/og-banner.png" />
   <meta property="og:image:width" content="1280" />
@@ -29,7 +29,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Монгол Discord Бот" />
   <meta name="twitter:description"
-    content="Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, мафия, модерац — бүгдийг нэг ботонд. 205 команд · 36 cog · 24/7 online." />
+    content="Aether — Монгол Discord community-д зориулсан бүрэн системтэй anime vibe бот." />
   <meta name="twitter:image" content="https://aether-c1915.web.app/assets/og-banner.png" />
 
   <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png" />
@@ -45,12 +45,12 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=30" />
+  <link rel="stylesheet" href="css/style.css?v=31" />
   <!-- Three.js нь ES Modules (r150+ дээр UMD three.min.js хэсэгчилсэн, r160-аас хасагдсан) —
        app.js-аас async import()-ээр ачаалагдана. Ачаалагдахгүй бол CSS/2D fallback хэвээр. -->
 </head>
 
-<body>
+<body class="design-v3">
   <!-- Particle canvas: dark/light өнгөтэйгээр JS-д солигдоно -->
   <canvas id="bg-canvas"></canvas>
 
@@ -76,11 +76,6 @@
         <span class="theme-icon theme-icon-moon">🌙</span>
         <span class="theme-icon theme-icon-sun">☀️</span>
       </button>
-      <!-- Language switcher -->
-      <div class="lang-switcher" id="lang-switcher">
-        <button type="button" data-lang="mn" class="lang-btn active">MN</button>
-        <button type="button" data-lang="en" class="lang-btn">EN</button>
-      </div>
     </div>
     <a href="https://discord.gg/Nu8ubdpZ2" class="btn btn-glow nav-invite" target="_blank" rel="noopener">Server-т
       элсэх</a>
@@ -92,11 +87,13 @@
   <!-- ================= HERO ================= -->
   <section class="hero" id="home">
     <div class="hero-content" data-parallax="0.4">
-      <div class="hero-badge" data-i18n="hero.badge">🇲🇳 Монгол Discord бот &amp; gaming community</div>
+      <div class="hero-kicker"><span>PROJECT AETHER</span><span>蒼穹 // 03</span></div>
+      <div class="hero-badge">✦ Монгол Discord community system</div>
       <h1 class="hero-title"><span class="title-orbitron">𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹</span></h1>
+      <div class="hero-jp" aria-hidden="true">蒼穹を越えて</div>
       <p class="hero-subtitle">
-        <span data-i18n="hero.subtitle">Эдийн засаг, түвшин, гэрлэл, дэлгүүр, тоглоом, модерац — бүгдийг нэг ботонд.
-          AETHER gaming community-г амьд болго.</span>
+        Economy-оос ticket automation хүртэлх серверийн бүх амьдралыг нэг дор удирдах
+        <strong>anime-tech Discord ecosystem.</strong>
       </p>
       <div class="hero-actions">
         <a href="https://discord.gg/Nu8ubdpZ2" class="btn btn-primary" target="_blank" rel="noopener">
@@ -107,7 +104,7 @@
         </a>
       </div>
       <div class="hero-tags">
-        <span>36 cog</span><span data-i18n="hero.tags1">Slash + Text команд</span><span>24/7 online</span>
+        <span><b>11</b> үндсэн систем</span><span><b id="hero-command-total">155</b> active command</span><span><i></i> SYSTEM ONLINE</span>
       </div>
     </div>
 
@@ -151,8 +148,7 @@
   <section class="features" id="features">
     <div class="section-head">
       <div class="section-tag" data-i18n="features.tag">ОНЦЛОГ ФУНКЦҮҮД</div>
-      <h2 class="section-title"><span data-i18n="features.title1">Бүгд нэг дор.</span> <span class="accent">35
-          cog.</span></h2>
+      <h2 class="section-title"><span data-i18n="features.title1">Бүгд нэг дор.</span> <span class="accent">11 үндсэн систем.</span></h2>
     </div>
     <div class="feature-grid">
       <div class="feature-card" data-tilt data-reveal>
@@ -161,15 +157,15 @@
           <use href="img/icons.svg#economy" />
         </svg>
         <h3 data-i18n="feat.econ">Эдийн засаг</h3>
-        <p data-i18n="feat.econ_d">daily, work, gamble, мөнгөний систем. Хөдөлмөрлөөд баяжина.</p>
+        <p>Wallet, bank, daily, work, transfer болон бүрэн transaction history.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-lvl"></div>
         <svg class="fc-svg" viewBox="0 0 64 64">
           <use href="img/icons.svg#leveling" />
         </svg>
-        <h3 data-i18n="feat.lvl">Түвшин / Leveling</h3>
-        <p data-i18n="feat.lvl_d">XP систем, leaderboard, voice XP. Идэвхтэй байх тусам түвшин авна.</p>
+        <h3>Level / Ranking / Profile</h3>
+        <p>XP, rank card, leaderboard, server activity болон profile статистик.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-love"></div>
@@ -184,8 +180,8 @@
         <svg class="fc-svg" viewBox="0 0 64 64">
           <use href="img/icons.svg#shop" />
         </svg>
-        <h3 data-i18n="feat.shop">Дэлгүүр &amp; Хувьцаа</h3>
-        <p data-i18n="feat.shop_d">Market, marketplace, амьд stock систем. Худалдаж, худалд.</p>
+        <h3>Shop &amp; Inventory</h3>
+        <p>Item худалдаж авах, ашиглах, equip хийх болон inventory картаар харах.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-cas"></div>
@@ -193,31 +189,31 @@
           <use href="img/icons.svg#casino" />
         </svg>
         <h3 data-i18n="feat.cas">Казино &amp; Тоглоом</h3>
-        <p data-i18n="feat.cas_d">Coinflip, slots, roulette, mines, pvp, counting, cards.</p>
+        <p>Blackjack, slot, roulette, high-low, crash, trivia болон casual games.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-maf"></div>
         <svg class="fc-svg" viewBox="0 0 64 64">
-          <use href="img/icons.svg#mafia" />
+          <use href="img/icons.svg#fun" />
         </svg>
-        <h3 data-i18n="feat.maf">Mafia</h3>
-        <p data-i18n="feat.maf_d">Дорнодын мафия тоглоом — нойрсох, шалгах, ялалт байгуул.</p>
+        <h3>Ticket &amp; Giveaway</h3>
+        <p>Setup-аас бэлэн panel үүсгэж, төрөл сонголт, transcript log, giveaway удирдана.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-mod"></div>
         <svg class="fc-svg" viewBox="0 0 64 64">
           <use href="img/icons.svg#moderation" />
         </svg>
-        <h3 data-i18n="feat.mod">Модерац</h3>
-        <p data-i18n="feat.mod_d">Ban, kick, warn, timeout, purge, mod-log. Цэвэрхэн сервер.</p>
+        <h3>Moderation &amp; Statistics</h3>
+        <p>Ban, kick, warn, timeout, automod, staff activity болон server statistics.</p>
       </div>
       <div class="feature-card" data-tilt data-reveal>
         <div class="fc-orb fc-fun"></div>
         <svg class="fc-svg" viewBox="0 0 64 64">
           <use href="img/icons.svg#fun" />
         </svg>
-        <h3 data-i18n="feat.fun">Fun &amp; Бусад</h3>
-        <p data-i18n="feat.fun_d">Cafe, quests, confessions, giveaway, temp voice, avatar logger...</p>
+        <h3>Automation, Fun &amp; Confessions</h3>
+        <p>Join/leave webhook automation, anime reactions, meme болон нууц confession.</p>
       </div>
     </div>
   </section>
@@ -226,7 +222,7 @@
   <section class="commands" id="commands">
     <div class="section-head">
       <div class="section-tag" data-i18n="commands.tag">КОМАНДУУД</div>
-      <h2 class="section-title">205 <span class="accent" data-i18n="commands.title2">команд</span> · 87 slash / 118 text
+      <h2 class="section-title"><span id="command-total">—</span> <span class="accent" data-i18n="commands.title2">команд</span> · <span id="command-breakdown">catalog ачаалж байна</span>
       </h2>
     </div>
     <div class="cmd-toolbar">
@@ -256,13 +252,13 @@
     <div class="stat-grid">
       <div class="stat-card cog" data-tilt data-reveal>
         <div class="stat-icon">🧩</div>
-        <div class="stat-num" data-count="35">0</div>
-        <div class="stat-label" data-i18n="stats.cog">Cog</div>
+        <div class="stat-num" data-count="11">0</div>
+        <div class="stat-label">Үндсэн систем</div>
       </div>
       <div class="stat-card slash" data-tilt data-reveal>
         <div class="stat-icon">⚡</div>
-        <div class="stat-num" data-count="205">0</div>
-        <div class="stat-label" data-i18n="stats.cmd">Команд (47 slash / 106 text)</div>
+        <div class="stat-num" id="command-stat" data-count="0">0</div>
+        <div class="stat-label" id="command-stat-label">Команд</div>
       </div>
       <div class="stat-card db" data-tilt data-reveal>
         <div class="stat-icon">🗄️</div>
@@ -304,7 +300,7 @@
           <svg class="sg-svg" viewBox="0 0 64 64">
             <use href="img/icons.svg#about" />
           </svg>
-          <div class="sg-num">Python 3.13</div>
+          <div class="sg-num">Python 3.12</div>
           <div class="sg-label">Runtime</div>
         </div>
         <div class="sg-item" data-reveal>
@@ -540,13 +536,12 @@
         <p data-i18n="about.p1"><strong>𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹</strong> нь Монгол серверүүдэд зориулж бүтээгдсэн бүрэн эрхтэй
           Discord бот юм. Япон "蒼穹" (цэнхэр тэнгэр) гэдэг нэрэн дор бид Discord-ийг зөвхөн чат биш — амьд эдийн
           засагтай, тоглоомтой, гэр бүлтэй нийгэмлэг болгож байна.</p>
-        <p data-i18n="about.p2">Supabase (PostgreSQL) дээр суурилсан бат бөх backend, discord.py 2.x-ийн сүүлийн
-          хувилбар, 35 тусгай cog — бүгд нэгдмэл системээр ажиллана. Мөнгөний систем, гэрлэл, mafia, хувьцааны зах зээл
-          — бүгд нэг ботонд.</p>
+        <p>Supabase (PostgreSQL) backend дээр Economy, Games, Leveling, Profile, Shop, Giveaway, Ticket,
+          Moderation, Automation, Marriage, Fun болон Confessions нэгдмэл байдлаар ажиллана.</p>
         <div class="about-stats">
           <div class="as-item"><span class="as-num">100%</span><span class="as-label">Монгол UI</span></div>
           <div class="as-item"><span class="as-num">0</span><span class="as-label">Алдааны мэдэгдэл</span></div>
-          <div class="as-item"><span class="as-num">35/35</span><span class="as-label">Cog ачаалалт</span></div>
+          <div class="as-item"><span class="as-num">11/11</span><span class="as-label">Үндсэн систем</span></div>
         </div>
       </div>
       <div class="about-cards">
@@ -558,7 +553,7 @@
         <div class="about-card" data-tilt data-reveal>
           <div class="ac-orb"></div>
           <h4>⚙️ Framework</h4>
-          <p>discord.py 2.6.0, Python 3.13. Admin/Moderation командууд slash-only, бусад командууд text prefix-тэй
+          <p>discord.py 2.6.0, Python 3.12. Admin/Moderation командууд slash-only, бусад командууд text prefix-тэй
             ажиллана.</p>
         </div>
         <div class="about-card" data-tilt data-reveal>
@@ -639,23 +634,33 @@
           data-i18n="cl.title2">тэмдэглэл</span></h2>
     </div>
     <div class="cl-timeline">
+      <div class="cl-item cl-featured" data-reveal>
+        <div class="cl-date">2026-09-20</div>
+        <div class="cl-card">
+          <span class="cl-pill new">LATEST · v3.1</span>
+          <h4>Aether Prism Archive — Web redesign</h4>
+          <p>Сайтын visual system-ийг бүрэн шинэчилж, manga panel layout, anime-tech hero, шинэ command archive,
+            responsive system cards болон release dossier changelog нэмэв. Catalog нь active bot-оос автоматаар
+            sync хийгдэж, 155 command-ын тоо slash/text задаргаатайгаа шууд шинэчлэгдэнэ.</p>
+          <div class="cl-meta"><span>DESIGN SYSTEM</span><span>COMMAND SYNC</span><span>MOBILE UI</span></div>
+        </div>
+      </div>
       <div class="cl-item" data-reveal>
         <div class="cl-date">2026-08-24</div>
         <div class="cl-card">
           <span class="cl-pill new" data-i18n="cl.new">ШИНЭ</span>
-          <h4 data-i18n="cl.v25_t">v2.5 — Вэбсайт бүрэн шинэчлэл</h4>
-          <p data-i18n="cl.v25_d">Командын каталог бодит боттой бүрэн нийцүүлэгдсэн — 205 команд, 36 cog, 61 хүснэгт.
-            Ангилал 7 хэсэгт тэнцүү хуваагдсан, тоо баримт болон framework хувилбарууд (Python 3.13, discord.py 2.6)
-            шинэчлэгдлээ.</p>
+          <h4>v3.0 — Aether core rebuild</h4>
+          <p>Active command catalog автоматаар sync хийгддэг боллоо. Economy ledger, ticket panel + transcript,
+            giveaway, moderation statistics болон webhook automation нэг сууринд бүрэн холбогдлоо.</p>
         </div>
       </div>
       <div class="cl-item" data-reveal>
         <div class="cl-date">2026-08-19</div>
         <div class="cl-card">
           <span class="cl-pill new" data-i18n="cl.new">ШИНЭ</span>
-          <h4 data-i18n="cl.v24_t">v2.4 — Reaction roles &amp; Auto-moderation</h4>
-          <p data-i18n="cl.v24_d">Emoji дарж үүрэг авах систем (`/rr setup`), анти-спам, антиссылка, анти-райд
-            хамгаалалт (`/automod`), хэл солиход бүрэн хариу өгөх rotating presence.</p>
+          <h4>v2.9 — Ticket &amp; Automation</h4>
+          <p>Ticket setup нь төрөл сонголттой panel, FAQ shortcut, staff access болон transcript log үүсгэдэг болсон.
+            Automation setup-д help, test, embed style, status болон audit log нэмэгдсэн.</p>
         </div>
       </div>
       <div class="cl-item" data-reveal>
@@ -663,8 +668,7 @@
         <div class="cl-card">
           <span class="cl-pill new">v2.3</span>
           <h4 data-i18n="cl.v23_t">Бүтэн dark/light горим</h4>
-          <p data-i18n="cl.v23_d">Вэбсайт бүрэн dark/light горимтой болж, шинэ лого болон favicon, OG banner нэмэгдлээ.
-            i18n 217 түлхүүр (MN = EN).</p>
+          <p>Вэбсайт бүрэн dark/light горим, шинэ лого, favicon, OG banner болон anime cyberpunk төрхтэй болсон.</p>
         </div>
       </div>
       <div class="cl-item" data-reveal>
@@ -672,8 +676,7 @@
         <div class="cl-card">
           <span class="cl-pill fix" data-i18n="cl.fix">ЗАСВАР</span>
           <h4 data-i18n="cl.v22_t">Mobile бүрэн засвар</h4>
-          <p data-i18n="cl.v22_d">Командын картнууд, badge-ууд, хайлтын input 390px утасны дэлгэцэд бүрэн цэгцтэй
-            болсон. 205 команд бүгдийн MN/EN тайлбартай.</p>
+          <p>Командын карт, badge, хайлт болон filter нь 390px утасны дэлгэцэд бүрэн responsive болсон.</p>
         </div>
       </div>
       <div class="cl-item" data-reveal>
@@ -775,8 +778,8 @@
   <button id="scroll-top" aria-label="Дээшээ" data-i18n-attr="ui.scrolltop">↑</button>
 
   <script src="js/config.js?v=7"></script>
-  <script src="js/commands.js?v=11"></script>
-  <script src="js/app.js?v=33"></script>
+  <script src="js/commands.js?v=12"></script>
+  <script src="js/app.js?v=35"></script>
 </body>
 
 </html>

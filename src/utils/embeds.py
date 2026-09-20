@@ -16,7 +16,8 @@ from src.utils.branding import (
 
 
 def brand_embed(title=None, description=None, color=PRIMARY_COLOR, footer=BOT_FOOTER) -> discord.Embed:
-    embed = discord.Embed(title=title, description=description, color=color, timestamp=timestamp_now())
+    themed_title = f"✦ {title}" if title and not str(title).startswith("✦") else title
+    embed = discord.Embed(title=themed_title, description=description, color=color, timestamp=timestamp_now())
     if footer:
         embed.set_footer(text=footer)
     return embed
@@ -47,7 +48,7 @@ def gold_embed(title=None, description=None, footer=BOT_FOOTER) -> discord.Embed
 
 
 def loading_embed(description="Түр хүлээнэ үү...", footer=BOT_FOOTER) -> discord.Embed:
-    return info_embed(title="⏳ Ачааллаж байна...", description=description, footer=footer)
+    return info_embed(title="✦ Aether is preparing your path...", description=description, footer=footer)
 
 
 async def safe_defer(target, ephemeral=False):

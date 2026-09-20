@@ -20,18 +20,9 @@ from discord import app_commands, ui
 from discord.ext import commands
 
 from src.cogs.help import COMMAND_INFO, CATEGORY_EMOJIS, CATEGORY_COLORS
-from src.utils.branding import BOT_NAME, BOT_FOOTER
-from src.utils.i18n import t_async, DEFAULT_LANG
+from src.utils.branding import ACCENT_COLOR, BOT_NAME, BOT_FOOTER, PRIMARY_COLOR, timestamp_now
 
 # EN нэрийн харгалзаа (command-д харуулахын тулд)
-CAT_EN = {
-    "Эдийн засаг": "Economy", "Тоглоом": "Games", "Казино": "Casino",
-    "Хөгжилтэй": "Fun", "Модераци": "Moderation", "Түвшин": "Levels",
-    "Гэр бүл": "Family", "Админ": "Admin", "Хэрэгсэл": "Utility",
-    "Хоол": "Food", "Дэлгүүр": "Shop", "Нууц": "Secret", "Даалгавар": "Quests",
-}
-CAT_MN = {v: k for k, v in CAT_EN.items()}
-
 log = logging.getLogger("cogs.menu")
 
 # Нэг хуудасанд харуулах командын тоо
@@ -44,18 +35,13 @@ MENU_TIMEOUT = 300
 # Туслах функцүүд
 # ─────────────────────────────────────────────────────────────────────
 
-def _get_categories(lang: str) -> List[str]:
-    """Бүх команд агуулсан ангилалуудыг хэлээр жагсаах."""
-    keys = [c for c in CATEGORY_EMOJIS
-            if any(i.get("category") == c for i in COMMAND_INFO.values())]
-    if lang == "en":
-        keys = [CAT_EN.get(k, k) for k in keys]
-    return keys
+def _get_categories() -> List[str]:
+    """Бүх command агуулсан Монгол ангиллуудыг жагсаах."""
+    return [c for c in CATEGORY_EMOJIS if any(i.get("category") == c for i in COMMAND_INFO.values())]
 
 
 def _mn_category(cat: str) -> str:
-    """EN хэл дээрх нэрийг MN руу буцаах (COMMAND_INFO нь MN-ээр хадгална)."""
-    return CAT_MN.get(cat, cat)
+    return cat
 
 
 def _cmd_list(category_mn: str) -> List[str]:
@@ -78,7 +64,6 @@ class MenuView(ui.View):
         self,
         original: discord.abc.User,
         guild_id: int,
-        lang: str = DEFAULT_LANG,
         start_category: Optional[str] = None,
         page: int = 0,
         timeout: float = MENU_TIMEOUT,
@@ -91,7 +76,6 @@ class MenuView(ui.View):
         super().__init__(timeout=None if persistent else timeout)
         self.original = original
         self.guild_id = guild_id
-        self.lang = lang
         self.category = start_category  # MN нэр (COMMAND_INFO-той ижил)
         self.page = page
         self._embed: Optional[discord.Embed] = None
@@ -101,7 +85,7 @@ class MenuView(ui.View):
 
     def _build_select_options(self) -> List[discord.SelectOption]:
         options = []
-        for cat in _get_categories(self.lang):
+        for cat in _get_categories():
             emoji = CATEGORY_EMOJIS.get(cat, "📁")
             options.append(discord.SelectOption(label=cat, emoji=emoji, value=cat))
         return options
@@ -114,11 +98,7 @@ class MenuView(ui.View):
             await interaction.response.defer()
             return False
         if interaction.user.id != self.original.id:
-            await interaction.response.send_message(
-                await t_async(self.guild_id, "", mn="⚠️ Энэ самбар зөвхөн танд зориулагдсан.",
-                              en="⚠️ This panel belongs to someone else."),
-                ephemeral=True,
-            )
+            await interaction.response.send_message("⚠️ Энэ самбар зөвхөн танд зориулагдсан.", ephemeral=True)
             return False
         return True
 
@@ -129,12 +109,7 @@ class MenuView(ui.View):
                 if isinstance(child, (ui.Button, ui.Select)):
                     child.disabled = True
             if self._embed is not None:
-                footer_text = await t_async(
-                    self.guild_id, "",
-                    mn="Хугацаа дууссан — самбарыг дахин нээх: A!menu",
-                    en="Timed out — reopen with: A!menu",
-                )
-                self._embed.set_footer(text=footer_text)
+                self._embed.set_footer(text="Хугацаа дууссан — самбарыг дахин нээх: A!menu")
         except Exception:  # noqa: BLE001 — message аль хэдийн устсан байж болно
             log.debug("menu view timeout cleanup skipped", exc_info=True)
 
@@ -143,30 +118,20 @@ class MenuView(ui.View):
     async def _build_embed(self) -> discord.Embed:
         if self.category is None:
             # Анхны харагдац — ангилалын хураангуй
-            title = await t_async(self.guild_id, "menu.title")
             desc_lines = []
-            desc_lines.append(await t_async(
-                self.guild_id, "menu.welcome",
-                mn="Сайн байна уу! **{name}** ботын интерактив цэс рүү тавтай морил.\n\n"
-                   "Доорх **Select menu**-аас ангилал сонгоод, командыг хуудсаар гүйлгэнэ үү.",
-                en="Hi! Welcome to **{name}**'s interactive menu.\n\n"
-                   "Pick a category from the **Select menu** below and page through its commands.",
-                name=BOT_NAME,
-            ))
-            keys = _get_categories(self.lang)
+            desc_lines.append(f"✦ **{BOT_NAME}** anime guild-ийн command archive-д тавтай морил.\n\nДоорх цэснээс ангиллаа сонгоод, адал явдлынхаа командыг нээгээрэй.")
+            keys = _get_categories()
             emoji_map = CATEGORY_EMOJIS
             line = " ".join(f"{emoji_map.get(_mn_category(k), '📁')} {k}" for k in keys[:12])
             desc_lines.append(line)
-            desc_lines.append(await t_async(
-                self.guild_id, "menu.total",
-                mn="📊 Нийт **{count}** команд · **{cats}** ангилал",
-                en="📊 **{count}** commands · **{cats}** categories",
-                count=len(COMMAND_INFO),
-                cats=len(keys),
-            ))
-            embed = discord.Embed(title=title, description="\n\n".join(desc_lines),
-                                  color=0x89B4FA)
-            embed.set_footer(text=BOT_FOOTER)
+            desc_lines.append(f"🌸 Нийт **{len(COMMAND_INFO)}** команд · **{len(keys)}** guild хэсэг")
+            embed = discord.Embed(
+                title=f"✦ {BOT_NAME} Command Archive",
+                description="\n\n".join(desc_lines),
+                color=PRIMARY_COLOR,
+                timestamp=timestamp_now(),
+            )
+            embed.set_footer(text=f"{BOT_FOOTER} • Choose your path")
             self._embed = embed
             return embed
 
@@ -175,43 +140,28 @@ class MenuView(ui.View):
         cmds = _cmd_list(self.category)
         page_cmds = cmds[self.page * CMDS_PER_PAGE:(self.page + 1) * CMDS_PER_PAGE]
         title_key = "menu.cat_title"
-        cat_label = self.category if self.lang == "mn" else CAT_EN.get(self.category, self.category)
+        cat_label = self.category
 
         embed = discord.Embed(
-            title=await t_async(self.guild_id, title_key,
-                                mn="{emoji} {cat}", en="{emoji} {cat}",
-                                emoji=emoji, cat=cat_label),
+            title=f"✦ {emoji} {cat_label} archive",
             color=color,
+            timestamp=timestamp_now(),
         )
         if not page_cmds:
-            embed.description = await t_async(
-                self.guild_id, "menu.no_commands",
-                mn="📭 Энэ ангилалд команд байхгүй.",
-                en="📭 No commands in this category.",
-            )
+            embed.description = "📭 Энэ ангилалд команд байхгүй."
         else:
-            field_name = await t_async(
-                self.guild_id, "menu.page",
-                mn="📖 Хуудас {p}/{t}", en="📖 Page {p}/{t}",
-                p=self.page + 1, t=_total_pages(self.category),
-            )
+            field_name = f"📖 Хуудас {self.page + 1}/{_total_pages(self.category)}"
             lines = []
             for cmd in page_cmds:
                 info = COMMAND_INFO[cmd]
-                desc = (info.get("description_" + self.lang)
-                        or info.get("description_mn")
+                desc = (info.get("description_mn")
                         or info.get("description_en")
                         or "—")
                 lines.append(f"{emoji} **`{cmd}`** — {desc[:90]}")
             embed.add_field(name=field_name, value="\n".join(lines) or "—", inline=False)
 
-        stats = await t_async(
-            self.guild_id, "menu.stats",
-            mn="📊 {cat} ангилал · {n} команд · хуудас {p}/{t}",
-            en="📊 {cat} · {n} cmds · page {p}/{t}",
-            cat=cat_label, n=len(cmds), p=self.page + 1, t=_total_pages(self.category),
-        )
-        embed.set_footer(text=f"{BOT_FOOTER} · {stats}")
+        stats = f"📊 {cat_label} ангилал · {len(cmds)} команд · хуудас {self.page + 1}/{_total_pages(self.category)}"
+        embed.set_footer(text=f"{BOT_FOOTER} • {stats}")
         self._embed = embed
         return embed
 
@@ -221,7 +171,7 @@ class MenuView(ui.View):
         cls=ui.Select,
         custom_id="menu_cat_select",
         row=0,
-        placeholder="📂 Ангилал сонгоно уу / Choose a category",
+        placeholder="🌸 Ангиллаа сонгоно уу / Choose your path",
         min_values=1,
         max_values=1,
     )
@@ -253,7 +203,7 @@ class MenuView(ui.View):
 
     # ── Detail (row 1) ────────────────────────────────────────────────
 
-    @ui.button(label="📖 Тайлбар үзэх / Details", custom_id="menu_detail",
+    @ui.button(label="📖 Grimoire / Details", custom_id="menu_detail",
                style=discord.ButtonStyle.primary, row=1, disabled=True)
     async def detail_button(self, interaction: discord.Interaction, _btn: ui.Button) -> None:
         """Хуудасны эхний командыг дэлгэрэнгүй харуулна."""
@@ -264,30 +214,28 @@ class MenuView(ui.View):
             return
         cmd = cmds[self.page * CMDS_PER_PAGE]
         info = COMMAND_INFO[cmd]
-        desc = (info.get("description_" + self.lang)
-                or info.get("description_mn")
+        desc = (info.get("description_mn")
                 or info.get("description_en")
                 or "—")
         examples = info.get("examples") or []
         usage = info.get("usage") or f"A!{cmd}"
         embed = discord.Embed(
-            title=f"📖 {cmd}",
+            title=f"✦ {cmd} — Command Grimoire",
             description=desc,
-            color=CATEGORY_COLORS.get(self.category, 0x1E1E2F),
+            color=CATEGORY_COLORS.get(self.category, ACCENT_COLOR),
+            timestamp=timestamp_now(),
         )
-        embed.add_field(name=await t_async(self.guild_id, "menu.usage",
-                                           mn="📌 Хэрэглээ", en="📌 Usage"),
+        embed.add_field(name="📌 Хэрэглээ",
                         value=f"`{usage}`", inline=False)
         if examples:
-            embed.add_field(name=await t_async(self.guild_id, "menu.examples",
-                                               mn="💡 Жишээ", en="💡 Examples"),
+            embed.add_field(name="💡 Жишээ",
                             value="\n".join(f"`A!{e}`" for e in examples[:4]),
                             inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # ── Close (row 1) ─────────────────────────────────────────────────
 
-    @ui.button(label="🗑️ Хаах / Close", custom_id="menu_close",
+    @ui.button(label="🌙 Хаах / Close", custom_id="menu_close",
                style=discord.ButtonStyle.danger, row=1)
     async def close_button(self, interaction: discord.Interaction, _btn: ui.Button) -> None:
         for child in self.children:
@@ -357,8 +305,7 @@ class Menu(commands.Cog):
             category = _mn_category(category)
             if not _cmd_list(category):
                 await ctx.send(
-                    await t_async(guild_id, "", mn="❌ Тухайн ангилалд команд байхгүй.",
-                                  en="❌ No commands in that category."),
+                    "❌ Тухайн ангилалд команд байхгүй.",
                 )
                 return
         view = MenuView(original=ctx.author, guild_id=guild_id,

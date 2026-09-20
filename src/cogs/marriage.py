@@ -995,7 +995,9 @@ class Marriage(SupabaseCog):
         font_main_name = _load_font(28, True)
         font_small = _load_font(15, False)
 
-        journal.banner(draw, (190, 32, 960, 88), "ГЭР БҮЛИЙН МОД", font_title, seed=seed + 2)
+        journal.banner(draw, (190, 32, 960, 88), "STARLIGHT BONDS", font_title, seed=seed + 2)
+        draw_text_with_fallback(draw, (W // 2 - 85, 94), "ГЭР БҮЛИЙН МОД", font_small,
+                                fill=journal.INK_SOFT, size=15, bold=True)
 
         def draw_person(cx, y, size, ava, name, name_font=font_name, nsize=20):
             bx = cx - size // 2
@@ -1066,7 +1068,8 @@ class Marriage(SupabaseCog):
                                     size=font.size, bold=False)
 
         # ── Title banner ──
-        journal.banner(draw, (150, 34, 1050, 92), "ГЭРЛЭЛТИЙН ГЭРЧИЛГЭЭ", font_title, seed=seed + 2)
+        journal.banner(draw, (150, 34, 1050, 92), "STARLIGHT BONDS", font_title, seed=seed + 2)
+        ctext("ГЭРЛЭЛТИЙН ГЭРЧИЛГЭЭ", 100, font_cap, fill=journal.INK_SOFT)
 
         # ── Portraits ──
         journal.sketch_frame(img, (108, 160, 298, 350), ava1, seed=seed + 3)

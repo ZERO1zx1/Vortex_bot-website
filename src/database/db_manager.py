@@ -126,7 +126,7 @@ class _TableErrorTracker:
             self._counts[table] = 0
             self._last_detail[table] = detail
             self._logger.error(
-                "Table '%s' unavailable (apply src/database/migrations/20260101_001_initial_schema.sql "
+                "Table '%s' unavailable (apply src/database/migrations/000_aether_complete.sql "
                 "and restart): %s", table, detail,
             )
             return
@@ -301,6 +301,12 @@ class SupabaseManager:
     REQUIRED_TABLES = [
         "economy", "levels", "giveaways", "temproles", "role_income",
         "tempvoice_setup_msg", "user_inventory",
+        # Government/economy commands depend on these tables.  Keep them in
+        # the startup probe so a partial migration is visible before members
+        # encounter a command-level database error.
+        "economy_guild_settings", "economy_jobs", "economy_ledger",
+        "government_members", "government_roles", "tax_recipients",
+        "ticket_config", "tickets", "automation_rules", "automation_runs",
     ]
 
     async def init_tables(self):
@@ -388,15 +394,13 @@ class SupabaseManager:
             raise DatabasePermissionError(
                 f"{table}: {msg}\n"
                 "Hint: Apply migration src/database/migrations/"
-                "20260918_003_repair_permissions.sql and verify the Service "
+                "000_aether_complete.sql and verify the Service "
                 "Role key is active (JWT role='service_role')."
             )
         if "PGRST205" in msg or "42P01" in msg:
             raise DatabaseSchemaError(
                 f"{table}: {msg}\n"
-                "Hint: Apply migrations in order: "
-                "20260101_001_initial_schema.sql then "
-                "20260813_002_missing_tables.sql."
+                "Hint: Apply src/database/migrations/000_aether_complete.sql."
             )
         raise
 

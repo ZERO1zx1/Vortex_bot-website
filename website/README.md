@@ -1,50 +1,29 @@
-# 𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Website
+# Aether website
 
-Ботын албан ёсны статик HTML/CSS/JS вэбсайт. UI болон командын каталог нь дурын статик hosting дээр ажиллана. Live status-д Supabase key-г browser-т гаргахгүйн тулд `backend/` FastAPI сервисийн `API_BASE_URL` шаардлагатай.
+Aether bot-ын Монгол хэл дээрх anime/cyberpunk танилцуулга болон command catalog.
 
-## Хэсгүүд
+## Бүтэц
 
-| Хэсэг | Тайлбар |
-|---|---|
-| Hero | 3D orb + floating feature cards + canvas particle фон |
-| Онцлогууд | Ботын 8 үндсэн ангилал (Economy, Leveling, Гэр бүл, Shop & Stock, Casino, Mafia, Модерац, Fun) |
-| Командууд | 205 командыг (87 slash / 118 text) хайлт болон ангиллын фильтрээр |
-| Статистик | 36 cog · 205 команд · 61 database хүснэгт · 24/7 (count-up animation) |
-| Статус | Ботын технологийн стек (Python 3.13, discord.py 2.6, Supabase) |
-| About Us | Ботын тухай, технологи, чанарын тестийн мэдээлэл |
-| Premium | 3 төлөвлөгөөний үнэ (Free / Premium / Server) |
-| Invite CTA | Ботыг server-тээ нэмэх даралт |
+- `index.html` — нүүр, 11 үндсэн систем, статус, community, changelog, FAQ
+- `js/commands.js` — active bot cogs-оос автоматаар үүссэн command catalog
+- `js/app.js` — хайлт, filter, modal, theme, animation, live status
+- `tools/sync_website_commands.py` — `ACTIVE_COGS` болон `COMMAND_INFO`-г тулгаж catalog sync хийнэ
+- `validate_commands.js` — catalog-ийн бүтэц, duplicate, command type шалгана
 
-## Тохиргоо (заавал хийх)
+## Catalog шинэчлэх
 
-`js/config.js` файлаас invite холбоосоо тохируулна:
+Bot-д command нэмсэн эсвэл active cog өөрчлөгдсөн үед:
 
-```js
-window.AETHER_CONFIG = {
-  BOT_INVITE_URL: 'https://discord.com/oauth2/authorize?client_id=ТӨРИЙН_CLIENT_ID&permissions=0&scope=bot%20applications.commands',
-};
+```powershell
+python website/tools/sync_website_commands.py
+node website/validate_commands.js
 ```
 
-Мөн backend-ээ deploy хийсний дараа `API_BASE_URL`-г тохируулна. Хоосон үед сайт database руу fallback хийхгүй бөгөөд status-ийг offline/unavailable гэж үзнэ.
+Command-ийн нийт тоо, slash/text задаргаа нь `commands.js`-ээс web дээр автоматаар гардаг. Иймээс HTML дотор гараар тоо солих шаардлагагүй.
 
-Client ID-ээ Discord Developer Portal-оос аваарай. Invite холбоос нь серверийн эрх автоматаар шаардахгүй. Серверийн эзэмшигч зөвхөн ашиглах feature-д хэрэгтэй эрхийг ботын role-д өгнө.
+## Үндсэн системүүд
 
-## Local-д турших
+Economy, Games & Casino, Level/Ranking/Profile, Shop/Inventory, Giveaway, Ticket,
+Moderation & Statistics, Webhook Automation, Marriage, Fun, Confessions.
 
-```bash
-cd website
-python3 -m http.server 8080
-# http://localhost:8080
-```
-
-## Hosting-д нийтлэх
-
-- **Vercel/Netlify/Cloudflare Pages:** `website/` хавтсыг publish directory болгож сонгох. Ямар ч тохиргоо шаардлагагүй.
-- **GitHub Pages:** Repo settings > Pages > Source: GitHub Actions эсвэл `website/` хавтас.
-- Файлууд шууд `index.html` → бүх asset харьцангуй замаар холбогдсон тул subdirectory-д ч ажиллана.
-
-## Өөрчлөх боломжтой зүйлс
-
-- Өнгөний схем: `css/style.css`-ийн `:root` хувьсагчид (`--accent` г.м.)
-- Командын жагсаалт: `js/commands.js` (`COMMANDS` массив)
-- Premium үнэ: `index.html`-ийн `#premium` хэсэг
+Firebase Hosting нь `website/` хавтсыг publish хийдэг.

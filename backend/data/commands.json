@@ -86,15 +86,6 @@
         "example": "A!buy <item_input> <quantity>"
     },
     {
-        "name": "cafe",
-        "cat": "Economy",
-        "icon": "☕",
-        "desc": "Кафе цэс харж, хоол захиалах.",
-        "descEN": "Order food at the cafe",
-        "args": [],
-        "example": "A!cafe"
-    },
-    {
         "name": "crime",
         "cat": "Economy",
         "icon": "💰",
@@ -127,20 +118,6 @@
         "example": "A!deposit <amount_str>"
     },
     {
-        "name": "dine",
-        "cat": "Economy",
-        "icon": "🍽️",
-        "desc": "Инвентариас хоол идэж buff авах.",
-        "descEN": "Eat food for buffs",
-        "args": [
-            {
-                "key": "number",
-                "req": true
-            }
-        ],
-        "example": "A!dine <number>"
-    },
-    {
         "name": "drink",
         "cat": "Economy",
         "icon": "💰",
@@ -162,24 +139,6 @@
         "descEN": "Eat food from inventory",
         "args": [],
         "example": "A!eat"
-    },
-    {
-        "name": "economy",
-        "cat": "Economy",
-        "icon": "💰",
-        "desc": "Хэрэглэгчийн эдийн засгийн самбар — үлдэгдэл, ажил, татвар, засгийн газар.",
-        "descEN": "User economy panel (balance, jobs, tax, government)",
-        "args": [],
-        "example": "/economy"
-    },
-    {
-        "name": "economy-config",
-        "cat": "Economy",
-        "icon": "💰",
-        "desc": "Эдийн засгийн тохиргоо — татвар, хүлээн авагч, ажил, ролын орлого.",
-        "descEN": "Economy config (tax, recipients, jobs, role income)",
-        "args": [],
-        "example": "/economy-config"
     },
     {
         "name": "equip",
@@ -210,15 +169,6 @@
         "example": "A!equipped <member>"
     },
     {
-        "name": "government",
-        "cat": "Economy",
-        "icon": "💰",
-        "desc": "Засгийн газрын самбар — ажилтнууд, роль, co-owner, систем идэвхжүүлэх.",
-        "descEN": "Government panel (officials, roles, co-owners, toggle)",
-        "args": [],
-        "example": "/government"
-    },
-    {
         "name": "iteminfo",
         "cat": "Economy",
         "icon": "💰",
@@ -240,24 +190,6 @@
         "descEN": "View and work jobs",
         "args": [],
         "example": "A!jobs"
-    },
-    {
-        "name": "market",
-        "cat": "Economy",
-        "icon": "🏪",
-        "desc": "Зах зээлийн интерактив самбар нээх.",
-        "descEN": "Open the marketplace",
-        "args": [],
-        "example": "A!market"
-    },
-    {
-        "name": "marketplace panel",
-        "cat": "Economy",
-        "icon": "💰",
-        "desc": "Зах зээлийн самбар нээх (слаш).",
-        "descEN": "Marketplace panel",
-        "args": [],
-        "example": "/marketplace panel"
     },
     {
         "name": "removemoney",
@@ -319,6 +251,15 @@
         "example": "A!taxinfo"
     },
     {
+        "name": "transactions",
+        "cat": "Economy",
+        "icon": "💰",
+        "desc": "Сүүлийн 10 мөнгөний гүйлгээг харах.",
+        "descEN": "View recent money transactions",
+        "args": [],
+        "example": "A!transactions [member]"
+    },
+    {
         "name": "transfer",
         "cat": "Economy",
         "icon": "🔧",
@@ -335,15 +276,6 @@
             }
         ],
         "example": "A!transfer <member> <amount_str>"
-    },
-    {
-        "name": "treasury",
-        "cat": "Economy",
-        "icon": "💰",
-        "desc": "Засгийн тэтгэвэр — үлдэгдэл, төлбөр, түүх, хуваарилалт.",
-        "descEN": "Government treasury (balance, payments, history, distribution)",
-        "args": [],
-        "example": "/treasury"
     },
     {
         "name": "unequip",
@@ -420,24 +352,6 @@
         "example": "A!workphrase"
     },
     {
-        "name": "addxp",
-        "cat": "Leveling",
-        "icon": "✨",
-        "desc": "Хэрэглэгчид XP нэмэх (эзэмшигч/co-owner).",
-        "descEN": "Add XP to a user",
-        "args": [
-            {
-                "key": "user",
-                "req": true
-            },
-            {
-                "key": "amount",
-                "req": true
-            }
-        ],
-        "example": "A!addxp <user> <amount>"
-    },
-    {
         "name": "leaderboard",
         "cat": "Leveling",
         "icon": "🏆",
@@ -445,15 +359,6 @@
         "descEN": "Server leaderboard",
         "args": [],
         "example": "A!leaderboard"
-    },
-    {
-        "name": "leveling_setup",
-        "cat": "Leveling",
-        "icon": "⚙️",
-        "desc": "Түвшний системийн бүрэн тохиргоо (роль, XP, цаг).",
-        "descEN": "Leveling setup",
-        "args": [],
-        "example": "A!leveling_setup"
     },
     {
         "name": "rank",
@@ -468,24 +373,6 @@
             }
         ],
         "example": "A!rank <user>"
-    },
-    {
-        "name": "removexp",
-        "cat": "Leveling",
-        "icon": "📉",
-        "desc": "Хэрэглэгчээс XP хасах (эзэмшигч/co-owner).",
-        "descEN": "Remove XP from a user",
-        "args": [
-            {
-                "key": "user",
-                "req": true
-            },
-            {
-                "key": "amount",
-                "req": true
-            }
-        ],
-        "example": "A!removexp <user> <amount>"
     },
     {
         "name": "serveractivity",
@@ -851,38 +738,6 @@
         "example": "A!coinflipgame <amount_str>"
     },
     {
-        "name": "count_save",
-        "cat": "Games",
-        "icon": "🔧",
-        "desc": "Тооллогын оноо хадгална.",
-        "descEN": "Save counting score",
-        "args": [],
-        "example": "/count_save"
-    },
-    {
-        "name": "count_stats_server",
-        "cat": "Games",
-        "icon": "📊",
-        "desc": "Серверийн тооллогын статистик.",
-        "descEN": "Server counting stats",
-        "args": [],
-        "example": "/count_stats_server"
-    },
-    {
-        "name": "count_stats_user",
-        "cat": "Games",
-        "icon": "👤",
-        "desc": "Хэрэглэгчийн тооллогын статистик.",
-        "descEN": "User counting stats",
-        "args": [
-            {
-                "key": "member",
-                "req": true
-            }
-        ],
-        "example": "/count_stats_user <member>"
-    },
-    {
         "name": "crash",
         "cat": "Games",
         "icon": "🎲",
@@ -1040,65 +895,6 @@
         "example": "A!highlow <amount_str> <choice>"
     },
     {
-        "name": "mafia_setup",
-        "cat": "Games",
-        "icon": "🎲",
-        "desc": "Мафи тоглоомын суваг/дүрэм тохируулах.",
-        "descEN": "Setup mafia game",
-        "args": [],
-        "example": "/mafia_setup"
-    },
-    {
-        "name": "mafiacreate",
-        "cat": "Games",
-        "icon": "🎭",
-        "desc": "Шинэ мафи тоглоом үүсгэнэ.",
-        "descEN": "Create a mafia session",
-        "args": [],
-        "example": "A!mafiacreate"
-    },
-    {
-        "name": "mafiaend",
-        "cat": "Games",
-        "icon": "⏹️",
-        "desc": "Идэвхтэй мафи тоглоомыг дуусгана.",
-        "descEN": "End mafia session",
-        "args": [],
-        "example": "A!mafiaend"
-    },
-    {
-        "name": "mafiastart",
-        "cat": "Games",
-        "icon": "▶️",
-        "desc": "Мафи тоглоомыг эхлүүлж тоглогчдыг хуваарилна.",
-        "descEN": "Start mafia session",
-        "args": [],
-        "example": "A!mafiastart"
-    },
-    {
-        "name": "mines",
-        "cat": "Games",
-        "icon": "💣",
-        "desc": "Mines тоглоом — найдваргүй талбай нээж урамшуулал цуглуул.",
-        "descEN": "Mines mining game",
-        "args": [
-            {
-                "key": "bet",
-                "req": true
-            }
-        ],
-        "example": "A!mines <bet>"
-    },
-    {
-        "name": "mp",
-        "cat": "Games",
-        "icon": "🛍️",
-        "desc": "Зах зээлийн тусламж.",
-        "descEN": "Marketplace help",
-        "args": [],
-        "example": "A!mp"
-    },
-    {
         "name": "numberguess",
         "cat": "Games",
         "icon": "🔧",
@@ -1111,24 +907,6 @@
             }
         ],
         "example": "A!numberguess <amount_str>"
-    },
-    {
-        "name": "pvp",
-        "cat": "Games",
-        "icon": "🎲",
-        "desc": "Хэрэглэгчтэй тулаан хийх (бооцоотой).",
-        "descEN": "PvP duel with a user",
-        "args": [
-            {
-                "key": "opponent",
-                "req": true
-            },
-            {
-                "key": "amount",
-                "req": true
-            }
-        ],
-        "example": "A!pvp <opponent> <amount>"
     },
     {
         "name": "roll",
@@ -1228,15 +1006,6 @@
         "example": "/automod <action> <feature>"
     },
     {
-        "name": "avatar_config",
-        "cat": "Moderation",
-        "icon": "🖼️",
-        "desc": "Avatar шалгалт/лог системийн тохиргоо.",
-        "descEN": "Avatar check config",
-        "args": [],
-        "example": "A!avatar_config"
-    },
-    {
         "name": "ban",
         "cat": "Moderation",
         "icon": "🔨",
@@ -1314,97 +1083,6 @@
         "example": "/lock <channel> <reason>"
     },
     {
-        "name": "role give",
-        "cat": "Moderation",
-        "icon": "🛡️",
-        "desc": "Хэрэглэгчид байнгын үүрэг өгнө.",
-        "descEN": "Give a permanent role",
-        "args": [
-            {
-                "key": "user",
-                "req": true
-            },
-            {
-                "key": "role",
-                "req": true
-            }
-        ],
-        "example": "A!role give <user> <role>"
-    },
-    {
-        "name": "role info",
-        "cat": "Moderation",
-        "icon": "🛡️",
-        "desc": "Үүргийн дэлгэрэнгүй мэдээлэл.",
-        "descEN": "Role details",
-        "args": [
-            {
-                "key": "role",
-                "req": true
-            }
-        ],
-        "example": "A!role info <role>"
-    },
-    {
-        "name": "role members",
-        "cat": "Moderation",
-        "icon": "🛡️",
-        "desc": "Тухайн үүрэгтэй гишүүдийн жагсаалт.",
-        "descEN": "Members with a role",
-        "args": [
-            {
-                "key": "role",
-                "req": true
-            }
-        ],
-        "example": "A!role members <role>"
-    },
-    {
-        "name": "role remove",
-        "cat": "Moderation",
-        "icon": "🛡️",
-        "desc": "Хэрэглэгчээс байнгын үүрэг хасна.",
-        "descEN": "Remove a permanent role",
-        "args": [
-            {
-                "key": "user",
-                "req": true
-            },
-            {
-                "key": "role",
-                "req": true
-            }
-        ],
-        "example": "A!role remove <user> <role>"
-    },
-    {
-        "name": "rr",
-        "cat": "Moderation",
-        "icon": "🛡️",
-        "desc": "Reaction role тохиргооны самбар.",
-        "descEN": "Reaction role setup",
-        "args": [
-            {
-                "key": "action",
-                "req": true
-            },
-            {
-                "key": "emoji",
-                "req": true
-            }
-        ],
-        "example": "/rr <action> <emoji>"
-    },
-    {
-        "name": "rrlist",
-        "cat": "Moderation",
-        "icon": "🛡️",
-        "desc": "Reaction-role холболтуудыг харуулна.",
-        "descEN": "List reaction roles",
-        "args": [],
-        "example": "A!rrlist"
-    },
-    {
         "name": "set_log_channel",
         "cat": "Moderation",
         "icon": "📢",
@@ -1449,83 +1127,6 @@
             }
         ],
         "example": "/staff_status <member>"
-    },
-    {
-        "name": "temprole clear",
-        "cat": "Moderation",
-        "icon": "🛡️",
-        "desc": "Хэрэглэгчийн бүх түр үүргийг цуцална.",
-        "descEN": "Clear temp roles",
-        "args": [
-            {
-                "key": "user",
-                "req": true
-            }
-        ],
-        "example": "A!temprole clear <user>"
-    },
-    {
-        "name": "temprole give",
-        "cat": "Moderation",
-        "icon": "🛡️",
-        "desc": "Хугацаатай түр үүрэг өгнө.",
-        "descEN": "Give a temporary role",
-        "args": [
-            {
-                "key": "user",
-                "req": true
-            },
-            {
-                "key": "role",
-                "req": true
-            },
-            {
-                "key": "duration",
-                "req": true
-            }
-        ],
-        "example": "A!temprole give <user> <role> <duration>"
-    },
-    {
-        "name": "temprole list",
-        "cat": "Moderation",
-        "icon": "🛡️",
-        "desc": "Идэвхтэй түр үүргүүдийн жагсаалт.",
-        "descEN": "List active temp roles",
-        "args": [
-            {
-                "key": "user",
-                "req": true
-            }
-        ],
-        "example": "A!temprole list <user>"
-    },
-    {
-        "name": "temprole remove",
-        "cat": "Moderation",
-        "icon": "🛡️",
-        "desc": "Түр үүргийг хугацаанаас өмнө хасна.",
-        "descEN": "Remove a temp role",
-        "args": [
-            {
-                "key": "user",
-                "req": true
-            },
-            {
-                "key": "role",
-                "req": true
-            }
-        ],
-        "example": "A!temprole remove <user> <role>"
-    },
-    {
-        "name": "temprole_config",
-        "cat": "Moderation",
-        "icon": "🛡️",
-        "desc": "Түр үүргийн системийн тохиргооны самбар.",
-        "descEN": "Temp role config",
-        "args": [],
-        "example": "/temprole_config"
     },
     {
         "name": "timeout",
@@ -1682,22 +1283,86 @@
         "example": "/warnings <member>"
     },
     {
-        "name": "announce",
-        "cat": "Admin",
-        "icon": "📣",
-        "desc": "Зарлал үүсгэх самбар нээх.",
-        "descEN": "Create an announcement",
-        "args": [],
-        "example": "/announce"
-    },
-    {
-        "name": "counting_setup",
+        "name": "automation_disable",
         "cat": "Admin",
         "icon": "⚙️",
-        "desc": "Тооллого тоглоомын тохиргооны самбар.",
-        "descEN": "Counting setup panel",
+        "desc": "Automation event-ийг унтраах.",
+        "descEN": "Disable an automation event",
+        "args": [
+            {
+                "key": "event",
+                "req": true
+            }
+        ],
+        "example": "/automation_disable <event>"
+    },
+    {
+        "name": "automation_embed",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Automation мессежийн embed өнгө, гарчиг, footer тохируулах.",
+        "descEN": "Configure automation embed styling",
+        "args": [
+            {
+                "key": "event",
+                "req": true
+            }
+        ],
+        "example": "/automation_embed <event> [title] [color] [footer]"
+    },
+    {
+        "name": "automation_help",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Automation тохиргооны алхамчилсан заавар харах.",
+        "descEN": "View automation setup instructions",
         "args": [],
-        "example": "/counting_setup"
+        "example": "/automation_help"
+    },
+    {
+        "name": "automation_setup",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Join/leave automation message тохируулах.",
+        "descEN": "Configure a Discord automation message",
+        "args": [
+            {
+                "key": "event",
+                "req": true
+            },
+            {
+                "key": "channel",
+                "req": true
+            },
+            {
+                "key": "message",
+                "req": true
+            }
+        ],
+        "example": "/automation_setup <event> <channel> <message>"
+    },
+    {
+        "name": "automation_status",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Automation rule-уудын төлөв харах.",
+        "descEN": "View automation status",
+        "args": [],
+        "example": "/automation_status"
+    },
+    {
+        "name": "automation_test",
+        "cat": "Admin",
+        "icon": "⚙️",
+        "desc": "Join/leave automation мессежийг шууд турших.",
+        "descEN": "Test a join or leave automation message",
+        "args": [
+            {
+                "key": "event",
+                "req": true
+            }
+        ],
+        "example": "/automation_test <event>"
     },
     {
         "name": "greeting_reset",
@@ -1727,135 +1392,6 @@
         "example": "/info"
     },
     {
-        "name": "invites addlabel",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Урилгын шошго нэмэх.",
-        "descEN": "Add an invite label",
-        "args": [
-            {
-                "key": "invite_code",
-                "req": true
-            },
-            {
-                "key": "label",
-                "req": true
-            },
-            {
-                "key": "role",
-                "req": true
-            }
-        ],
-        "example": "/invites addlabel <invite_code> <label> <role>"
-    },
-    {
-        "name": "invites codes",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Идэвхтэй урилгын кодууд.",
-        "descEN": "Active invite codes",
-        "args": [
-            {
-                "key": "member",
-                "req": true
-            }
-        ],
-        "example": "/invites codes <member>"
-    },
-    {
-        "name": "invites graph",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Урилгын статистик график.",
-        "descEN": "Invite statistics graph",
-        "args": [
-            {
-                "key": "days",
-                "req": true
-            }
-        ],
-        "example": "/invites graph <days>"
-    },
-    {
-        "name": "invites inviter",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Хэрэглэгчийг хэн урьсныг харах.",
-        "descEN": "Who invited a user",
-        "args": [
-            {
-                "key": "member",
-                "req": true
-            }
-        ],
-        "example": "/invites inviter <member>"
-    },
-    {
-        "name": "invites list",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Урьсан хэрэглэгчдийн жагсаалт.",
-        "descEN": "List invited users",
-        "args": [
-            {
-                "key": "user",
-                "req": true
-            }
-        ],
-        "example": "/invites list <user>"
-    },
-    {
-        "name": "invites removelabel",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Урилгын шошго устгах.",
-        "descEN": "Remove an invite label",
-        "args": [
-            {
-                "key": "invite_code",
-                "req": true
-            }
-        ],
-        "example": "/invites removelabel <invite_code>"
-    },
-    {
-        "name": "invites setup",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Урилгын систем тохируулах.",
-        "descEN": "Invite tracking setup",
-        "args": [],
-        "example": "/invites setup"
-    },
-    {
-        "name": "invites stats",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Урилгын статистик.",
-        "descEN": "Invite statistics",
-        "args": [
-            {
-                "key": "member",
-                "req": true
-            }
-        ],
-        "example": "/invites stats <member>"
-    },
-    {
-        "name": "lang",
-        "cat": "Admin",
-        "icon": "🔧",
-        "desc": "Ботын хэл солих (mn/en).",
-        "descEN": "Change server language",
-        "args": [
-            {
-                "key": "new_lang",
-                "req": true
-            }
-        ],
-        "example": "A!lang <new_lang>"
-    },
-    {
         "name": "rolelist",
         "cat": "Admin",
         "icon": "🎭",
@@ -1877,92 +1413,6 @@
         "descEN": "Bot status and health",
         "args": [],
         "example": "/status"
-    },
-    {
-        "name": "stick",
-        "cat": "Admin",
-        "icon": "🔧",
-        "desc": "Sticky мессеж тохируулах.",
-        "descEN": "Set a sticky message",
-        "args": [
-            {
-                "key": "content",
-                "req": true
-            }
-        ],
-        "example": "A!stick <content>"
-    },
-    {
-        "name": "stock add",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Барааны нөөц нэмэх (админ).",
-        "descEN": "Add item stock",
-        "args": [
-            {
-                "key": "item_id",
-                "req": true
-            },
-            {
-                "key": "amount",
-                "req": true
-            }
-        ],
-        "example": "A!stock add <item_id> <amount>"
-    },
-    {
-        "name": "stock refresh",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Бүх серверийн нөөцийг дахин дүүргэх.",
-        "descEN": "Refresh shop stock",
-        "args": [],
-        "example": "A!stock refresh"
-    },
-    {
-        "name": "stock remove",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Барааны нөөц хасах (админ).",
-        "descEN": "Remove item stock",
-        "args": [
-            {
-                "key": "item_id",
-                "req": true
-            },
-            {
-                "key": "amount",
-                "req": true
-            }
-        ],
-        "example": "A!stock remove <item_id> <amount>"
-    },
-    {
-        "name": "stock reset",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Бүх нөөцийг даруй санамсаргүй болгох (админ).",
-        "descEN": "Reset all stock",
-        "args": [],
-        "example": "A!stock reset"
-    },
-    {
-        "name": "stock set",
-        "cat": "Admin",
-        "icon": "⚙️",
-        "desc": "Барааны нөөцийг тогтоох (админ).",
-        "descEN": "Set item stock",
-        "args": [
-            {
-                "key": "item_id",
-                "req": true
-            },
-            {
-                "key": "amount",
-                "req": true
-            }
-        ],
-        "example": "A!stock set <item_id> <amount>"
     },
     {
         "name": "template_create",
@@ -2029,31 +1479,27 @@
         "example": "/template_preview <template_id> <member>"
     },
     {
-        "name": "unstick",
+        "name": "ticket_setup",
         "cat": "Admin",
-        "icon": "🔧",
-        "desc": "Sticky мессежийг цуцлах.",
-        "descEN": "Remove a sticky message",
-        "args": [],
-        "example": "A!unstick"
+        "icon": "⚙️",
+        "desc": "Ticket panel, staff role, category, transcript log тохируулах.",
+        "descEN": "Configure the ticket desk and transcript log",
+        "args": [
+            {
+                "key": "channel",
+                "req": true
+            }
+        ],
+        "example": "/ticket_setup <channel> [staff_role] [category] [log_channel]"
     },
     {
-        "name": "voicesettings",
+        "name": "ticket_stats",
         "cat": "Admin",
-        "icon": "🔊",
-        "desc": "Одоогийн түр сувгийн тохиргоог харах.",
-        "descEN": "Temp voice settings",
+        "icon": "⚙️",
+        "desc": "Нээлттэй, хаагдсан ticket-ийн тоо харах.",
+        "descEN": "View ticket statistics",
         "args": [],
-        "example": "/voicesettings"
-    },
-    {
-        "name": "voicesetup",
-        "cat": "Admin",
-        "icon": "🎙️",
-        "desc": "Түр дуут сувгийн тохиргооны самбар нээх.",
-        "descEN": "Temp voice setup",
-        "args": [],
-        "example": "/voicesetup"
+        "example": "/ticket_stats"
     },
     {
         "name": "angry",
@@ -2440,70 +1886,6 @@
             }
         ],
         "example": "A!punch <target>"
-    },
-    {
-        "name": "quest",
-        "cat": "Utility",
-        "icon": "🔧",
-        "desc": "Даалгаврын систем — тусламж/төлөв харах.",
-        "descEN": "Quest system help",
-        "args": [],
-        "example": "A!quest"
-    },
-    {
-        "name": "quest claim",
-        "cat": "Utility",
-        "icon": "🔧",
-        "desc": "Даалгавраа биелүүлж, шагнал авах.",
-        "descEN": "Claim quest reward",
-        "args": [
-            {
-                "key": "quest_id",
-                "req": true
-            }
-        ],
-        "example": "A!quest claim <quest_id>"
-    },
-    {
-        "name": "quest history",
-        "cat": "Utility",
-        "icon": "🔧",
-        "desc": "Сүүлд биелүүлсэн даалгаврын түүх.",
-        "descEN": "Completed quest history",
-        "args": [],
-        "example": "A!quest history"
-    },
-    {
-        "name": "quest new",
-        "cat": "Utility",
-        "icon": "🔧",
-        "desc": "Шинэ даалгавар авах (хамгийн ихдээ 5).",
-        "descEN": "Get a new quest",
-        "args": [],
-        "example": "A!quest new"
-    },
-    {
-        "name": "quest refresh",
-        "cat": "Utility",
-        "icon": "🔧",
-        "desc": "Даалгаврыг сольж, шинэчлэх.",
-        "descEN": "Refresh a quest",
-        "args": [
-            {
-                "key": "quest_id",
-                "req": true
-            }
-        ],
-        "example": "A!quest refresh <quest_id>"
-    },
-    {
-        "name": "quest status",
-        "cat": "Utility",
-        "icon": "🔧",
-        "desc": "Одоогийн идэвхтэй даалгаварууд.",
-        "descEN": "Current quests",
-        "args": [],
-        "example": "A!quest status"
     },
     {
         "name": "relax",

@@ -38,7 +38,6 @@ from src.cogs.counting import evaluate_expression
 from src.cogs.economy import Economy
 from src.cogs.games import Games
 from src.cogs.pvp import PVP, PVPView
-from src.cogs.reaction_roles import ReactionRoles
 from src.cogs.trade import Marketplace
 
 
@@ -576,14 +575,6 @@ def test_automod_uses_app_command_permissions():
     assert _run_app_command_checks(cmd, no_bot_perm) == [False, True]
 
 
-def test_rr_setup_uses_app_command_permissions():
-    cmd = ReactionRoles.rr_setup
-    assert isinstance(cmd, discord.app_commands.Command)
-    assert cmd.default_permissions.manage_roles is True
-    assert _run_app_command_checks(cmd, discord.Permissions(manage_roles=True)) == [True]
-    assert _run_app_command_checks(cmd, discord.Permissions()) == [False]
-
-
 # ══════════════ H3 — automod timeout datetime + failure isolation ══════════════
 
 @pytest.mark.asyncio
@@ -780,10 +771,6 @@ async def test_daily_concurrent_claims_grant_reward_once(monkeypatch):
     db.tables["economy"] = [{"user_id": "7", "guild_id": "5", "balance": 0, "last_daily": 0}]
     eco = Economy(FakeBot(config={"tax_percent": 10, "max_balance": 100_000_000}, db=db))
 
-    async def fake_lang(guild_id):
-        return "mn"
-
-    monkeypatch.setattr(econ_mod.i18n, "get_guild_lang", fake_lang)
     monkeypatch.setattr(econ_mod.random, "randint", lambda a, b: 10000)
 
     titles = []

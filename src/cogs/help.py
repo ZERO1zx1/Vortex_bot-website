@@ -988,13 +988,6 @@ COMMAND_INFO = {
         "usage": "/announce",
         "examples": []
     },
-    "lang": {
-        "description_mn": "Ботын хэл солих (mn/en).",
-        "description_en": "Change server language",
-        "category": "Хэрэгсэл",
-        "usage": "A!lang <new_lang>",
-        "examples": []
-    },
     "menu": {
         "description_mn": "Интерактив цэс нээх.",
         "description_en": "Open interactive menu",
@@ -1460,11 +1453,15 @@ class HelpView(ui.View):
                 emoji=CATEGORY_EMOJIS.get(cat, "📁"),
                 description=f"{CATEGORY_ICONS.get(cat,'📌')} {sum(1 for v in COMMAND_INFO.values() if v['category']==cat)} тушаал",
             ))
-        self.select = ui.Select(placeholder="📂 Ангилал сонгох...", options=options, row=0)
+        self.select = ui.Select(
+            placeholder="✦ Anime guild-ийн ангилал сонгох...",
+            options=options,
+            row=0,
+        )
         self.select.callback = self.on_select
         self.add_item(self.select)
 
-        home = ui.Button(label="🏠 Нүүр", emoji="🏠", style=discord.ButtonStyle.primary, row=1)
+        home = ui.Button(label="✦ Нүүр", emoji="🏮", style=discord.ButtonStyle.primary, row=1)
         home.callback = self.on_home
         self.add_item(home)
 
@@ -1491,12 +1488,13 @@ class HelpView(ui.View):
     def build_home_embed(self):
         total = len(COMMAND_INFO)
         embed = discord.Embed(
-            title=f"📚 {BOT_NAME} — Тусламжийн төв",
+            title=f"✦ {BOT_NAME} — Anime Guild Guide",
             description=(
+                f"> *Таны дараагийн адал явдал эндээс эхэлнэ.*\n"
                 f"> **{total}** тушаал · **{len(CATEGORY_EMOJIS)}** ангилал\n"
                 f"> Префикс: **`A!`**  •  Slash команд (`/`) мөн дэмжигдэнэ"
             ),
-            color=0x1e1e2f,
+            color=0x090B1A,
             timestamp=datetime.now(timezone.utc),
         )
         cats = list(CATEGORY_EMOJIS.keys())
@@ -1504,10 +1502,10 @@ class HelpView(ui.View):
         left, right = cats[:half], cats[half:]
         lines_l = [f"{CATEGORY_EMOJIS[c]} {c} · `{sum(1 for v in COMMAND_INFO.values() if v['category']==c)}`" for c in left]
         lines_r = [f"{CATEGORY_EMOJIS[c]} {c} · `{sum(1 for v in COMMAND_INFO.values() if v['category']==c)}`" for c in right]
-        embed.add_field(name="🗂️ Ангилалууд", value="\n".join(lines_l) or "—", inline=True)
+        embed.add_field(name="🌸 Guild-ийн ангилалууд", value="\n".join(lines_l) or "—", inline=True)
         embed.add_field(name="\u200b", value="\n".join(lines_r) or "—", inline=True)
         embed.add_field(
-            name="💡 Хэрэглээ",
+            name="✨ Эхлэх заавар",
             value=(
                 "> Дэлгэрэнгүй тушаал: `A!help rank`\n"
                 "> Slash хувилбар: `/help rank`\n"
@@ -1520,7 +1518,7 @@ class HelpView(ui.View):
             embed.set_thumbnail(url=self.ctx.guild.icon.url)
         elif self.ctx.bot.user:
             embed.set_thumbnail(url=self.ctx.bot.user.display_avatar.url)
-        embed.set_footer(text=f"{BOT_NAME} • Тусламжийн самбар • 180с дараа дуусна")
+        embed.set_footer(text=f"{BOT_FOOTER} • Anime guide • 180с дараа хаагдана")
         return embed
 
     # ── Ангилалын хуудас ──
@@ -1533,7 +1531,10 @@ class HelpView(ui.View):
 
         embed = discord.Embed(
             title=f"{emoji}  {category}  {icon}",
-            description=f"**{len(commands)} тушаал** — {BOT_NAME}",
+            description=(
+                f"*{category} хэсгийн command grimoire*\n"
+                f"**{len(commands)} тушаал** — {BOT_NAME}"
+            ),
             color=color,
             timestamp=datetime.now(timezone.utc),
         )
@@ -1561,11 +1562,26 @@ class HelpView(ui.View):
         embed.set_author(name=str(self.ctx.author), icon_url=self.ctx.author.display_avatar.url)
         if self.ctx.guild and self.ctx.guild.icon:
             embed.set_thumbnail(url=self.ctx.guild.icon.url)
-        embed.set_footer(text=f"{BOT_NAME} • {category} • Нүүр рүү буцах: 🏠")
+        embed.set_footer(text=f"{BOT_FOOTER} • {category} archive • Нүүр: 🏮")
         return embed
 
 
 # Категорийн тохиргоо
+# Commands added after the original catalogue was written.  The catalogue is
+# pruned at startup against the active command tree, so it never advertises a
+# retired cog.
+COMMAND_INFO.update({
+    "transactions": {"description_mn": "Сүүлийн 10 мөнгөний гүйлгээг харах.", "description_en": "View recent money transactions", "category": "Эдийн засаг", "usage": "A!transactions [member]", "examples": []},
+    "ticket_setup": {"description_mn": "Ticket panel, staff role, category, transcript log тохируулах.", "description_en": "Configure the ticket desk and transcript log", "category": "Ticket", "usage": "/ticket_setup <channel> [staff_role] [category] [log_channel]", "examples": []},
+    "ticket_stats": {"description_mn": "Нээлттэй, хаагдсан ticket-ийн тоо харах.", "description_en": "View ticket statistics", "category": "Ticket", "usage": "/ticket_stats", "examples": []},
+    "automation_setup": {"description_mn": "Join/leave automation message тохируулах.", "description_en": "Configure a Discord automation message", "category": "Automation", "usage": "/automation_setup <event> <channel> <message>", "examples": []},
+    "automation_help": {"description_mn": "Automation тохиргооны алхамчилсан заавар харах.", "description_en": "View automation setup instructions", "category": "Automation", "usage": "/automation_help", "examples": []},
+    "automation_test": {"description_mn": "Join/leave automation мессежийг шууд турших.", "description_en": "Test a join or leave automation message", "category": "Automation", "usage": "/automation_test <event>", "examples": []},
+    "automation_embed": {"description_mn": "Automation мессежийн embed өнгө, гарчиг, footer тохируулах.", "description_en": "Configure automation embed styling", "category": "Automation", "usage": "/automation_embed <event> [title] [color] [footer]", "examples": []},
+    "automation_disable": {"description_mn": "Automation event-ийг унтраах.", "description_en": "Disable an automation event", "category": "Automation", "usage": "/automation_disable <event>", "examples": []},
+    "automation_status": {"description_mn": "Automation rule-уудын төлөв харах.", "description_en": "View automation status", "category": "Automation", "usage": "/automation_status", "examples": []},
+})
+
 CATEGORY_EMOJIS = {
     "Эдийн засаг": "💰",
     "Тоглоом": "🎮",
@@ -1582,6 +1598,9 @@ CATEGORY_EMOJIS = {
     "Даалгавар": "📜",
     "Урилга": "🧲",
     "Giveaway": "🎁",
+    "Засгийн газар": "🏛️",
+    "Ticket": "🎫",
+    "Automation": "⚡",
 }
 
 CATEGORY_ICONS = {
@@ -1600,24 +1619,30 @@ CATEGORY_ICONS = {
     "Даалгавар": "🗒️",
     "Урилга": "💌",
     "Giveaway": "🎁",
+    "Засгийн газар": "👑",
+    "Ticket": "🧷",
+    "Automation": "🔗",
 }
 
 CATEGORY_COLORS = {
-    "Эдийн засаг": 0xFABC4E,
-    "Тоглоом": 0xFAE769,
-    "Казино": 0xCB9B77,
-    "Хөгжилтэй": 0xFF6474,
-    "Модераци": 0xF37B38,
-    "Түвшин": 0xA6E3A1,
-    "Гэр бүл": 0xFF3040,
+    "Эдийн засаг": 0xFFB86B,
+    "Тоглоом": 0x63D9FF,
+    "Казино": 0xC77DFF,
+    "Хөгжилтэй": 0xFF5C8A,
+    "Модераци": 0xFFD166,
+    "Түвшин": 0x72F1B8,
+    "Гэр бүл": 0xFF78B7,
     "Админ": 0x89B4FA,
-    "Хэрэгсэл": 0x6C7086,
-    "Хоол": 0xFFB86C,
-    "Дэлгүүр": 0x00FFCC,
-    "Нууц": 0x9B5DE5,
-    "Даалгавар": 0xFABC4E,
-    "Урилга": 0x74E6D8,
-    "Giveaway": 0xFAE769,
+    "Хэрэгсэл": 0x737B9C,
+    "Хоол": 0xFFB86B,
+    "Дэлгүүр": 0x63D9FF,
+    "Нууц": 0xC77DFF,
+    "Даалгавар": 0xFFD166,
+    "Урилга": 0x72F1B8,
+    "Giveaway": 0xC77DFF,
+    "Засгийн газар": 0xC77DFF,
+    "Ticket": 0x63D9FF,
+    "Automation": 0x72F1B8,
 }
 
 CATEGORY_COUNT_INFO = f"{len(CATEGORY_EMOJIS)} ангилал · нийт {len(COMMAND_INFO)} тушаал"
@@ -1626,6 +1651,13 @@ CATEGORY_COUNT_INFO = f"{len(CATEGORY_EMOJIS)} ангилал · нийт {len(C
 class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    async def cog_load(self):
+        """Hide documentation for modules excluded by the active manifest."""
+        for name in list(COMMAND_INFO):
+            root = name.split()[0]
+            if self.bot.get_command(root) is None and self.bot.tree.get_command(root) is None:
+                COMMAND_INFO.pop(name, None)
 
     @commands.hybrid_command(name='help', description="Командын тусламж (ангилал эсвэл дэлгэрэнгүй)")
     @app_commands.describe(command="Тусламж авах тушаалын нэр (хоосон орхивол ангиллын самбар)")
@@ -1644,7 +1676,7 @@ class Help(commands.Cog):
                 embed = discord.Embed(
                     title="❌ Тушаал олдсонгүй",
                     description=f"`{cmd_key}` нэртэй тушаал байхгүй байна.{hint}",
-                    color=0xf38ba8
+                    color=0xFF5C8A
                 )
                 return await ctx.send(embed=embed)
 
@@ -1677,7 +1709,7 @@ class Help(commands.Cog):
                 examples = "\n".join(f"`{ex}`" for ex in info["examples"])
                 embed.add_field(name="📝 Жишээ", value=examples, inline=False)
             embed.set_author(name=str(ctx.author), icon_url=ctx.author.display_avatar.url)
-            embed.set_footer(text=f"{BOT_NAME} · Тусламжийн систем · {BOT_FOOTER}")
+            embed.set_footer(text=f"{BOT_FOOTER} · {info['category']} archive")
             await ctx.send(embed=embed)
 
 
