@@ -244,6 +244,18 @@ class MyBot(commands.Bot):
         try:
             synced = await self.tree.sync()
             logger.info("✅ %d slash commands synced.", len(synced))
+
+            # Global application commands can take up to an hour to appear in
+            # a guild.  Mirror the same tree into every guild on startup so
+            # setup/leveling commands are available immediately after a
+            # deploy or a cog update.  This is also useful for diagnosing an
+            # invite that was created without the applications.commands scope.
+            guild_synced = 0
+            for guild in self.guilds:
+                self.tree.copy_global_to(guild=guild)
+                guild_commands = await self.tree.sync(guild=guild)
+                guild_synced += len(guild_commands)
+            logger.info("✅ Guild command sync complete: %d guild(s), %d commands.", len(self.guilds), guild_synced)
         except Exception as e:
             logger.warning("⚠️ Slash command sync error: %s", e)
 
