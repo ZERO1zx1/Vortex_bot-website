@@ -90,7 +90,12 @@ class SetupView(ui.View):
     async def refresh(self, interaction: discord.Interaction):
         cfg = await self.cog.get_config(self.guild_id)
         embed = self.build_embed(cfg, interaction.guild)
-        await interaction.edit_original_response(embed=embed, view=self)
+        # Component callbacks and modal callbacks have different original
+        # responses. Always edit the setup panel itself when we have it.
+        if self.message is not None:
+            await self.message.edit(embed=embed, view=self)
+        else:
+            await interaction.edit_original_response(embed=embed, view=self)
 
     def build_embed(self, cfg, guild):
         if cfg is None:
@@ -123,26 +128,26 @@ class SetupView(ui.View):
     @ui.select(cls=ui.ChannelSelect, channel_types=[discord.ChannelType.text], placeholder="📥 Нууц захианы суваг сонго...", min_values=1, max_values=1, row=0)
     async def select_confess_channel(self, interaction: discord.Interaction, select: ui.ChannelSelect):
         channel = select.values[0]
-        await self.cog.update_config(self.guild_id, confess_channel_id=channel.id)
         await interaction.response.defer()
+        await self.cog.update_config(self.guild_id, confess_channel_id=channel.id)
         await self.refresh(interaction)
 
     @ui.select(cls=ui.ChannelSelect, channel_types=[discord.ChannelType.text], placeholder="📤 Гаралтын суваг сонго...", min_values=1, max_values=1, row=1)
     async def select_output_channel(self, interaction: discord.Interaction, select: ui.ChannelSelect):
         channel = select.values[0]
-        await self.cog.update_config(self.guild_id, output_channel_id=channel.id)
         await interaction.response.defer()
+        await self.cog.update_config(self.guild_id, output_channel_id=channel.id)
         await self.refresh(interaction)
 
     @ui.button(label="🕶️ Аноним төлөв солих", style=discord.ButtonStyle.primary, row=2)
     async def toggle_anon(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer()
         cfg = await self.cog.get_config(self.guild_id)
         if cfg is None:
-            await interaction.response.send_message("❌ Эхлээд сувгуудыг сонгоно уу.", ephemeral=True)
+            await interaction.followup.send("❌ Эхлээд сувгуудыг сонгоно уу.", ephemeral=True)
             return
         new_state = not cfg['anonymity']
         await self.cog.update_config(self.guild_id, anonymity=new_state)
-        await interaction.response.defer()
         await self.refresh(interaction)
 
     @ui.button(label="⏱️ Күүдаун тохируулах", style=discord.ButtonStyle.secondary, row=2)
@@ -314,7 +319,7 @@ class Confessions(commands.Cog):
         cfg = await self.get_config(interaction.guild_id)
         view = SetupView(self, interaction.guild_id, interaction.user.id)
         embed = view.build_embed(cfg, interaction.guild)
-        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        view.message = await interaction.followup.send(embed=embed, view=view, ephemeral=True, wait=True)
 
     @app_commands.command(name="confess_blacklist", description="Хориотой үг удирдах")
     @app_commands.default_permissions(administrator=True)
