@@ -1,19 +1,19 @@
 /* ============================================================
    𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹 — 3D Animated UI
-   Brand: deep night blue #1E1E2F · accent blue #89B4FA · cyan #94E2D5
+   Brand: anime cyberpunk · void navy · neon cyan · electric violet
    ============================================================ */
 :root {
-  --bg-0: #0B0B14;
-  --bg-1: #13131F;
-  --bg-2: #1E1E2F;
-  --bg-3: #272738;
-  --border: rgba(137, 180, 250, 0.14);
-  --text: #E8EDF7;
-  --text-dim: #8A93A8;
-  --accent: #89B4FA;
-  --accent-2: #94E2D5;
-  --gold: #FAB387;
-  --glow: 0 0 30px rgba(137, 180, 250, 0.35);
+  --bg-0: #070817;
+  --bg-1: #0D1026;
+  --bg-2: #151A38;
+  --bg-3: #202653;
+  --border: rgba(99, 217, 255, 0.2);
+  --text: #F3F6FF;
+  --text-dim: #8994B8;
+  --accent: #63D9FF;
+  --accent-2: #C77DFF;
+  --gold: #FFB86B;
+  --glow: 0 0 30px rgba(99, 217, 255, 0.35);
   --font-display: 'Orbitron', sans-serif;
   --font-body: 'Noto Sans', sans-serif;
 }
@@ -66,9 +66,9 @@ body::before {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 60% 45% at 20% 10%, rgba(137, 180, 250, 0.10), transparent 60%),
-    radial-gradient(ellipse 55% 40% at 80% 85%, rgba(148, 226, 213, 0.08), transparent 60%),
-    radial-gradient(ellipse 50% 35% at 50% 50%, rgba(250, 179, 135, 0.05), transparent 70%);
+    radial-gradient(ellipse 60% 45% at 15% 8%, rgba(99, 217, 255, 0.16), transparent 60%),
+    radial-gradient(ellipse 55% 40% at 88% 82%, rgba(199, 125, 255, 0.14), transparent 60%),
+    radial-gradient(ellipse 50% 35% at 50% 50%, rgba(255, 184, 107, 0.06), transparent 70%);
   z-index: 0;
   pointer-events: none;
   animation: auroraShift 20s ease-in-out infinite alternate;
@@ -4392,4 +4392,18 @@ html[data-theme="light"] .err-clear-btn:hover {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Subtle manga speed-line grid: adds depth without competing with content. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.13;
+  background-image: linear-gradient(rgba(99, 217, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(199, 125, 255, 0.08) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: linear-gradient(to bottom, black, transparent 86%);
 }
