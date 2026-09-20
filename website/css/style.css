@@ -4407,3 +4407,138 @@ body::after {
   background-size: 52px 52px;
   mask-image: linear-gradient(to bottom, black, transparent 86%);
 }
+
+/* ---------------- Anime interface layer ---------------- */
+.navbar,
+.feature-card,
+.stat-card,
+.status-card,
+.cmd-toolbar,
+.command-card,
+.community-intro,
+.intro-card,
+.rule-card,
+.faq-item,
+.float-card {
+  border-color: rgba(99, 217, 255, .22);
+  background: linear-gradient(145deg, rgba(16, 22, 54, .88), rgba(9, 11, 26, .86));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .045), 0 18px 55px rgba(3, 5, 18, .28);
+}
+
+.navbar {
+  border-bottom-color: rgba(99, 217, 255, .28);
+  background: rgba(7, 8, 23, .78);
+}
+
+.nav-brand,
+.hero-title,
+.section-title,
+.status-title {
+  text-shadow: 0 0 22px rgba(99, 217, 255, .24);
+}
+
+.hero-title .title-orbitron,
+.accent,
+.stat-num,
+.online-text {
+  background: linear-gradient(105deg, var(--accent), var(--accent-2) 55%, var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero-badge,
+.section-tag,
+.eyebrow,
+.status-badge {
+  border-color: rgba(199, 125, 255, .4);
+  background: rgba(199, 125, 255, .11);
+  color: #DDBBFF;
+  box-shadow: 0 0 24px rgba(199, 125, 255, .12);
+}
+
+.btn,
+.filter,
+.theme-toggle,
+.lang-btn {
+  border-radius: 12px;
+  letter-spacing: .03em;
+}
+
+.btn-primary,
+.btn-glow {
+  background: linear-gradient(110deg, #2F9FC8, #8D4DD1);
+  border-color: rgba(255, 255, 255, .22);
+  box-shadow: 0 0 24px rgba(99, 217, 255, .26), 0 10px 30px rgba(199, 125, 255, .16);
+}
+
+.btn-primary:hover,
+.btn-glow:hover,
+.filter:hover,
+.filter.active {
+  box-shadow: 0 0 30px rgba(99, 217, 255, .42), 0 0 60px rgba(199, 125, 255, .2);
+  transform: translateY(-2px);
+}
+
+.feature-card,
+.stat-card,
+.command-card,
+.intro-card,
+.rule-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-card::before,
+.stat-card::before,
+.command-card::before,
+.intro-card::before,
+.rule-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--accent-2), transparent);
+  opacity: .75;
+}
+
+.feature-card:hover,
+.stat-card:hover,
+.command-card:hover,
+.intro-card:hover,
+.rule-card:hover {
+  border-color: rgba(199, 125, 255, .52);
+  box-shadow: 0 0 32px rgba(99, 217, 255, .12), 0 20px 60px rgba(3, 5, 18, .4);
+}
+
+.cmd-grid {
+  perspective: 1000px;
+}
+
+.command-card {
+  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+}
+
+.command-card:hover {
+  transform: translateY(-5px) rotateX(1deg);
+}
+
+@media (max-width: 720px) {
+  .navbar {
+    padding: .75rem 1rem;
+  }
+
+  .hero-title {
+    font-size: clamp(2.3rem, 12vw, 4rem);
+  }
+
+  .hero-actions,
+  .cmd-filters {
+    gap: .55rem;
+  }
+
+  .btn,
+  .filter {
+    min-height: 42px;
+  }
+}
