@@ -7,6 +7,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from src.core.exceptions import DatabaseSchemaError
 from src.utils.embeds import accent_embed, error_embed, success_embed
 
 
@@ -138,7 +139,16 @@ class WebhookAutomation(commands.Cog):
         await interaction.response.send_message(embed=accent_embed("✦ Automation", "\n".join(lines)), ephemeral=True)
 
     async def _run(self, member: discord.Member, event_name: str):
-        rule = await self.bot.db_manager.fetch_one("automation_rules", {"guild_id": str(member.guild.id), "event_name": event_name, "enabled": True})
+        try:
+            rule = await self.bot.db_manager.fetch_one(
+                "automation_rules",
+                {"guild_id": str(member.guild.id), "event_name": event_name, "enabled": True},
+            )
+        except DatabaseSchemaError:
+            # A member event must never become an unhandled Discord event
+            # exception while PostgREST is waiting for a schema-cache reload
+            # or the production migration is being applied.
+            return
         if not rule:
             return
         channel = member.guild.get_channel(int(rule["channel_id"]))

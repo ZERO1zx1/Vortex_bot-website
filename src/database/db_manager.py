@@ -321,7 +321,7 @@ class SupabaseManager:
             if not exists:
                 logger.warning(
                     "Required Supabase table '%s' is missing. "
-                    "Apply database migration: src/database/migrations/20260101_001_initial_schema.sql",
+                    "Apply database migration: src/database/migrations/000_aether_complete.sql",
                     table,
                 )
         logger.info("Supabase schema validation complete.")
