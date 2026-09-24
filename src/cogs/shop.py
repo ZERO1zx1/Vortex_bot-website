@@ -489,6 +489,14 @@ class ShopCog(commands.Cog):
         if item_id in ALL_VAPE_COMBOS: return ALL_VAPE_COMBOS[item_id]
         for item in SHOP_ITEMS:
             if item["id"] == item_id: return item
+        # Cafe items live in the Cafe cog so one menu is the source of truth.
+        cafe = self.bot.get_cog("Cafe")
+        if cafe:
+            index = item_id - 6000
+            if 0 <= index < len(cafe.menu):
+                item = dict(cafe.menu[index])
+                item.update({"id": item_id, "category": "cafe", "rarity": "limited"})
+                return item
         return None
 
     async def get_item(self, item_id):
@@ -589,6 +597,7 @@ class ShopCog(commands.Cog):
     @commands.command(name='shop', aliases=['store', 'дэлгүүр'])
     async def shop(self, ctx):
         categories = [
+            {"name": "🌸 Anime Café", "value": "cafe", "emoji": "🌸"},
             {"name": "🍺 Ундаа (Drinks)", "value": "drink", "emoji": "🍺"},
             {"name": "💍 Бөгж (Rings)", "value": "ring", "emoji": "💍"},
             {"name": "💨 Вайп (Vape)", "value": "vape", "emoji": "💨"},
@@ -602,7 +611,17 @@ class ShopCog(commands.Cog):
             if interaction.user != ctx.author: return await interaction.response.send_message("❌ Энэ цэс танд зориулагдаагүй!", ephemeral=True)
             selected_cat = category_select.values[0]
             item_options = []
-            if selected_cat == "vape":
+            if selected_cat == "cafe":
+                cafe = self.bot.get_cog("Cafe")
+                if cafe:
+                    for index, item in enumerate(cafe.menu):
+                        item_options.append(discord.SelectOption(
+                            label=f"{item['emoji']} {item['name']} — {item['price']:,}💰"[:100],
+                            value=str(6000 + index),
+                            description=item.get("desc", "Anime cafe item")[:100],
+                            emoji=item["emoji"].split()[0],
+                        ))
+            elif selected_cat == "vape":
                 for base in BASE_VAPE_ITEMS:
                     label = f"{base['emoji']} {base['name']} (ID:{base['id']}) - {base['price']:,}💰"
                     desc = f"ID:{base['id']} | {base['desc'][:30]} | ⚡{base['strength']}%"
@@ -630,7 +649,7 @@ class ShopCog(commands.Cog):
                     await interaction.response.edit_message(embed=embed, view=view)
                     return
                 item_id = int(value)
-                item = next((i for i in SHOP_ITEMS if i["id"] == item_id), None)
+                item = self.get_item_sync(item_id)
                 if not item: return await interaction.response.send_message("❌ Бараа олдсонгүй.", ephemeral=True)
                 economy = self.bot.get_cog("Economy")
                 if not economy: return await interaction.response.send_message("❌ Системийн алдаа.", ephemeral=True)
@@ -681,7 +700,7 @@ class ShopCog(commands.Cog):
             return await ctx.send(embed=discord.Embed(title="❌ АЛДАА", description="Тоо хэмжээ 1-64 хооронд байх ёстой!", color=ERROR_COLOR))
         try: item_id = int(item_input)
         except ValueError: return await ctx.send(embed=discord.Embed(title="❌ БУРУУ ID", description=f"`{item_input}` нь тоо биш.", color=ERROR_COLOR))
-        item = ALL_VAPE_COMBOS.get(item_id) or next((i for i in SHOP_ITEMS if i["id"] == item_id), None)
+        item = self.get_item_sync(item_id)
         if not item: return await ctx.send(embed=discord.Embed(title="❌ БАРАА ОЛДСОНГҮЙ", description=f"`{item_id}` ID-тай бараа байхгүй.", color=ERROR_COLOR))
         economy = self.bot.get_cog("Economy")
         if not economy: return await ctx.send(embed=discord.Embed(title="❌ СИСТЕМИЙН АЛДАА", color=ERROR_COLOR))
@@ -723,7 +742,7 @@ class ShopCog(commands.Cog):
     # ==================== БАРААНЫ МЭДЭЭ ====================
     @commands.command(name='iteminfo', aliases=['item', 'бараа'])
     async def item_info(self, ctx, item_id: int):
-        item = ALL_VAPE_COMBOS.get(item_id) or next((i for i in SHOP_ITEMS if i["id"] == item_id), None)
+        item = self.get_item_sync(item_id)
         if not item: return await ctx.send(embed=discord.Embed(title="❌ Бараа олдсонгүй", description=f"`{item_id}` ID-тай бараа байхгүй.", color=ERROR_COLOR))
         embed = discord.Embed(title=f"{item['emoji']} {item['name']}", color=GOLD_COLOR)
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
@@ -796,6 +815,13 @@ class ShopCog(commands.Cog):
         for item in SHOP_ITEMS:
             if low in item["name"].lower():
                 return item
+        cafe = self.bot.get_cog("Cafe")
+        if cafe:
+            for index, item in enumerate(cafe.menu):
+                if low in item["name"].lower():
+                    resolved = dict(item)
+                    resolved.update({"id": 6000 + index, "category": "cafe", "rarity": "limited"})
+                    return resolved
         for combo in ALL_VAPE_COMBOS.values():
             if low in combo["name"].lower():
                 return combo

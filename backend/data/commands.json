@@ -895,6 +895,20 @@
         "example": "A!highlow <amount_str> <choice>"
     },
     {
+        "name": "mines",
+        "cat": "Games",
+        "icon": "🎲",
+        "desc": "Mines тоглоом — найдваргүй талбай нээж урамшуулал цуглуул.",
+        "descEN": "Mines mining game",
+        "args": [
+            {
+                "key": "bet",
+                "req": true
+            }
+        ],
+        "example": "A!mines <bet>"
+    },
+    {
         "name": "numberguess",
         "cat": "Games",
         "icon": "🔧",

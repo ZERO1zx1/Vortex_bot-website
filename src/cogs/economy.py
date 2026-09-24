@@ -301,7 +301,13 @@ class Economy(SupabaseCog):
             if amount <= 0 or source < amount or target + amount > self.max_balance:
                 raise ValueError("Invalid internal money transfer")
             cash, bank = (cash - amount, bank + amount) if to_bank else (cash + amount, bank - amount)
-            await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid)}, {"balance": cash, "bank_balance": bank})
+            await self.update_data(
+                "economy",
+                {
+                    "user_id": str(uid), "guild_id": str(gid),
+                    "balance": cash, "bank_balance": bank,
+                },
+            )
             return cash, bank
 
     async def record_money(self, gid, uid, actor_id, transaction_type, amount,

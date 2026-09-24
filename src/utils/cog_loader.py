@@ -13,10 +13,10 @@ from typing import Collection, List, Optional
 # competing feature commands; it supplies navigation, presence and
 # safe server administration for the selected systems.
 ACTIVE_COGS = frozenset({
-    "admin", "automod", "carts", "casino", "confessions", "economy",
-    "fun", "games", "giveaway", "greetings", "help",
+    "admin", "automod", "cafe", "carts", "casino", "confessions", "counting", "economy",
+    "fun", "games", "giveaway", "government", "greetings", "help", "mines",
     "leaderboard", "leveling", "marriage", "menu", "moderation",
-    "presence", "shop", "tickets", "webhooks",
+    "presence", "pvp", "shop", "tickets", "trade", "webhooks",
 })
 
 

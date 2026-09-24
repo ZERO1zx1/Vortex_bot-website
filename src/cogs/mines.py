@@ -15,6 +15,8 @@ ERROR_COLOR = 0xf38ba8
 GOLD_COLOR = 0xfab387
 WARNING_COLOR = 0xf9e2af
 INFO_COLOR = 0x89b4fa
+ACCENT_COLOR = 0xff4fa3
+GAME_TITLE = "✦ AETHER MINES — 星屑の運試し"
 
 GRID_SIZE = 4          # 4 мөр
 GRID_COLS = 5          # 5 багана
@@ -71,7 +73,7 @@ class MinesView(View):
                 self.buttons[(c, r)] = btn
 
         # Cashout товч – 4-р мөрөнд (зөвшөөрөгдөх дээд хязгаар)
-        cash_btn = Button(label=f"💰 Cashout (x{self.game.multiplier:.2f})",
+        cash_btn = Button(label=f"✨ CASH OUT • x{self.game.multiplier:.2f}",
                           style=ButtonStyle.success, row=4)
         cash_btn.callback = self.cashout_callback
         self.add_item(cash_btn)
@@ -99,7 +101,7 @@ class MinesView(View):
                 for child in self.children:
                     child.disabled = True
                 embed = discord.Embed(
-                    title="💥 БӨМБӨГ!",
+                    title="💥 BOOM — 闇の罠!",
                     description=f"{self.ctx.author.mention} та бөмбөгтэй таарч, **{self.game.bet:,}** мөнгө алдлаа!",
                     color=ERROR_COLOR,
                     timestamp=datetime.now(timezone.utc)
@@ -130,7 +132,7 @@ class MinesView(View):
                                 self.game.user_id, self.ctx.guild.id, exc, exc_info=True,
                             )
                 embed = discord.Embed(
-                    title="🏆 JACKPOT! БҮХ НҮД ОНГОЙЛГОСОН!",
+                    title="🏆 JACKPOT — 星の祝福!",
                     description=f"{self.ctx.author.mention} та бүх аюулгүй нүдийг онгойлгож, **{total_win:,}** мөнгө хожлоо!",
                     color=SUCCESS_COLOR,
                     timestamp=datetime.now(timezone.utc)
@@ -148,9 +150,9 @@ class MinesView(View):
                 button.style = ButtonStyle.green
                 button.label = "✅"
                 button.disabled = True
-                self.cash_btn.label = f"💰 Cashout (x{self.game.multiplier:.2f})"
+                self.cash_btn.label = f"✨ CASH OUT • x{self.game.multiplier:.2f}"
                 embed = discord.Embed(
-                    title="✅ АЮУЛГҮЙ НҮД!",
+                    title="✅ SAFE NODE — 光の нүд!",
                     description=f"{self.ctx.author.mention} та **{COLUMNS[col]}{row}** нүдийг онгойлголоо.\n"
                                 f"Одоогийн хожил: **{self.game.current_win:,}** (x{self.game.multiplier:.2f})",
                     color=SUCCESS_COLOR,
@@ -161,7 +163,7 @@ class MinesView(View):
                                 value=f"Онгойсон: {len(self.game.revealed)}/{SAFE_COUNT}\n"
                                       f"Үлдсэн аюулгүй: {SAFE_COUNT - len(self.game.revealed)}",
                                 inline=False)
-                embed.set_footer(text="Хожил авахын тулд 💰 Cashout товчийг дарна уу")
+                embed.set_footer(text="✨ Хожлоо хадгалахын тулд CASH OUT дарна уу")
                 embed.set_thumbnail(url=self.bot.user.display_avatar.url)
                 await interaction.response.edit_message(embed=embed, view=self)
                 await self.run_side_effects(mines_cog, quests_cog)
@@ -184,6 +186,18 @@ class MinesView(View):
         except Exception as exc:
             logger.warning("mines quest trigger failed: %s", exc)
 
+    async def _credit_payout(self, economy, amount):
+        """Credit a payout without claiming success when the DB write fails."""
+        if economy is None:
+            logger.error("mines payout skipped: Economy cog is unavailable")
+            return False
+        try:
+            await economy.update_balance(self.game.user_id, self.ctx.guild.id, amount)
+            return True
+        except Exception as exc:
+            logger.error("mines payout failed for user %s in guild %s: %s", self.game.user_id, self.ctx.guild.id, exc, exc_info=True)
+            return False
+
     async def cashout_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.game.user_id:
             return await interaction.response.send_message("❌ Энэ тоглоом таных биш!", ephemeral=True)
@@ -199,19 +213,15 @@ class MinesView(View):
             # survives this guard, so rapid double-clicks can't credit twice.
             if self.game.finished:
                 return await interaction.response.send_message("❌ Тоглоом дууссан.", ephemeral=True)
-            self.game.finished = True
             payout = self.game.current_win
-            if economy:
-                try:
-                    await economy.update_balance(self.game.user_id, self.ctx.guild.id, payout)
-                except Exception as exc:
-                    logger.error(
-                        "mines cashout payout failed for user %s in guild %s: %s",
-                        self.game.user_id, self.ctx.guild.id, exc, exc_info=True,
-                    )
+            if not await self._credit_payout(economy, payout):
+                return await interaction.response.send_message(
+                    "⚠️ Мөнгө хадгалахад алдаа гарлаа. Дахин оролдоно уу.", ephemeral=True
+                )
+            self.game.finished = True
 
         embed = discord.Embed(
-            title="💰 CASH OUT!",
+            title="✨ CASH OUT — Хожлоо хадгаллаа!",
             description=f"{self.ctx.author.mention} та **{payout:,}** мөнгө хожлоо! "
                         f"(x{self.game.multiplier:.2f})",
             color=GOLD_COLOR,
@@ -256,7 +266,7 @@ class MinesView(View):
                             self.game.user_id, self.ctx.guild.id, exc, exc_info=True,
                         )
                 embed = discord.Embed(
-                    title="⏰ ХУГАЦАА ДУУССАН",
+                    title="⏰ TIMEOUT — Quest дууслаа",
                     description=f"{self.ctx.author.mention}, та 2 минутын дотор тоглоомоо дуусгаагүй тул "
                                 f"**{self.game.bet:,}** мөнгийг буцаан авлаа.",
                     color=WARNING_COLOR
@@ -283,10 +293,10 @@ class Mines(commands.Cog):
         if economy:
             hunger, mood = await economy.get_hunger_mood(ctx.author.id, ctx.guild.id)
             if hunger >= 80:
-                await ctx.send(f"🍔 {ctx.author.mention}, та хэт өлсөж байна! Тоглох тэнхээгүй. `geat` хийгээрэй.")
+                await ctx.send(f"🍔 {ctx.author.mention}, та хэт өлсөж байна! Тоглох тэнхээгүй. `A!eat` хийгээрэй.")
                 return False
             if mood >= 80:
-                await ctx.send(f"😡 {ctx.author.mention}, та хэт ууртай байна! `grelax` амраарай.")
+                await ctx.send(f"😡 {ctx.author.mention}, та хэт ууртай байна! `A!relax` амраарай.")
                 return False
             return True
         return True
@@ -316,14 +326,14 @@ class Mines(commands.Cog):
 
         if bet is None:
             embed = discord.Embed(
-                title="💣 MINES ТОГЛООМ",
-                description="`gmines <бооцоо>` – шинэ тоглоом эхлүүлэх\nЖишээ: `gmines 5000`",
+                title=GAME_TITLE,
+                description="`A!mines <бооцоо>` – шинэ тоглоом эхлүүлэх\nЖишээ: `A!mines 5000`",
                 color=INFO_COLOR
             )
             embed.add_field(
-                name="Тоглоомын дүрэм",
+                name="📜 Quest rules",
                 value=f"{GRID_SIZE}x{GRID_COLS} талбарт {BOMB_COUNT} бөмбөг нуугдсан. Нүд онгойлгох бүрт хожил 1.5x өснө. "
-                      "Cashout хийх эсвэл бүх нүдийг нээж JACKPOT хожно.",
+                      "CASH OUT хийж хожлоо хадгалах эсвэл бүх safe нүдийг нээж JACKPOT авна.",
                 inline=False
             )
             embed.set_thumbnail(url=self.bot.user.display_avatar.url)
@@ -342,7 +352,7 @@ class Mines(commands.Cog):
         view = MinesView(self.bot, ctx, game)
 
         embed = discord.Embed(
-            title="💣 MINES ТОГЛООМ",
+            title=GAME_TITLE,
             description=f"**Бооцоо:** 💰 {bet:,} мөнгө\n"
                         f"{GRID_SIZE}x{GRID_COLS} талбарт {BOMB_COUNT} бөмбөг нуугдсан.\n"
                         f"Нүд онгойлгох бүрт хожил **1.5x**-ээр өснө!",
@@ -350,7 +360,7 @@ class Mines(commands.Cog):
             timestamp=datetime.now(timezone.utc)
         )
         embed.add_field(name="🗺️ Талбар", value=view.get_grid_string(), inline=False)
-        embed.set_footer(text="Нүдний товчлуур дээр дарж онгойлгоно | Cashout товчоор хожил авах")
+        embed.set_footer(text="✦ Нүд сонго • Эрсдэлээ мэдэр • CASH OUT-оор хожлоо хадгал")
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
 
         view.message = await ctx.send(embed=embed, view=view)
