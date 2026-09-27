@@ -30,7 +30,8 @@ import urllib.parse
 EXPECTED_TABLES = [
     "economy", "levels", "giveaways", "temproles", "role_income",
     "tempvoice_setup_msg", "user_inventory", "staff_config", "staff_members",
-    "staff_activity", "leveling_config", "shop_stock",
+    "staff_activity", "leveling_config", "shop_stock", "ticket_config", "tickets",
+    "automation_rules", "automation_runs",
 ]
 
 # Бүрэн schema-д байх ёстой бүх хүснэгтүүд (20260101_001_initial_schema.sql-аас).
@@ -53,7 +54,8 @@ ALL_TABLES = [
     "shop_stock", "staff_activity", "staff_config", "staff_members",
     "staff_weekly_winners", "sticky_messages", "temp_channels",
     "temprole_config", "temproles", "tempvoice_setup_msg", "user_drunk",
-    "user_inventory", "user_quests", "warnings", "work_phrases",
+    "user_inventory", "user_quests", "warnings", "work_phrases", "ticket_config",
+    "tickets", "automation_rules", "automation_runs",
 ]
 
 # Хүснэгтийн дэлгэрэнгүй мэдээллийг PostgREST-ээр шалгах

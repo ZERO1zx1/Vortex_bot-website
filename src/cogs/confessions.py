@@ -4,6 +4,7 @@ from discord.ext import commands
 from discord import app_commands, ui
 import datetime
 import logging
+import asyncio
 
 from src.utils.config_cache import ConfigCache
 
@@ -173,6 +174,9 @@ class Confessions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self._cfg_cache = ConfigCache(ttl=15.0, name="confession_config")
+        # Prevent two simultaneous submissions in one guild from allocating
+        # the same confession number.
+        self._id_locks = {}
 
     # ----- DB туслахууд -----
     async def get_config(self, guild_id):
@@ -204,19 +208,19 @@ class Confessions(commands.Cog):
         self._cfg_cache.invalidate(guild_id)
 
     async def increment_id(self, guild_id):
-        cfg = await self.get_config(guild_id)
-        if not cfg:
-            return 1
-        new_id = cfg["next_id"] + 1
-        await self.bot.db_manager.update(
-            "confession_config",
-            {"guild_id": str(guild_id)},
-            {"next_id": new_id},
-        )
-        # Хуучин next_id кэшт үлдсэн тул дараагийн дуудлагад давхардсан ID өгнө —
-        # бичиж дууссаны дараа кэшийг хүчингүй болгоно.
-        self._cfg_cache.invalidate(guild_id)
-        return new_id - 1
+        lock = self._id_locks.setdefault(guild_id, asyncio.Lock())
+        async with lock:
+            cfg = await self.get_config(guild_id)
+            if not cfg:
+                return 1
+            new_id = cfg["next_id"] + 1
+            await self.bot.db_manager.update(
+                "confession_config",
+                {"guild_id": str(guild_id)},
+                {"next_id": new_id},
+            )
+            self._cfg_cache.invalidate(guild_id)
+            return new_id - 1
 
     # ----- ГОЛ БОЛОВСРУУЛАЛТ -----
     async def process_confession(self, user, guild, content, interaction=None):

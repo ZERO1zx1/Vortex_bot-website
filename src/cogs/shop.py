@@ -8,6 +8,7 @@ import io
 import os
 import asyncio
 import aiohttp
+import unicodedata
 from PIL import Image, ImageDraw, ImageFont
 
 # ---------- Centralized Unicode-aware font management ----------
@@ -21,6 +22,27 @@ WARNING_COLOR = 0xfee75c
 GOLD_COLOR = 0xffd700
 PURPLE_COLOR = 0x9b59b6
 INFO_COLOR = 0x3498db
+
+
+def _select_menu_emoji(value: str) -> str:
+    """Return one Unicode emoji for Discord SelectOption.emoji.
+
+    Discord rejects a string containing multiple Unicode emoji as the emoji
+    field.  Some cafe items intentionally use values such as ``🌸☕``.
+    Keep the first grapheme, including variation selectors and modifiers.
+    """
+    if not value:
+        return ""
+    result = [value[0]]
+    for char in value[1:]:
+        codepoint = ord(char)
+        if codepoint in (0xFE0E, 0xFE0F) or 0x1F3FB <= codepoint <= 0x1F3FF:
+            result.append(char)
+        elif unicodedata.combining(char):
+            result.append(char)
+        else:
+            break
+    return "".join(result)
 
 # ---------- VAPE БРЕНД, ЗАГВАР, АМТ ----------
 VAPE_BRANDS = {
@@ -184,7 +206,7 @@ class FlavorSelectView(View):
         self.cog = cog
         self.ctx = ctx
         self.base_item = base_item
-        self.flavor_select = Select(placeholder=f"Амт сонгох ({base_item['name']})", options=[discord.SelectOption(label=flavor, emoji=fdata["emoji"], value=flavor) for flavor, fdata in VAPE_FLAVORS.items()])
+        self.flavor_select = Select(placeholder=f"Амт сонгох ({base_item['name']})", options=[discord.SelectOption(label=flavor, emoji=_select_menu_emoji(fdata["emoji"]), value=flavor) for flavor, fdata in VAPE_FLAVORS.items()])
         self.flavor_select.callback = self.select_flavor
         self.add_item(self.flavor_select)
 
@@ -604,7 +626,7 @@ class ShopCog(commands.Cog):
             {"name": "💫 Аксессуар (Accessories)", "value": "accessory", "emoji": "💫"},
             {"name": "🚬 Тамхи (Intoxicant)", "value": "intoxicant", "emoji": "🚬"},
         ]
-        category_options = [discord.SelectOption(label=cat["name"], value=cat["value"], emoji=cat["emoji"]) for cat in categories]
+        category_options = [discord.SelectOption(label=cat["name"], value=cat["value"], emoji=_select_menu_emoji(cat["emoji"])) for cat in categories]
         category_select = Select(placeholder="📂 Категори сонгох", options=category_options)
 
         async def category_callback(interaction: discord.Interaction):
@@ -619,20 +641,20 @@ class ShopCog(commands.Cog):
                             label=f"{item['emoji']} {item['name']} — {item['price']:,}💰"[:100],
                             value=str(6000 + index),
                             description=item.get("desc", "Anime cafe item")[:100],
-                            emoji=item["emoji"].split()[0],
+                            emoji=_select_menu_emoji(item["emoji"]),
                         ))
             elif selected_cat == "vape":
                 for base in BASE_VAPE_ITEMS:
                     label = f"{base['emoji']} {base['name']} (ID:{base['id']}) - {base['price']:,}💰"
                     desc = f"ID:{base['id']} | {base['desc'][:30]} | ⚡{base['strength']}%"
-                    item_options.append(discord.SelectOption(label=label[:100], value=f"vape_{base['id']}", description=desc, emoji=base['emoji']))
+                        item_options.append(discord.SelectOption(label=label[:100], value=f"vape_{base['id']}", description=desc, emoji=_select_menu_emoji(base['emoji'])))
             else:
                 for item in SHOP_ITEMS:
                     if item["category"] == selected_cat:
                         label = f"{item['emoji']} {item['name']} (ID:{item['id']}) - {item['price']:,}💰"
                         desc = f"ID:{item['id']} | {item['desc'][:35]}"
                         if item.get("strength", 0) > 0: desc += f" | ⚡{item['strength']}%"
-                        item_options.append(discord.SelectOption(label=label[:100], value=str(item["id"]), description=desc, emoji=item['emoji']))
+                        item_options.append(discord.SelectOption(label=label[:100], value=str(item["id"]), description=desc, emoji=_select_menu_emoji(item['emoji'])))
             if not item_options: return await interaction.response.edit_message(embed=discord.Embed(description="❌ Энэ категорид бараа байхгүй.", color=ERROR_COLOR), view=None)
             if len(item_options) > 25: item_options = item_options[:25]
             item_select = Select(placeholder="🛒 Бараа сонгох", options=item_options)

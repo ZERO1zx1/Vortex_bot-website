@@ -12,7 +12,7 @@ window.AETHER_CONFIG = {
   SERVER_INVITE_URL: 'https://discord.gg/Nu8ubdpZ2',
   BOT_INVITE_URL: 'https://discord.com/oauth2/authorize?client_id=1493212321231802408&permissions=0&scope=bot%20applications.commands',
   INVITE_URL: 'https://discord.gg/Nu8ubdpZ2',
-  GITHUB: 'null',
+  GITHUB: 'https://github.com/ZERO1zx1/gurtendev',
   /*
    * БОТЫН ЖИНХЭНЭ STATUS (Online / Offline):
    * Supabase bot_status хүснэгт heartbeat эх үүсвэр боловч browser
