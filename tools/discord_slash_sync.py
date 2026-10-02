@@ -16,20 +16,23 @@ Usage (Windows):
     py -3.12 tools/discord_slash_sync.py --update       # patch commands.js
     py -3.12 tools/discord_slash_sync.py --guild GUILD_ID
 
-Requirements: python-dotenv (auto-installs) + requests.
+Requirements: python-dotenv + requests (install requirements.txt).
 Make sure .env in the repo root contains: DISCORD_TOKEN=...
 """
 from __future__ import annotations
 
+import argparse
+import importlib.util
 import json
 import os
-import re
-import subprocess
 import sys
 
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEBSITE_JS = os.path.join(APP_ROOT, "website", "js", "commands.js") if os.path.exists(
     os.path.join(APP_ROOT, "website")) else None
+sys.path.insert(0, os.path.join(APP_ROOT, "website", "tools"))
+
+from catalog_source import command_array_bounds, command_rows
 
 DEFAULT_APP_ID = "1493212321231802408"  # 𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 bot client id
 API = "https://discord.com/api/v10"
@@ -38,11 +41,9 @@ API = "https://discord.com/api/v10"
 # ---------------------------------------------------------------- helpers
 
 def ensure_deps():
-    try:
-        import dotenv  # noqa
-    except ImportError:
-        subprocess.run([sys.executable, "-m", "pip", "install", "--user",
-                        "python-dotenv", "requests"], check=True)
+    missing = [name for name in ("dotenv", "requests") if importlib.util.find_spec(name) is None]
+    if missing:
+        raise SystemExit("Missing dependencies: install this repository's requirements.txt first.")
 
 
 def load_token():
@@ -58,22 +59,28 @@ def fetch_commands(token: str, guild_id: str | None):
     import requests
     headers = {"Authorization": f"Bot {token}"}
     out: list[dict] = []
+    endpoints = [f"{API}/applications/{DEFAULT_APP_ID}/commands"]
     if guild_id:
-        r = requests.get(f"{API}/applications/{DEFAULT_APP_ID}/guilds/{guild_id}/commands",
-                         headers=headers, timeout=20)
-        r.raise_for_status()
-        out = r.json()
-    else:
-        r = requests.get(f"{API}/applications/{DEFAULT_APP_ID}/commands",
-                         headers=headers, timeout=20)
-        r.raise_for_status()
-        out = r.json()
-    # Guild commands do not include global ones; fetch both and merge when no guild
-    if not guild_id:
-        r2 = requests.get(f"{API}/applications/{DEFAULT_APP_ID}/commands",
-                          headers=headers, timeout=20)
-        r2.raise_for_status()
-        out = r2.json()
+        endpoints.append(f"{API}/applications/{DEFAULT_APP_ID}/guilds/{guild_id}/commands")
+    merged = {}
+    for url in endpoints:
+        response = requests.get(url, headers=headers, timeout=20)
+        response.raise_for_status()
+        for command in response.json():
+            if command.get("type", 1) == 1:
+                merged[command["name"]] = command
+
+    def flatten(command, prefix=""):
+        name = f"{prefix}{command['name']}"
+        children = [option for option in command.get("options", []) if option.get("type") in (1, 2)]
+        if children:
+            for child in children:
+                yield from flatten(child, name + " ")
+        else:
+            yield {"name": name, "description": command.get("description", "")}
+
+    for command in merged.values():
+        out.extend(flatten(command))
     return out
 
 
@@ -81,51 +88,42 @@ def load_catalog() -> tuple[str, set]:
     """Return (raw commands.js text, set of command names in it)."""
     with open(WEBSITE_JS, encoding="utf-8") as f:
         text = f.read()
-    names = set(re.findall(r"name:\s*'([a-zA-Z0-9_]+)'", text))
+    names = {row["name"] for row in command_rows(text) if row.get("example", "").startswith("/")}
     return text, names
 
 
 def sync_update(raw: str, missing: list[dict]) -> str:
     """Insert missing commands (as JS objects) before the closing of COMMAND_LIST."""
-    # Find where COMMAND_LIST array items live; append new items at the end
-    # right before the last `];` that closes the list.
     objects = []
     for c in missing:
-        desc = (c.get("description") or "").replace('"', '\\"').replace("\n", " ")
-        objects.append(
-            "  {name: '%s', cat: 'other', desc: '%s', type: 'slash', "
-            "icon: '⚙️', args: [], example: '/%s', descEN: '%s'}"
-            % (c["name"], desc or "(дэлгэрэнгүйгүй)", c["name"], desc or "(no description)")
-        )
+        desc = c.get("description") or ""
+        row = {"name": c["name"], "cat": "Utility", "desc": desc or "(дэлгэрэнгүйгүй)",
+               "type": "slash", "icon": "⚙️", "args": [], "example": f"/{c['name']}",
+               "descEN": desc or "(no description)"}
+        objects.append("  { " + ", ".join(
+            f"{key}: {json.dumps(value, ensure_ascii=False)}" for key, value in row.items()
+        ) + " }")
     block = ",\n".join(objects)
-    # Insert before the last line `];` (end of COMMAND_LIST)
-    idx = raw.rfind("];")
-    return raw[:idx] + ",\n" + block + "\n" + raw[idx:]
+    _, idx = command_array_bounds(raw)
+    head = raw[:idx].rstrip()
+    separator = "" if head.endswith(("[", ",")) else ","
+    return head + separator + "\n" + block + "\n" + raw[idx:]
 
 
 # ---------------------------------------------------------------- main
 
 def main():
+    parser = argparse.ArgumentParser(description="Compare registered Discord slash commands with the website.")
+    parser.add_argument("--guild", help="Include this guild's commands alongside global commands.")
+    parser.add_argument("--update", action="store_true", help="Append missing commands to the website catalog.")
+    options = parser.parse_args()
     ensure_deps()
-    import requests  # noqa
-
-    guild = None
-    do_update = False
-    args = sys.argv[1:]
-    i = 0
-    while i < len(args):
-        if args[i] == "--guild" and i + 1 < len(args):
-            guild = args[i + 1]; i += 2
-        elif args[i] == "--update":
-            do_update = True; i += 1
-        else:
-            i += 1
+    guild = options.guild
+    do_update = options.update
 
     if WEBSITE_JS is None or not os.path.exists(WEBSITE_JS):
         sys.exit("ERROR: website/js/commands.js not found. "
-                 "Run this script from the gurtendev repo root, "
-                 "and keep the website repo as a sibling `website/` folder, "
-                 "or set WEBSITE_JS path at the top of this file.")
+                 "Keep the static website in this repository's website/ directory.")
 
     token = load_token()
     cmds = fetch_commands(token, guild)

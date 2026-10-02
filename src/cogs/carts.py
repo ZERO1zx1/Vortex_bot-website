@@ -1,27 +1,27 @@
-import discord
-from discord.ext import commands
-from discord.ui import View, Button, Select
-import asyncio
 import io
 import logging
 import os
-import aiohttp
 import time
-from PIL import Image, ImageDraw, ImageFont
+
+import aiohttp
+import discord
+from discord.ext import commands
+from discord.ui import Button, Select, View
+from PIL import Image, ImageDraw
 from PIL.Image import Resampling
 
 logger = logging.getLogger(__name__)
 
 # ---------- Centralized Unicode-aware font management ----------
-from src.utils.fonts import (
-    load_font as _load_font,
-    is_emoji,
-    draw_text_with_fallback,
-    get_font_manager,
-)
-
 # ---------- Explorer-journal art kit (procedural illustrated style) ----------
 from src.utils import journal_style as journal
+from src.utils.fonts import (
+    draw_text_with_fallback,
+    is_emoji,
+)
+from src.utils.fonts import (
+    load_font as _load_font,
+)
 
 # Embed accent matching the parchment pages.
 JOURNAL_EMBED_COLOR = 0xC89A3D
@@ -289,9 +289,8 @@ class Cards(commands.Cog):
             overlay = Image.open(path).convert("RGBA")
             overlay = overlay.resize(img.size, Resampling.LANCZOS)
             img.alpha_composite(overlay)
-        except Exception as e:
-            # Алдааг үл тоомсорлох
-            pass
+        except (OSError, ValueError):
+            logger.exception("Operation failed in _apply_overlay")
 
     async def _load_background(self, guild_id, bg_url):
         if not bg_url:
@@ -306,15 +305,15 @@ class Cards(commands.Cog):
                     if resp.status == 200:
                         data = await resp.read()
                         img = Image.open(io.BytesIO(data)).convert("RGBA")
-            except Exception:
-                pass
+            except (aiohttp.ClientError, TimeoutError, OSError, ValueError):
+                logger.exception("Operation failed in _load_background")
         else:
             path = self._find_asset_path(bg_url)
             if path:
                 try:
                     img = Image.open(path).convert("RGBA")
-                except Exception:
-                    pass
+                except (OSError, ValueError):
+                    logger.exception("Operation failed in _load_background")
 
         if img:
             self._bg_cache[guild_id] = img
@@ -334,12 +333,12 @@ class Cards(commands.Cog):
         try:
             hunger, mood = await eco.get_hunger_mood(member.id, guild_id)
         except Exception:
-            pass
+            logger.exception("Operation failed in _gather_user_data")
         disc_level = 0
         try:
             disc_level = await eco.get_discord_level(member.id, guild_id)
         except Exception:
-            pass
+            logger.exception("Operation failed in _gather_user_data")
 
         xp, level = 0, 1
         try:
@@ -350,20 +349,20 @@ class Cards(commands.Cog):
                 xp = row.get("xp", 0) or 0
                 level = row.get("level", 1) or 1
         except Exception:
-            pass
+            logger.exception("Operation failed in _gather_user_data")
 
         next_xp = 100 * level
         try:
             cfg = await lvl.get_config(guild_id)
             next_xp = lvl.xp_for_level(level, cfg)
         except Exception:
-            pass
+            logger.exception("Operation failed in _gather_user_data")
 
         title, badge = "Энгийн", "⭐"
         try:
             title, badge = lvl.get_rank_info(level)
         except Exception:
-            pass
+            logger.exception("Operation failed in _gather_user_data")
 
         rank = 1
         try:
@@ -374,7 +373,7 @@ class Cards(commands.Cog):
             level_rows.sort(key=lambda r: (r.get("level", 0) or 0, r.get("xp", 0) or 0), reverse=True)
             rank = next((i for i, r in enumerate(level_rows, 1) if str(r.get("user_id")) == str(member.id)), len(level_rows) + 1)
         except Exception:
-            pass
+            logger.exception("Operation failed in _gather_user_data")
 
         job_emoji, job_name = "💼", "Ажилгүй"
         try:
@@ -382,7 +381,7 @@ class Cards(commands.Cog):
             job_emoji = job['emoji']
             job_name = job['name']
         except Exception:
-            pass
+            logger.exception("Operation failed in _gather_user_data")
 
         drunk_level = 0
         try:
@@ -392,7 +391,7 @@ class Cards(commands.Cog):
             if drunk_row:
                 drunk_level = min(100, drunk_row.get("level", 0) or 0)
         except Exception:
-            pass
+            logger.exception("Operation failed in _gather_user_data")
 
         equip_emojis = ""
         try:
@@ -402,7 +401,7 @@ class Cards(commands.Cog):
                 if equips:
                     equip_emojis = " ".join(i["emoji"] for i in equips.values())
         except Exception:
-            pass
+            logger.exception("Operation failed in _gather_user_data")
 
         url = member.display_avatar.replace(size=256, format="png").url
         ava = await self._download_avatar(url, 100)
@@ -426,8 +425,8 @@ class Cards(commands.Cog):
             try:
                 bg = background.convert("RGBA").resize((W, H), Resampling.LANCZOS)
                 img = Image.blend(bg, img, 0.55)
-            except Exception as e:
-                logger.debug("profile background skipped: %s", e)
+            except (OSError, ValueError, TypeError) as e:
+                logger.debug("profile background skipped: %s", e, exc_info=True)
         draw = ImageDraw.Draw(img)
         journal.ink_border(draw, (W, H), seed=seed)
 
@@ -599,7 +598,7 @@ class Cards(commands.Cog):
                 cfg = await level_cog.get_config(ctx.guild.id)
                 bg_url = cfg.get("background_url")
             except Exception:
-                pass
+                logger.exception("Operation failed in profilecard")
         background = await self._load_background(ctx.guild.id, bg_url)
 
         buf = await self._render_profile_card(target, data, background)

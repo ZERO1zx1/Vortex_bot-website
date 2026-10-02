@@ -8,7 +8,7 @@
 |---|---|
 | Firebase төсөл | `aether-c1915` (`.firebaserc`-д бичигдсэн) |
 | Deploy хавтас | `website/` (`firebase.json`-д заасан) |
-| Live URL | https://aether-c1915.web.app (200 OK баталгаажсан) |
+| Live URL | https://aether.web.app |
 | Cache | Зурган файл 1 жил, JS/CSS 1 өдөр (зөв тохируулсан) |
 
 ## Гол анхаарах зүйл: шинэ лого Firebase дээр харагдах үү?
@@ -40,7 +40,7 @@ firebase deploy --only hosting
 
 ```
 ✔ Deploy complete!
-Hosting URL: https://aether-c1915.web.app
+Hosting URL: https://aether.web.app
 ```
 
 ### Арга 2: GitHub Actions — автоматаар (би бэлдлээ)
@@ -58,6 +58,6 @@ Hosting URL: https://aether-c1915.web.app
 ## Firebase vs GitHub Pages — хоёулаа ажиллана
 
 - https://zero1zx1.github.io/Vortex/ — GitHub Pages (commit пуш бүрэд автоматаар)
-- https://aether-c1915.web.app — Firebase Hosting (workflow тохируулсны дараа автоматаар)
+- https://aether.web.app — Firebase Hosting (workflow тохируулсны дараа автоматаар)
 
 Хоёр линкээр хандаж болно; аль нэгийг нь community линк болгон сонгоод хангалттай.

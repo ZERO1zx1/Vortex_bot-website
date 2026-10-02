@@ -35,7 +35,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 DEFAULT_AGENTCORE_HOME = Path.home() / ".cline" / "skills" / "AgentCore"
 
@@ -81,13 +81,13 @@ def _pid_alive(pid: int) -> bool:
         return True
 
 
-def run_cmd(cmd, cwd: Path, timeout: int = 300) -> Dict[str, Any]:
+def run_cmd(cmd, cwd: Path, timeout: int = 300) -> dict[str, Any]:
     """Run a real command and capture exit code + bounded output (no shell)."""
     started = time.perf_counter()
     try:
         proc = subprocess.run(
             cmd, cwd=str(cwd), capture_output=True, text=True,
-            timeout=timeout, errors="replace",
+            timeout=timeout, errors="replace", check=False,
         )
         code = proc.returncode
         out = (proc.stdout or "").strip()
@@ -105,7 +105,7 @@ def run_cmd(cmd, cwd: Path, timeout: int = 300) -> Dict[str, Any]:
     }
 
 
-def _fmt_run(r: Dict[str, Any]) -> str:
+def _fmt_run(r: dict[str, Any]) -> str:
     return (
         f"$ {r['cmd']}\n"
         f"  exit={r['exit_code']} ({r['seconds']}s)\n"
@@ -116,15 +116,15 @@ def _fmt_run(r: Dict[str, Any]) -> str:
 
 def build_executor(repo: Path):
     """Build a real OperationExecutor bound to ``repo`` (AgentCore must be importable)."""
-    from src.core.executor import OperationExecutor
     from src.core.execution_result import ExecutionResult
+    from src.core.executor import OperationExecutor
 
     class WorkspaceEvidenceExecutor(OperationExecutor):
         """Real deterministic executor: every result is captured command output."""
 
         def __init__(self, repo_path: Path):
             self.repo = Path(repo_path).resolve()
-            self.evidence: Dict[str, Any] = {}
+            self.evidence: dict[str, Any] = {}
 
         # ---- real operations -------------------------------------------------
         def _inspect(self) -> str:
@@ -168,7 +168,7 @@ def build_executor(repo: Path):
             py = sys.executable or "python"
             checks = [
                 run_cmd([py, "-m", "pytest", "tests", "-q"], self.repo, 600),
-                run_cmd([py, "-m", "compileall", "-q", "src", "backend", "tools",
+                run_cmd([py, "-m", "compileall", "-q", "src", "tools",
                          "tests", "main.py"], self.repo, 300),
                 run_cmd(["node", "--check", "website/js/app.js"], self.repo, 120),
                 run_cmd(["node", "--check", "website/js/commands.js"], self.repo, 120),

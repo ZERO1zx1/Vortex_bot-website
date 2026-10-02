@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Diagnose the Supabase role of every configured key.
 
 The bot must connect with role=service_role. If the env value of
@@ -16,12 +15,14 @@ and are identified by prefix; a new-style secret is a server key.
 Exit code: 0 when a server-level key is configured, 1 otherwise.
 """
 import base64
+import binascii
 import json
 import os
 import sys
+from pathlib import Path
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SERVER_ROLES = ("service_role", "postgres", "supabase_admin")
+SERVER_ROLES = ("service_role", "postgres", "supabase_admin", "authenticator")
 PUBLIC_ROLES = ("anon", "authenticated")
 SERVER_KEY_ENVS = (
     "SUPABASE_SERVICE_ROLE_KEY",
@@ -29,7 +30,7 @@ SERVER_KEY_ENVS = (
     "SUPABASE_KEY",
 )
 
-_URL_HEAD = "https://onpxpvemmjesobxpilgd.supabase.co"
+_URL_HEAD = "https://zwpgweaikpjkftkzmlak.supabase.co"
 
 
 def decode_payload(token: str):
@@ -39,8 +40,9 @@ def decode_payload(token: str):
     try:
         payload = token.split(".")[1]
         payload += "=" * (-len(payload) % 4)
-        return json.loads(base64.urlsafe_b64decode(payload).decode("utf-8"))
-    except Exception:
+        decoded = json.loads(base64.urlsafe_b64decode(payload).decode("utf-8"))
+        return decoded if isinstance(decoded, dict) else None
+    except (binascii.Error, ValueError, UnicodeDecodeError, IndexError):
         return None
 
 
@@ -50,7 +52,7 @@ def role_of(key: str) -> str:
         return "(not set)"
     if key.startswith("sb_publishable_"):
         return "anon (new sb_publishable_)"
-    if key.startswith("sb_secret_") or key.startswith("service_role."):
+    if key.startswith("sb_secret_"):
         return "service_role (new sb_secret_)"
     payload = decode_payload(key)
     if payload is None:
@@ -62,12 +64,15 @@ def role_of(key: str) -> str:
 def masked(key: str) -> str:
     if not key or len(key) < 32:
         return "(empty or too short)"
-    return f"{key[:24]}...{key[-8:]}"
+    return f"(configured; {len(key)} characters; redacted)"
 
 
 def main() -> int:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
     print("=== Supabase URL ===")
-    url = SUPABASE_URL or "(not set)"
+    url = os.getenv("SUPABASE_URL", "") or "(not set)"
     print(f"  SUPABASE_URL            = {url}")
     if url and url != _URL_HEAD:
         print(f"  (project host differs from repo default '{_URL_HEAD}')")
@@ -77,18 +82,21 @@ def main() -> int:
     for env in SERVER_KEY_ENVS:
         key = os.getenv(env, "").strip()
         role = role_of(key)
-        is_server = role.startswith("service_role") or role == "secret (new)"
+        payload = decode_payload(key)
+        is_server = key.startswith("sb_secret_") or (
+            payload is not None and payload.get("role") in SERVER_ROLES
+        )
         if is_server and key:
             found_server = True
         print(f"  {env:29}= {role:32} {masked(key)}")
 
-    anon = os.getenv("SUPABASE_ANON_KEY", "") or os.getenv("SUPABASE_KEY", "")
+    anon = os.getenv("SUPABASE_ANON_KEY", "")
     print("\n=== Publishable / anon (for the website only) ===")
     print(f"  SUPABASE_ANON_KEY       = {role_of(anon):32} {masked(anon)}")
 
     if not found_server:
         print("\n❌ No server-level (service_role / sb_secret_) key is configured.")
-        print("   The bot will run with anon privileges and every access will 42501.")
+        print("   Configure a server-level key before starting the bot.")
         return 1
     print("\n✅ A server-level key is configured in precedence order.")
     return 0

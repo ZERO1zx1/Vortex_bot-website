@@ -14,6 +14,10 @@ dist/
 build/
 .eggs/
 .pytest_cache/
+.ruff_cache/
+.uv-cache/
+.mypy_cache/
+node_modules/
 
 # Virtual environments
 venv/
@@ -44,3 +48,6 @@ bot_output.txt
 
 # AgentCore runtime data (local checkpoints / artifacts / reports)
 .agentcore/
+
+# Archived source (not for deployment)
+trash/

@@ -23,7 +23,7 @@
 
 Харин `cogs/casino.py` дотор `BlackjackView` бодитоор тодорхойлогдсон (31 мөр) бөгөөд үүнийг games.py-рүү импортлон оруулах боломжтой.
 
-Командын нэрийн давхцал шалгахад хоёр файлыг ялгасан байна: `games.py` нь `gamble`, `coinflipgame`, `slot`, `roulettegame`, `dice`, `rps`, `numberguess`, `highcard`, `crash`, `trivia`, `gamestats`; `casino.py` нь `blackjack`, `rob`, `hack`, `cgive`, `highlow`. Аль нэг ч давхцал байхгүй тул Discord sync-д мөн алдаа гарахгүй.
+Командын нэрийн давхцал шалгахад хоёр файлыг ялгасан байна: `games.py` нь `gamble`, `coinflipgame`, `slot`, `roulettegame`, `dice`, `rps`, `numberguess`, `highcard`, `crash`, `trivia`, `gamestats`; `casino.py` нь `blackjack`, `rob`, `hack`, `highlow`. Аль нэг ч давхцал байхгүй тул Discord sync-д мөн алдаа гарахгүй.
 
 **Зөвлөмж:** `cogs/casino.py`-аас `BlackjackView` гэх мэт view-үүдийг өргөтгөж games.py-ийн бүх тоглоомын view-ийг гүйцэтгэн оруулж, `TRIVIA_QUESTIONS`-д жинхэнэ асуултын жагсаалт нэмэх шаардлагатай. Хүсвэл би энэ засварыг хийж болно.
 

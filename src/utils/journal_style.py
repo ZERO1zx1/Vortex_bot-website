@@ -69,7 +69,7 @@ def parchment(size, seed: int = 7, base=PARCHMENT_BASE) -> Image.Image:
         grain = Image.new("RGBA", size, (118, 92, 58, 255))
         grain.putalpha(noise.point(lambda v: int(v * 0.10)))
         img.alpha_composite(grain)
-    except Exception as e:  # pragma: no cover - cosmetic only
+    except (OSError, ValueError) as e:  # pragma: no cover - cosmetic only
         log.debug("parchment grain skipped: %s", e)
 
     # A few lighter blotches for a watercolor-wash feel.

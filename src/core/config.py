@@ -1,9 +1,10 @@
 import base64
+import binascii
 import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+
 from dotenv import load_dotenv
 
 SRC_DIR = Path(__file__).resolve().parent.parent
@@ -35,15 +36,16 @@ SUPABASE_SERVER_ROLE_ENVS = (
 _SERVER_JWT_ROLES = ("service_role", "supabase_admin", "postgres", "authenticator")
 
 
-def _jwt_payload(key: str) -> Optional[dict]:
+def _jwt_payload(key: str) -> dict | None:
     """Decode a JWT payload (no signature check) or None."""
     if not key or "." not in key:
         return None
     try:
         payload = key.split(".")[1]
         payload += "=" * (-len(payload) % 4)
-        return json.loads(base64.urlsafe_b64decode(payload).decode("utf-8"))
-    except Exception:
+        decoded = json.loads(base64.urlsafe_b64decode(payload).decode("utf-8"))
+        return decoded if isinstance(decoded, dict) else None
+    except (binascii.Error, ValueError, UnicodeDecodeError, IndexError):
         return None
 
 
@@ -103,6 +105,8 @@ def load_config():
     Environment variables (authoritative when present):
         OWNER_ID   — single Discord user ID
         CO_OWNERS  — comma-separated Discord user IDs
+        GUILD_ID   — one or more comma-separated Discord guild IDs used for
+                     immediate slash-command sync
     """
     if not os.path.exists(CONFIG_FILE):
         default = {
@@ -119,10 +123,10 @@ def load_config():
         }
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(default, f, indent=4)
-        return default
-
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        config = json.load(f)
+        config = default
+    else:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            config = json.load(f)
 
     # Environment variables are authoritative for owner / co-owner IDs.
     env_owner = os.getenv("OWNER_ID")
@@ -132,6 +136,10 @@ def load_config():
     env_co_owners = os.getenv("CO_OWNERS")
     if env_co_owners:
         config["co_owner_ids"] = _parse_int_list(env_co_owners)
+
+    env_guild_ids = os.getenv("GUILD_ID")
+    if env_guild_ids:
+        config["guild_ids"] = _parse_int_list(env_guild_ids)
 
     # Түвшнийг normalize хийх: терминал дээр харуулах лог түвшин.
     allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NONE", "OFF"}

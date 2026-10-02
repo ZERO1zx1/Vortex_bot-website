@@ -1,23 +1,25 @@
-from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-import discord
-from discord.ext import commands
-from discord import app_commands, ui
-from discord.ui import View, Button
-from src.utils.supabase_cog import SupabaseCog
-from discord import ButtonStyle
-import time
-import datetime
-from typing import Optional
 import asyncio
+import datetime
 import io
-import os
+import logging
 import math
+import time
+
 import aiohttp
-from PIL import Image, ImageDraw, ImageFont
+import discord
+from discord import ButtonStyle, app_commands, ui
+from discord.ext import commands
+from discord.ui import Button, View
+from PIL import Image, ImageDraw
+
+from src.utils import journal_style as journal
+from src.utils.fonts import draw_text_with_fallback
 
 # ---------- Centralized Unicode-aware font management ----------
-from src.utils.fonts import load_font as _load_font, draw_text_with_fallback
-from src.utils import journal_style as journal
+from src.utils.fonts import load_font as _load_font
+from src.utils.supabase_cog import SupabaseCog
+
+logger = logging.getLogger(__name__)
 
 # ══════════════ ӨНГӨНҮҮД ══════════════
 EMBED_COLOR = 0x1e1e2f
@@ -51,6 +53,12 @@ class ProposalView(View):
         self.ring_emoji = ring_emoji
         self.ring_item_id = ring_item_id
         self.message = None
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None or interaction.guild.id != self.guild_id:
+            await interaction.response.send_message("❌ Энэ санал өөр серверийнх байна.", ephemeral=True)
+            return False
+        return True
 
     @discord.ui.button(label="✅ Зөвшөөрөх", style=ButtonStyle.success)
     async def accept_button(self, interaction: discord.Interaction, button: Button):
@@ -103,7 +111,8 @@ class ProposalView(View):
             child.disabled = True
         if self.message:
             try: await self.message.edit(view=self)
-            except Exception: pass
+            except discord.HTTPException:
+                logger.warning("Could not disable marriage proposal in guild %s", self.guild_id, exc_info=True)
 
 class AdoptView(View):
     def __init__(self, bot, guild_id, parent_id, child_id, proposal_type="adoption"):
@@ -113,11 +122,18 @@ class AdoptView(View):
         self.parent_id = parent_id
         self.child_id = child_id
         self.proposal_type = proposal_type
+        self.recipient_id = parent_id if proposal_type == "parenthood" else child_id
         self.message = None
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None or interaction.guild.id != self.guild_id:
+            await interaction.response.send_message("❌ Энэ санал өөр серверийнх байна.", ephemeral=True)
+            return False
+        return True
 
     @discord.ui.button(label="✅ Зөвшөөрөх", style=ButtonStyle.success)
     async def accept_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user.id != self.child_id:
+        if interaction.user.id != self.recipient_id:
             return await interaction.response.send_message("❌ Энэ товч танд зориулагдаагүй!", ephemeral=True)
         for child in self.children:
             child.disabled = True
@@ -125,7 +141,7 @@ class AdoptView(View):
 
         await self.bot.db_manager.delete(
             "marriage_proposals",
-            {"guild_id": str(self.guild_id), "to_id": str(self.child_id), "proposal_type": self.proposal_type},
+            {"guild_id": str(self.guild_id), "from_id": str(self.child_id if self.proposal_type == "parenthood" else self.parent_id), "to_id": str(self.recipient_id), "proposal_type": self.proposal_type},
         )
         await self.bot.db_manager.insert("adoptions", {
             "guild_id": str(self.guild_id),
@@ -135,9 +151,12 @@ class AdoptView(View):
             "adopted_since": int(time.time()),
         })
         parent = interaction.guild.get_member(self.parent_id)
+        child_member = interaction.guild.get_member(self.child_id)
+        parent_mention = parent.mention if parent else f"<@{self.parent_id}>"
+        child_mention = child_member.mention if child_member else f"<@{self.child_id}>"
         embed = discord.Embed(
             title="👨‍👧‍👦 ӨРГӨМЖЛӨЛТ БАТЛАГДЛАА" if self.proposal_type=="adoption" else "👪 ЭЦЭГ ЭХ БОЛЛОО",
-            description=f"{parent.mention if parent else 'Хэрэглэгч'} {interaction.user.mention}-г {'хүүхэд' if self.proposal_type=='adoption' else 'эцэг эх'} болгон {'өргөмжлөв' if self.proposal_type=='adoption' else 'сонгов'}!",
+            description=f"{parent_mention} болон {child_mention} эцэг эх, хүүхдийн харилцаагаа баталгаажууллаа!",
             color=SUCCESS_COLOR
         )
         await interaction.followup.send(embed=embed)
@@ -145,14 +164,14 @@ class AdoptView(View):
 
     @discord.ui.button(label="❌ Татгалзах", style=ButtonStyle.secondary)
     async def decline_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user.id != self.child_id:
+        if interaction.user.id != self.recipient_id:
             return await interaction.response.send_message("❌ Энэ товч танд зориулагдаагүй!", ephemeral=True)
         for child in self.children:
             child.disabled = True
         await interaction.response.edit_message(view=self)
         await self.bot.db_manager.delete(
             "marriage_proposals",
-            {"guild_id": str(self.guild_id), "to_id": str(self.child_id), "proposal_type": self.proposal_type},
+            {"guild_id": str(self.guild_id), "from_id": str(self.child_id if self.proposal_type == "parenthood" else self.parent_id), "to_id": str(self.recipient_id), "proposal_type": self.proposal_type},
         )
         embed = discord.Embed(title="👶 ТАТГАЛЗСАН", description=f"{interaction.user.mention} саналаас татгалзлаа.", color=WARNING_COLOR)
         await interaction.followup.send(embed=embed)
@@ -163,7 +182,8 @@ class AdoptView(View):
             child.disabled = True
         if self.message:
             try: await self.message.edit(view=self)
-            except Exception: pass
+            except discord.HTTPException:
+                logger.warning("Could not disable adoption proposal in guild %s", self.guild_id, exc_info=True)
 
 # ══════════════ АДМИН САМБАР ══════════════
 class MarriageSetupView(View):
@@ -175,15 +195,24 @@ class MarriageSetupView(View):
         self.message = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None or interaction.guild.id != self.guild_id:
+            await interaction.response.send_message("❌ Энэ самбар өөр серверийнх байна.", ephemeral=True)
+            return False
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("❌ Энэ самбар таных биш.", ephemeral=True)
+            return False
+        if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ Administrator эрх шаардлагатай.", ephemeral=True)
             return False
         return True
 
     async def refresh(self, interaction: discord.Interaction):
         cfg = await self.cog.get_guild_config(self.guild_id)
         embed = self.build_embed(cfg, interaction.guild)
-        await interaction.edit_original_response(embed=embed, view=self)
+        if self.message is not None:
+            await self.message.edit(embed=embed, view=self)
+        else:
+            logger.warning("Marriage setup panel has no bound message in guild %s", self.guild_id)
 
     def build_embed(self, cfg, guild):
         embed = discord.Embed(title="💍 Гэрлэлтийн тохиргоо", color=PURPLE_COLOR)
@@ -230,36 +259,62 @@ class MarriageSetupView(View):
         await interaction.response.defer()
         await self.refresh(interaction)
 
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.message is not None:
+            try:
+                await self.message.edit(view=self)
+            except discord.HTTPException:
+                logger.warning("Could not disable marriage panel in guild %s", self.guild_id, exc_info=True)
+
 class MaxSpousesModal(ui.Modal, title="Хамгийн их гэрлэх тоо"):
     amount = ui.TextInput(label="Тоо", placeholder="1", required=True)
     def __init__(self, view): super().__init__(); self.view = view
     async def on_submit(self, interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         try:
             val = int(self.amount.value)
             if val < 1: raise ValueError
-            await self.view.cog.set_guild_config(self.view.guild_id, max_spouses=val)
-            await interaction.response.send_message(f"✅ {val}", ephemeral=True)
-            await self.view.refresh(interaction)
-        except Exception: await interaction.response.send_message("❌ Буруу утга.", ephemeral=True)
+        except ValueError:
+            return await interaction.response.send_message("❌ Буруу утга.", ephemeral=True)
+        await self.view.cog.set_guild_config(self.view.guild_id, max_spouses=val)
+        await interaction.response.send_message(f"✅ {val}", ephemeral=True)
+        await self.view.refresh(interaction)
 
 class MarriageRoleModal(ui.Modal, title="Гэрлэлтийн роль ID"):
     role_id = ui.TextInput(label="Роль ID", placeholder="123456789", required=True)
     def __init__(self, view): super().__init__(); self.view = view
     async def on_submit(self, interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         try:
             rid = int(self.role_id.value)
-            role = interaction.guild.get_role(rid)
-            if not role: return await interaction.response.send_message("❌ Роль олдсонгүй.", ephemeral=True)
-            await self.view.cog.set_guild_config(self.view.guild_id, marriage_role=rid)
-            await interaction.response.send_message(f"✅ {role.mention}", ephemeral=True)
-            await self.view.refresh(interaction)
-        except Exception: await interaction.response.send_message("❌ Буруу ID.", ephemeral=True)
+        except ValueError:
+            return await interaction.response.send_message("❌ Буруу ID.", ephemeral=True)
+        role = interaction.guild.get_role(rid)
+        if not role:
+            return await interaction.response.send_message("❌ Роль олдсонгүй.", ephemeral=True)
+        await self.view.cog.set_guild_config(self.view.guild_id, marriage_role=rid)
+        await interaction.response.send_message(f"✅ {role.mention}", ephemeral=True)
+        await self.view.refresh(interaction)
 
 # ══════════════ ҮНДСЭН COG ══════════════
 class Marriage(SupabaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         self.bot = bot
+
+    async def cog_check(self, ctx: commands.Context) -> bool:
+        if ctx.guild is None:
+            raise commands.NoPrivateMessage
+        return True
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None:
+            raise app_commands.NoPrivateMessage
+        return True
 
     async def init_db(self):
         # Tables are pre-configured in Supabase
@@ -290,7 +345,8 @@ class Marriage(SupabaseCog):
             role = guild.get_role(cfg["marriage_role"])
             if role and role not in member.roles:
                 try: await member.add_roles(role, reason="Гэрлэлт")
-                except Exception: pass
+                except discord.HTTPException:
+                    logger.warning("Could not grant marriage role to %s in guild %s", member.id, guild.id, exc_info=True)
 
     async def remove_marriage_role(self, guild, member):
         cfg = await self.get_guild_config(guild.id)
@@ -298,7 +354,8 @@ class Marriage(SupabaseCog):
             role = guild.get_role(cfg["marriage_role"])
             if role and role in member.roles:
                 try: await member.remove_roles(role, reason="Салалт")
-                except Exception: pass
+                except discord.HTTPException:
+                    logger.warning("Could not remove marriage role from %s in guild %s", member.id, guild.id, exc_info=True)
 
     async def announce_marriage(self, guild, user1, user2):
         cfg = await self.get_guild_config(guild.id)
@@ -322,12 +379,17 @@ class Marriage(SupabaseCog):
             "marriages", {"guild_id": str(guild_id)}
         )
         result = []
-        for r in rows:
+        seen_partners = set()
+        # Each marriage is stored in both directions; prefer this user's row.
+        for r in sorted(rows, key=lambda row: str(row.get("user_id")) != str(user_id)):
             uid = r.get("user_id")
             pid = r.get("partner_id")
             if str(uid) != str(user_id) and str(pid) != str(user_id):
                 continue
             partner = pid if str(uid) == str(user_id) else uid
+            if str(partner) in seen_partners:
+                continue
+            seen_partners.add(str(partner))
             result.append({"partner": int(partner), "love_points": r.get("love_points", 0) or 0,
                            "ring": f"{r.get('ring_emoji', '')} {r.get('ring_name', '')}".strip() if r.get("ring_emoji") else r.get("ring_name", ""),
                            "ring_name": r.get("ring_name"), "ring_emoji": r.get("ring_emoji", ""),
@@ -448,12 +510,21 @@ class Marriage(SupabaseCog):
     async def get_anniversary(self, marriage_date):
         if not marriage_date: return None
         try: marriage_date = int(marriage_date)
-        except Exception: return None
+        except (TypeError, ValueError): return None
         today = datetime.datetime.now(datetime.timezone.utc).date()
-        mar_date = datetime.datetime.fromtimestamp(marriage_date).date()
+        try:
+            mar_date = datetime.datetime.fromtimestamp(marriage_date, datetime.timezone.utc).date()
+        except (OverflowError, OSError, ValueError):
+            return None
         days = (today - mar_date).days
-        next_ann = datetime.datetime(today.year, mar_date.month, mar_date.day).date()
-        if next_ann < today: next_ann = datetime.datetime(today.year + 1, mar_date.month, mar_date.day).date()
+        def anniversary(year):
+            try:
+                return datetime.date(year, mar_date.month, mar_date.day)
+            except ValueError:
+                # A leap-day marriage observes February 28 in non-leap years.
+                return datetime.date(year, 2, 28)
+        next_ann = anniversary(today.year)
+        if next_ann < today: next_ann = anniversary(today.year + 1)
         return {"days": days, "next_days": (next_ann - today).days, "date": mar_date.strftime("%Y-%m-%d")}
 
     async def get_last_gift_time(self, guild_id, user_id):
@@ -489,14 +560,16 @@ class Marriage(SupabaseCog):
         try:
             async with sess.get(url) as resp: data = await resp.read()
             img = Image.open(io.BytesIO(data)).convert("RGBA").resize((size, size))
-        except Exception: img = Image.new("RGBA", (size, size), (88, 101, 242, 255))
+        except (aiohttp.ClientError, TimeoutError, OSError, ValueError):
+            logger.warning("Could not load marriage card avatar", exc_info=True)
+            img = Image.new("RGBA", (size, size), (88, 101, 242, 255))
         mask = Image.new("L", (size, size), 0)
         ImageDraw.Draw(mask).ellipse((0, 0, size, size), fill=255)
         img.putalpha(mask)
         return img
 
     # ═════════ SLASH COMMANDS (ГРУПП) ═════════
-    marriage_group = app_commands.Group(name="marriage", description="Гэрлэлт, гэр бүлийн командууд")
+    marriage_group = app_commands.Group(name="marriage", description="Гэрлэлт, гэр бүлийн командууд", guild_only=True)
 
     @marriage_group.command(name="marry", description="Гэрлэх санал тавих")
     @app_commands.describe(user="Гэрлэх санал тавих хэрэглэгч")
@@ -505,7 +578,7 @@ class Marriage(SupabaseCog):
 
     @marriage_group.command(name="divorce", description="Гэрлэлтийг цуцлах")
     @app_commands.describe(user="Цуцлах хэрэглэгч (хоосон орхивол бүгдийг)")
-    async def slash_divorce(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
+    async def slash_divorce(self, interaction: discord.Interaction, user: discord.Member | None = None):
         await self._divorce(interaction, user, is_slash=True)
 
     @marriage_group.command(name="adopt", description="Хүүхэд өргөмжлөх")
@@ -536,12 +609,12 @@ class Marriage(SupabaseCog):
 
     @marriage_group.command(name="tree", description="Гэр бүлийн мод (зураг)")
     @app_commands.describe(member="Хэнийх (хоосон орхивол өөрийн)")
-    async def slash_tree(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+    async def slash_tree(self, interaction: discord.Interaction, member: discord.Member | None = None):
         await self._family_tree(interaction, member, is_slash=True)
 
     @marriage_group.command(name="fulltree", description="Бүрэн гэр бүлийн мод (хамтрагчийн гэр бүлийг оролцуулан)")
     @app_commands.describe(member="Хэнийх (хоосон орхивол өөрийн)")
-    async def slash_fulltree(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+    async def slash_fulltree(self, interaction: discord.Interaction, member: discord.Member | None = None):
         await self._family_tree(interaction, member, full=True, is_slash=True)
 
     @marriage_group.command(name="relationship", description="Хоёр хэрэглэгчийн хоорондын харилцаа")
@@ -570,7 +643,7 @@ class Marriage(SupabaseCog):
 
     @marriage_group.command(name="profile", description="Гэрлэлтийн зурагт карт үүсгэх")
     @app_commands.describe(member="Хэний карт (хоосон орхивол өөрийн)")
-    async def slash_profile(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+    async def slash_profile(self, interaction: discord.Interaction, member: discord.Member | None = None):
         await self._marriage_card(interaction, member, is_slash=True)
 
     @marriage_group.command(name="autoaccept", description="Гэрлэх саналыг автоматаар хүлээн авах")
@@ -583,12 +656,13 @@ class Marriage(SupabaseCog):
 
     @marriage_group.command(name="setup", description="Гэрлэлтийн тохиргооны самбар нээх")
     @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     async def slash_setup(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         cfg = await self.get_guild_config(interaction.guild_id)
         view = MarriageSetupView(self, interaction.guild_id, interaction.user.id)
         embed = view.build_embed(cfg, interaction.guild)
-        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        view.message = await interaction.followup.send(embed=embed, view=view, ephemeral=True, wait=True)
 
     # ═════════ PREFIX COMPATIBILITY COMMANDS ═════════
     # Эдгээр хуучин A! команд ажилласаар байна. Slash picker дээр давхар
@@ -622,11 +696,11 @@ class Marriage(SupabaseCog):
         await self._gift(ctx, gift_type)
 
     @commands.command(name='familytree')
-    async def family_tree(self, ctx, member: Optional[discord.Member] = None):
+    async def family_tree(self, ctx, member: discord.Member | None = None):
         await self._family_tree(ctx, member)
 
     @commands.command(name='marriagepro')
-    async def marriage_card(self, ctx, member: Optional[discord.Member] = None):
+    async def marriage_card(self, ctx, member: discord.Member | None = None):
         await self._marriage_card(ctx, member)
 
     # ═════════ БҮХ ҮЙЛДЛИЙН ТӨВ ФУНКЦУУД ═════════
@@ -651,7 +725,7 @@ class Marriage(SupabaseCog):
         ring_item_id, ring_name, ring_emoji = None, None, None
         if shop:
             inv = await shop.get_user_inventory(author.id, guild.id)
-            for item_id, qty in inv.items():
+            for item_id in inv:
                 if await self._is_ring_item(item_id):
                     item = await shop.get_item(item_id)
                     if item:

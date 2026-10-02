@@ -6,32 +6,18 @@ Reports:
   - Registered but not documented (undocumented commands)
 """
 import asyncio
-import io
+import logging
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import ast
 import discord
 from discord.ext import commands
+from probe_load_all_cogs import COGS, StubDB
 
-from probe_load_all_cogs import StubDB, COGS
-
-
-def extract_command_info_keys():
-    """Parse COMMAND_INFO dict literal from src/cogs/help.py via AST."""
-    src_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "cogs", "help.py")
-    tree = ast.parse(open(src_path, encoding="utf-8").read())
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for tgt in node.targets:
-                if isinstance(tgt, ast.Name) and tgt.id == "COMMAND_INFO":
-                    d = ast.literal_eval(node.value)
-                    return d
-    return {}
+logger = logging.getLogger(__name__)
 
 
 async def main():
@@ -52,19 +38,23 @@ async def main():
         try:
             await bot.load_extension(f"src.cogs.{name}")
         except Exception as e:
+            logger.exception("Could not load cog %s for catalog comparison", name)
             failures.append((name, f"{type(e).__name__}: {e}"))
     if failures:
         print("LOAD FAILURES (unexpected):")
         for n, e in failures:
             print(" ", n, e)
 
-    registered = set(bot.all_commands.keys())  # top-level names + aliases
+    # Canonical names only. Aliases intentionally share their command's help
+    # entry and must not be reported as undocumented commands.
+    registered = {cmd.qualified_name for cmd in bot.walk_commands()}
     slash = set()
 
     def walk(cmd, prefix=""):
         full = prefix + cmd.name
-        slash.add(full)
         children = getattr(cmd, "_children", {}) or {}
+        if not children:
+            slash.add(full)
         for sub in children.values():
             walk(sub, full + " ")
 
@@ -74,21 +64,10 @@ async def main():
     # Context menus / standalone commands registered directly.
     slash.update(c.name for c in bot.tree._context_menus.values())
 
-    # Prefix subcommands (e.g. "stock add", "quest refresh") via walk_commands.
-    for cmd in bot.walk_commands():
-        qn = cmd.qualified_name
-        registered.add(qn)
-        # alias variants: parent aliases + leaf alias
-        leaf_alias = getattr(cmd, "aliases", [])
-        for a in leaf_alias:
-            registered.add(qn.rsplit(" ", 1)[0] + " " + a if " " in qn else a)
-        parent = getattr(cmd, "parent", None)
-        while parent is not None:
-            for pa in getattr(parent, "aliases", []):
-                registered.add(qn.replace(parent.name, pa, 1))
-            parent = getattr(parent, "parent", None)
-
-    doc = extract_command_info_keys()
+    # Help.cog_load prunes documentation for cogs excluded by ACTIVE_COGS.
+    # Compare against that runtime catalog, not the unpruned source literal.
+    from src.cogs.help import COMMAND_INFO
+    doc = dict(COMMAND_INFO)
     documented = set(doc.keys())
 
     print(f"\nRegistered: {len(registered)} prefix names/aliases + {len(slash)} slash paths")
@@ -114,7 +93,10 @@ async def main():
     if extra:
         print("  (first 40):", sorted(extra)[:40])
 
-    if missing:
+    if missing or failures:
+        await bot.close()
         sys.exit(1)
+    await bot.close()
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

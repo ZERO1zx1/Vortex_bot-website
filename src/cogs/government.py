@@ -22,18 +22,21 @@ collector-role distribution remain active until ``/government`` is enabled.
 """
 
 import asyncio
-import json
 import logging
 import time
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any
 
 import discord
-from discord import SelectOption
-from discord import app_commands
+from discord import SelectOption, app_commands
 from discord.ui import Button, Modal, RoleSelect, Select, TextInput, UserSelect, View
 
-from src.utils.constants import ERROR_COLOR, GOLD_COLOR, INFO_COLOR, SUCCESS_COLOR, WARNING_COLOR
+from src.utils.constants import (
+    ERROR_COLOR,
+    GOLD_COLOR,
+    INFO_COLOR,
+    WARNING_COLOR,
+)
 from src.utils.embed_style import add_box_field
 from src.utils.supabase_cog import SupabaseCog
 
@@ -119,35 +122,35 @@ def fmt_interval(seconds: int) -> str:
 # ---------------------------------------------------------------------------
 # Pure helpers (unit-tested)
 # ---------------------------------------------------------------------------
-def _parse_int(text: str) -> Optional[int]:
+def _parse_int(text: str) -> int | None:
     try:
         return int(str(text).strip())
     except (TypeError, ValueError):
         return None
 
 
-def parse_pct(text: str) -> Optional[int]:
+def parse_pct(text: str) -> int | None:
     v = _parse_int(text)
     if v is None or v < 0 or v > 100:
         return None
     return v
 
 
-def parse_money(text: str, maximum: int = MAX_SALARY) -> Optional[int]:
+def parse_money(text: str, maximum: int = MAX_SALARY) -> int | None:
     v = _parse_int(text)
     if v is None or v < 0 or v > maximum:
         return None
     return v
 
 
-def parse_level(text: str) -> Optional[int]:
+def parse_level(text: str) -> int | None:
     v = _parse_int(text)
     if v is None or v < 0:
         return None
     return v
 
 
-def parse_role_ref(text: str) -> Optional[int]:
+def parse_role_ref(text: str) -> int | None:
     """Accept '123', '<@&123>'; '0', '-', '' mean "clear" (-> None)."""
     raw = str(text or "").strip()
     if raw in ("", "-", "0", "—"):
@@ -157,7 +160,7 @@ def parse_role_ref(text: str) -> Optional[int]:
     return _parse_int(raw)
 
 
-def compute_tax(gross: int, rate_pct: int) -> Tuple[int, int]:
+def compute_tax(gross: int, rate_pct: int) -> tuple[int, int]:
     """Return (tax, net). tax is floored; rate clamped to [0, 100]."""
     rate = max(0, min(100, int(rate_pct or 0)))
     if gross <= 0 or rate <= 0:
@@ -166,7 +169,7 @@ def compute_tax(gross: int, rate_pct: int) -> Tuple[int, int]:
     return tax, gross - tax
 
 
-def allocate_dividend(total: int, parts: int) -> List[int]:
+def allocate_dividend(total: int, parts: int) -> list[int]:
     """Equal integer split; rounding remainder goes to the first part."""
     if parts <= 0:
         return []
@@ -176,11 +179,11 @@ def allocate_dividend(total: int, parts: int) -> List[int]:
     return [share + rem] + [share] * (parts - 1)
 
 
-def recipient_total(recipients: List[Dict[str, Any]]) -> int:
+def recipient_total(recipients: list[dict[str, Any]]) -> int:
     return sum(int(r.get("percentage") or 0) for r in recipients)
 
 
-def validate_recipient_set(recipients: List[Dict[str, Any]]) -> Tuple[bool, int, str]:
+def validate_recipient_set(recipients: list[dict[str, Any]]) -> tuple[bool, int, str]:
     """recipients must sum to exactly 100 to be active (never more)."""
     total = recipient_total(recipients)
     if total > 100:
@@ -199,9 +202,9 @@ def validate_job_fields(
     level: int,
     salary_min: int,
     salary_max: int,
-    existing_names: List[str],
-    role_id: Optional[int] = None,
-) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    existing_names: list[str],
+    role_id: int | None = None,
+) -> tuple[bool, str, dict[str, Any] | None]:
     name = (name or "").strip()
     if not name:
         return False, "Ажлын нэр хоосон байж болохгүй.", None
@@ -229,7 +232,7 @@ def validate_job_fields(
     }
 
 
-def validate_role_income(amount: int, interval_seconds: int) -> Tuple[bool, str, Optional[Tuple[int, int]]]:
+def validate_role_income(amount: int, interval_seconds: int) -> tuple[bool, str, tuple[int, int] | None]:
     if amount is None or amount < MIN_ROLE_INCOME_AMOUNT or amount > MAX_ROLE_INCOME_AMOUNT:
         return False, f"Дүн {MIN_ROLE_INCOME_AMOUNT:,}-{MAX_ROLE_INCOME_AMOUNT:,} ₮ хооронд байна.", None
     if interval_seconds is None or interval_seconds < MIN_ROLE_INCOME_INTERVAL:
@@ -244,10 +247,10 @@ def validate_role_income(amount: int, interval_seconds: int) -> Tuple[bool, str,
 
 def build_distribution_plan(
     guild: Any,
-    recipients: List[Dict[str, Any]],
-    co_owner_ids: List[int],
+    recipients: list[dict[str, Any]],
+    co_owner_ids: list[int],
     tax: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Turn configured recipients + a tax amount into concrete credits.
 
     Rules:
@@ -258,7 +261,7 @@ def build_distribution_plan(
         share returns to the treasury instead
       * integer rounding loss always returns to the treasury (no minting)
     """
-    credits: List[Tuple[int, int, str]] = []
+    credits: list[tuple[int, int, str]] = []
     treasury = 0
     credited_uids = set()
 
@@ -276,7 +279,7 @@ def build_distribution_plan(
         credited_uids.add(int(uid))
         credits.append((int(uid), amount, ""))
 
-    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    grouped: dict[str, list[dict[str, Any]]] = {}
     for r in recipients:
         grouped.setdefault(r.get("recipient_type") or "", []).append(r)
 
@@ -330,7 +333,7 @@ def build_distribution_plan(
 # Permission bag
 # ---------------------------------------------------------------------------
 class GovPerms:
-    __slots__ = ("owner", "co_owner", "government", "economy", "treasury_ro", "treasury_manage")
+    __slots__ = ("co_owner", "economy", "government", "owner", "treasury_manage", "treasury_ro")
 
     def __init__(self):
         self.owner = False
@@ -348,23 +351,23 @@ class Government(SupabaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         self.bot = bot
-        self._treasury_locks: Dict[str, asyncio.Lock] = {}
-        self._tax_locks: Dict[str, asyncio.Lock] = {}
-        self._config_locks: Dict[str, asyncio.Lock] = {}
-        self._settings_cache: Dict[str, Tuple[float, Optional[Dict[str, Any]]]] = {}
+        self._treasury_locks: dict[str, asyncio.Lock] = {}
+        self._tax_locks: dict[str, asyncio.Lock] = {}
+        self._config_locks: dict[str, asyncio.Lock] = {}
+        self._settings_cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
         self._settings_ttl = 15.0
 
     # ------------------------------------------------------------------
     # infra
     # ------------------------------------------------------------------
-    async def _get_lock(self, pool: Dict[str, asyncio.Lock], key: str) -> asyncio.Lock:
+    async def _get_lock(self, pool: dict[str, asyncio.Lock], key: str) -> asyncio.Lock:
         lock = pool.get(key)
         if lock is None:
             lock = asyncio.Lock()
             pool[key] = lock
         return lock
 
-    async def _upsert_unique(self, table: str, filters: Dict[str, Any], data: Dict[str, Any]):
+    async def _upsert_unique(self, table: str, filters: dict[str, Any], data: dict[str, Any]):
         row = await self.bot.db_manager.fetch_one(table, filters)
         if row:
             await self.bot.db_manager.update(table, filters, data)
@@ -377,12 +380,12 @@ class Government(SupabaseCog):
             try:
                 eco.invalidate_tax_cache(gid)
             except Exception:
-                pass
+                logger.exception("Operation failed in _invalidate_economy_tax")
 
     # ------------------------------------------------------------------
     # guild settings
     # ------------------------------------------------------------------
-    async def get_settings(self, guild_id) -> Dict[str, Any]:
+    async def get_settings(self, guild_id) -> dict[str, Any]:
         gid = str(guild_id)
         now = time.monotonic()
         cached = self._settings_cache.get(gid)
@@ -404,7 +407,7 @@ class Government(SupabaseCog):
         self._settings_cache[gid] = (now, dict(defaults))
         return defaults
 
-    async def _save_settings(self, guild_id, **kw) -> Dict[str, Any]:
+    async def _save_settings(self, guild_id, **kw) -> dict[str, Any]:
         gid = str(guild_id)
         settings = await self.get_settings(gid)
         settings.update(kw)
@@ -422,7 +425,7 @@ class Government(SupabaseCog):
         settings = await self.get_settings(guild_id)
         return bool(settings.get("government_enabled"))
 
-    async def government_tax(self, guild_id) -> Optional[Tuple[int, bool]]:
+    async def government_tax(self, guild_id) -> tuple[int, bool] | None:
         """None when the government is inactive (economy keeps legacy rate);
         otherwise (tax_rate, tax_enabled)."""
         settings = await self.get_settings(guild_id)
@@ -437,7 +440,7 @@ class Government(SupabaseCog):
     # ------------------------------------------------------------------
     # government roles (stored by ROLE ID)
     # ------------------------------------------------------------------
-    async def get_government_roles(self, guild_id) -> Dict[str, int]:
+    async def get_government_roles(self, guild_id) -> dict[str, int]:
         rows = await self.bot.db_manager.fetch_safe(
             ROLES_TABLE, {"guild_id": str(guild_id)}, selects="role_type,role_id"
         )
@@ -449,7 +452,7 @@ class Government(SupabaseCog):
                 continue
         return out
 
-    async def get_government_role(self, guild_id, role_type) -> Optional[int]:
+    async def get_government_role(self, guild_id, role_type) -> int | None:
         roles = await self.get_government_roles(guild_id)
         return roles.get(role_type)
 
@@ -474,7 +477,7 @@ class Government(SupabaseCog):
     # ------------------------------------------------------------------
     # co-owners (per-guild, appointed by the guild owner only)
     # ------------------------------------------------------------------
-    async def get_co_owner_ids(self, guild_id) -> List[int]:
+    async def get_co_owner_ids(self, guild_id) -> list[int]:
         rows = await self.bot.db_manager.fetch_safe(
             MEMBERS_TABLE,
             {"guild_id": str(guild_id), "position": "co_owner"},
@@ -491,7 +494,7 @@ class Government(SupabaseCog):
     async def is_co_owner_id(self, guild_id, user_id) -> bool:
         return int(user_id) in await self.get_co_owner_ids(str(guild_id))
 
-    async def add_co_owner(self, guild_id, user_id, appointed_by) -> Tuple[bool, str]:
+    async def add_co_owner(self, guild_id, user_id, appointed_by) -> tuple[bool, str]:
         gid = str(guild_id)
         uid = str(user_id)
         if await self.is_co_owner_id(gid, uid):
@@ -508,7 +511,7 @@ class Government(SupabaseCog):
         )
         return True, "✅ Co-owner нэмэгдлээ."
 
-    async def remove_co_owner(self, guild_id, user_id) -> Tuple[bool, str]:
+    async def remove_co_owner(self, guild_id, user_id) -> tuple[bool, str]:
         gid = str(guild_id)
         uid = str(user_id)
         if not await self.is_co_owner_id(gid, uid):
@@ -521,7 +524,7 @@ class Government(SupabaseCog):
     # ------------------------------------------------------------------
     # tax recipients
     # ------------------------------------------------------------------
-    async def get_recipients(self, guild_id) -> List[Dict[str, Any]]:
+    async def get_recipients(self, guild_id) -> list[dict[str, Any]]:
         rows = await self.bot.db_manager.fetch_safe(
             RECIPIENTS_TABLE, {"guild_id": str(guild_id)}
         )
@@ -537,7 +540,7 @@ class Government(SupabaseCog):
             })
         return out
 
-    async def set_recipient(self, guild_id, recipient_type, recipient_key, pct, created_by) -> Tuple[bool, str]:
+    async def set_recipient(self, guild_id, recipient_type, recipient_key, pct, created_by) -> tuple[bool, str]:
         gid = str(guild_id)
         if recipient_type not in RECIPIENT_TYPE_LABELS:
             return False, "Буруу хүлээн авагчийн төрөл."
@@ -591,7 +594,7 @@ class Government(SupabaseCog):
     async def clear_recipients(self, guild_id) -> None:
         await self.bot.db_manager.delete(RECIPIENTS_TABLE, {"guild_id": str(guild_id)})
 
-    def recipient_ref(self, guild, recipient: Dict[str, Any]) -> str:
+    def recipient_ref(self, guild, recipient: dict[str, Any]) -> str:
         rtype = recipient.get("recipient_type")
         key = int(recipient.get("recipient_key") or 0)
         if rtype == "user":
@@ -605,7 +608,7 @@ class Government(SupabaseCog):
     # ------------------------------------------------------------------
     # custom jobs
     # ------------------------------------------------------------------
-    async def get_custom_jobs(self, guild_id, enabled_only: bool = False) -> List[Dict[str, Any]]:
+    async def get_custom_jobs(self, guild_id, enabled_only: bool = False) -> list[dict[str, Any]]:
         rows = await self.bot.db_manager.fetch_safe(
             JOBS_TABLE,
             {"guild_id": str(guild_id)},
@@ -634,13 +637,13 @@ class Government(SupabaseCog):
             jobs.append(job)
         return jobs
 
-    async def get_job(self, guild_id, job_id) -> Optional[Dict[str, Any]]:
+    async def get_job(self, guild_id, job_id) -> dict[str, Any] | None:
         for j in await self.get_custom_jobs(guild_id):
             if str(j.get("id")) == str(job_id):
                 return j
         return None
 
-    async def create_job(self, guild_id, payload: Dict[str, Any], created_by) -> Tuple[bool, str]:
+    async def create_job(self, guild_id, payload: dict[str, Any], created_by) -> tuple[bool, str]:
         gid = str(guild_id)
         async with await self._get_lock(self._config_locks, f"jobs:{gid}"):
             existing = [j["name"] for j in await self.get_custom_jobs(gid)]
@@ -674,7 +677,7 @@ class Government(SupabaseCog):
             )
         return True, f"✅ `{clean['name']}` ажил нэмэгдлээ."
 
-    async def update_job(self, guild_id, job_id, **fields) -> Tuple[bool, str]:
+    async def update_job(self, guild_id, job_id, **fields) -> tuple[bool, str]:
         gid = str(guild_id)
         job = await self.get_job(gid, job_id)
         if job is None:
@@ -713,7 +716,7 @@ class Government(SupabaseCog):
             )
         return True, f"✅ `{clean['name']}` ажил шинэчлэгдлээ."
 
-    async def toggle_job_enabled(self, guild_id, job_id) -> Tuple[bool, str]:
+    async def toggle_job_enabled(self, guild_id, job_id) -> tuple[bool, str]:
         job = await self.get_job(guild_id, job_id)
         if job is None:
             return False, "Ажил олдсонгүй."
@@ -725,25 +728,26 @@ class Government(SupabaseCog):
         state = "асаагдлаа" if not job["enabled"] else "унтраагдлаа"
         return True, f"✅ `{job['name']}` ажил {state}."
 
-    async def delete_job(self, guild_id, job_id) -> Tuple[bool, str]:
+    async def delete_job(self, guild_id, job_id) -> tuple[bool, str]:
         job = await self.get_job(guild_id, job_id)
         if job is None:
             return False, "Ажил олдсонгүй."
         await self.bot.db_manager.delete(JOBS_TABLE, {"guild_id": str(guild_id), "id": job_id})
         return True, f"🗑️ `{job['name']}` ажил устгагдлаа."
 
-    async def resolve_user_job(self, guild_id, level, member=None) -> Optional[Dict[str, Any]]:
+    async def resolve_user_job(self, guild_id, level, member=None) -> dict[str, Any] | None:
         """Best custom job the user qualifies for, or None -> JOB_LEVELS fallback."""
         jobs = await self.get_custom_jobs(guild_id, enabled_only=True)
         eligible = []
         for j in jobs:
             if j["required_level"] > (level or 0):
                 continue
-            if j.get("required_role_id"):
-                if member is None or not any(
+            if j.get("required_role_id") and (
+                member is None or not any(
                     getattr(r, "id", None) == j["required_role_id"] for r in getattr(member, "roles", ())
-                ):
-                    continue
+                )
+            ):
+                continue
             eligible.append(j)
         if not eligible:
             return None
@@ -763,7 +767,7 @@ class Government(SupabaseCog):
     # ------------------------------------------------------------------
     # role income
     # ------------------------------------------------------------------
-    async def get_role_incomes(self, guild_id) -> List[Dict[str, Any]]:
+    async def get_role_incomes(self, guild_id) -> list[dict[str, Any]]:
         rows = await self.bot.db_manager.fetch_safe(
             ROLE_INCOME_TABLE, {"guild_id": str(guild_id)}
         )
@@ -780,13 +784,13 @@ class Government(SupabaseCog):
                 continue
         return out
 
-    def get_role_income(self, incomes: List[Dict[str, Any]], role_id) -> Optional[Dict[str, Any]]:
+    def get_role_income(self, incomes: list[dict[str, Any]], role_id) -> dict[str, Any] | None:
         for inc in incomes:
             if int(inc.get("role_id") or 0) == int(role_id):
                 return inc
         return None
 
-    async def set_role_income(self, guild_id, role_id, amount, interval_seconds, changed_by) -> Tuple[bool, str]:
+    async def set_role_income(self, guild_id, role_id, amount, interval_seconds, changed_by) -> tuple[bool, str]:
         ok, err, clean = validate_role_income(amount, interval_seconds)
         if not ok:
             return False, err
@@ -805,7 +809,7 @@ class Government(SupabaseCog):
         _ = changed_by
         return True, f"✅ Ролын орлого {_fmt_money(amount)} / {fmt_interval(interval)} боллоо."
 
-    async def remove_role_income(self, guild_id, role_id) -> Tuple[bool, str]:
+    async def remove_role_income(self, guild_id, role_id) -> tuple[bool, str]:
         await self.bot.db_manager.delete(
             ROLE_INCOME_TABLE, {"guild_id": str(guild_id), "role_id": int(role_id)}
         )
@@ -835,7 +839,7 @@ class Government(SupabaseCog):
             )
         return True
 
-    async def treasury_pay(self, guild_id, member_ids, amount: int, reason: str, actor_id) -> Tuple[bool, str]:
+    async def treasury_pay(self, guild_id, member_ids, amount: int, reason: str, actor_id) -> tuple[bool, str]:
         gid = str(guild_id)
         amount = int(amount or 0)
         if amount <= 0:
@@ -845,71 +849,61 @@ class Government(SupabaseCog):
         member_ids = list(dict.fromkeys(int(m) for m in member_ids))
         if len(member_ids) > MAX_TREASURY_PAY_RECIPIENTS:
             return False, f"Нэг гүйлгээнд дээд тал нь {MAX_TREASURY_PAY_RECIPIENTS} хүлээн авагч болно."
-        eco = self.bot.get_cog("Economy")
+        if amount > MAX_TREASURY_PAY_AMOUNT:
+            return False, f"Дүн дээд тал нь {MAX_TREASURY_PAY_AMOUNT:,} ₮ байна."
 
-        async def _credit(uid: int, amt: int):
-            if eco is not None:
-                await eco.update_balance(uid, guild_id, amt, apply_tax=False)
-            else:
-                row = await self.bot.db_manager.fetch_one(
-                    "economy", {"user_id": str(uid), "guild_id": str(guild_id)}
-                )
-                cur = int(row.get("balance") or 0) if row else 0
-                await self.bot.db_manager.update(
-                    "economy",
-                    {"user_id": str(uid), "guild_id": str(guild_id)},
-                    {"balance": cur + amt},
-                )
+        # Generate idempotency reference
+        import time
+        reference = f"treasury:{gid}:{actor_id}:{int(time.time() * 1000)}"
 
-        async with await self._get_lock(self._treasury_locks, gid):
-            before = await self.get_treasury_balance(gid)
-            if before < amount:
-                return False, f"Тэтгэвэрт хүрэлцэхүйц мөнгө байхгүй (одоо {_fmt_money(before)})."
-            splits = allocate_dividend(amount, len(member_ids))
-            applied = []
-            try:
-                for uid, amt in zip(member_ids, splits):
-                    if amt <= 0:
-                        continue
-                    await _credit(uid, amt)
-                    applied.append((uid, amt))
-            except Exception as e:
-                logger.warning("treasury_pay credit failed, rolling back: %s", e)
-                for uid, amt in reversed(applied):
-                    try:
-                        await _credit(uid, -amt)
-                    except Exception:
-                        pass
-                return False, "Гүйлгээ амжилтгүй боллоо — мөнгө буцаагдлаа."
-            try:
-                after = before - amount
-                await self._set_treasury(gid, after)
-            except Exception as e:
-                logger.warning("treasury debit failed, rolling back: %s", e)
-                for uid, amt in reversed(applied):
-                    try:
-                        await _credit(uid, -amt)
-                    except Exception:
-                        pass
-                return False, "Гүйлгээ амжилтгүй боллоо — мөнгө буцаагдлаа."
-            await self.add_ledger(
-                guild_id=gid, user_id=None, actor_id=str(actor_id),
-                transaction_type="treasury_payment", amount=-amount,
-                treasury_before=before, treasury_after=after,
-                reason=reason or None, metadata=json.dumps(list(member_ids)),
+        try:
+            response = await self.bot.db_manager.rpc(
+                "treasury_pay_once",
+                {
+                    "p_reference": reference,
+                    "p_guild_id": gid,
+                    "p_actor_id": str(actor_id),
+                    "p_amount": amount,
+                    "p_recipient_ids": member_ids,
+                    "p_reason": reason or "treasury_pay",
+                },
             )
-            for uid, amt in zip(member_ids, splits):
-                if amt > 0:
-                    await self.add_ledger(
-                        guild_id=gid, user_id=str(uid), actor_id=str(actor_id),
-                        transaction_type="treasury_payout", amount=amt,
-                        reason=reason or None,
-                    )
+        except Exception as e:
+            logger.exception("treasury_pay_once RPC failed gid=%s", gid)
+            return False, f"Тэтгэвэрийн гүйлгээ амжилтгүй: {e}"
+
+        data = getattr(response, "data", response)
+        if isinstance(data, list):
+            row = data[0] if data else None
+        elif isinstance(data, dict):
+            row = data
+        else:
+            row = None
+
+        if not row or "applied" not in row or type(row.get("applied")) is not bool:
+            raise RuntimeError("treasury_pay_once returned an invalid response")
+
+        if not row["applied"]:
+            # Replay: return the previously committed result
+            return True, f"✅ Тэтгэвэрээс {_fmt_money(amount)} шилжүүллээ (replay)."
+
         return True, f"✅ Тэтгэвэрээс {_fmt_money(amount)} шилжүүллээ."
 
     # ------------------------------------------------------------------
     # tax distribution
     # ------------------------------------------------------------------
+    async def prepare_tax_plan(self, guild_id, tax: int) -> dict[str, Any] | None:
+        """Resolve recipients without writing money; None selects legacy tax."""
+        gid = str(guild_id)
+        if not await self.is_government_active(gid):
+            return None
+        guild = self.bot.get_guild(int(gid))
+        recipients = await self.get_recipients(gid)
+        if guild is None or not recipients or recipient_total(recipients) != 100:
+            return {"credits": [], "treasury": tax, "tax": tax, "discarded": 0}
+        plan = build_distribution_plan(guild, recipients, await self.get_co_owner_ids(gid), tax)
+        return {**plan, "discarded": 0}
+
     async def distribute_tax(self, guild_id, tax: int) -> int:
         """Distribute collected tax to configured recipients (apply_tax=False
         -> no recursive taxation). Returns the amount credited to users."""
@@ -952,7 +946,7 @@ class Government(SupabaseCog):
                         )
                     distributed += amount
                 except Exception as e:
-                    logger.warning("distribution credit failed uid=%s gid=%s: %s", uid, gid, e)
+                    logger.warning("distribution credit failed uid=%s gid=%s: %s", uid, gid, e, exc_info=True)
             if plan["treasury"] > 0:
                 await self.credit_treasury(gid, plan["treasury"], reason="tax_distribution_share")
             await self.add_ledger(
@@ -962,7 +956,7 @@ class Government(SupabaseCog):
             )
             return distributed
 
-    async def distribution_preview(self, guild_id, tax: int) -> Dict[str, Any]:
+    async def distribution_preview(self, guild_id, tax: int) -> dict[str, Any]:
         tax = int(tax or 0)
         gid = str(guild_id)
         guild = self.bot.get_guild(int(gid))
@@ -1005,9 +999,9 @@ class Government(SupabaseCog):
                 }
             )
         except Exception as e:
-            logger.warning("ledger write failed (guild=%s txn=%s): %s", guild_id, transaction_type, e)
+            logger.warning("ledger write failed (guild=%s txn=%s): %s", guild_id, transaction_type, e, exc_info=True)
 
-    async def get_ledger(self, guild_id, page: int = 0, per: int = LEDGER_PER_PAGE) -> List[Dict[str, Any]]:
+    async def get_ledger(self, guild_id, page: int = 0, per: int = LEDGER_PER_PAGE) -> list[dict[str, Any]]:
         page = max(0, int(page or 0))
         rows = await self.bot.db_manager.fetch_all(
             LEDGER_TABLE,
@@ -1034,7 +1028,7 @@ class Government(SupabaseCog):
                 continue
         return out
 
-    async def ledger_stats_today(self, guild_id) -> Tuple[int, int]:
+    async def ledger_stats_today(self, guild_id) -> tuple[int, int]:
         gid = str(guild_id)
         start = int(time.time()) - (int(time.time()) % 86400)
         rows = await self.bot.db_manager.fetch_safe(LEDGER_TABLE, {"guild_id": gid})
@@ -1051,9 +1045,8 @@ class Government(SupabaseCog):
                         expense += -amt
                     else:
                         expense += amt
-                elif txn in ("treasury_deposit", "tax_collected"):
-                    if amt > 0:
-                        income += amt
+                elif txn in ("treasury_deposit", "tax_collected") and amt > 0:
+                    income += amt
             except (TypeError, ValueError):
                 continue
         return income, expense
@@ -1103,11 +1096,9 @@ class Government(SupabaseCog):
     async def can_manage_economy(self, interaction) -> bool:
         if await self.can_manage_government(interaction):
             return True
-        if interaction.guild is not None and await self._has_government_role_id(
+        return interaction.guild is not None and await self._has_government_role_id(
             interaction.guild, interaction.user, "finance"
-        ):
-            return True
-        return False
+        )
 
     async def can_manage_treasury(self, interaction) -> bool:
         return await self.can_manage_economy(interaction)
@@ -1115,11 +1106,9 @@ class Government(SupabaseCog):
     async def can_view_treasury(self, interaction) -> bool:
         if await self.can_manage_treasury(interaction):
             return True
-        if interaction.guild is not None and await self._has_government_role_id(
+        return interaction.guild is not None and await self._has_government_role_id(
             interaction.guild, interaction.user, "tax_collector"
-        ):
-            return True
-        return False
+        )
 
     async def compute_perms(self, interaction) -> GovPerms:
         p = GovPerms()
@@ -1187,7 +1176,7 @@ async def deny(interaction: discord.Interaction, text: str) -> None:
 # ======================================================================
 class GovBase(View):
     def __init__(self, cog: Government, interaction: discord.Interaction,
-                 perms: Optional[GovPerms] = None, timeout: int = 600):
+                 perms: GovPerms | None = None, timeout: int = 600):
         super().__init__(timeout=timeout)
         self.cog = cog
         self.guild = interaction.guild
@@ -1213,26 +1202,28 @@ class GovBase(View):
             try:
                 await interaction.response.edit_message(embed=embed, view=view)
                 return
-            except Exception:
-                pass
+            except (discord.HTTPException, discord.InteractionResponded):
+                logger.exception("Operation failed in _swap")
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in _swap")
             try:
                 await interaction.followup.send(embed=embed, view=view)
-            except Exception:
-                pass
+            except (discord.HTTPException, discord.InteractionResponded):
+                logger.exception("Operation failed in _swap")
 
     async def _close(self, interaction):
         for item in self.children:
             item.disabled = True
         try:
             await interaction.response.edit_message(content="❌ Самбар хаагдлаа.", embed=None, view=None)
-        except Exception:
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in _close")
             try:
                 await interaction.edit_original_response(content="❌ Самбар хаагдлаа.", embed=None, view=None)
-            except Exception:
-                pass
+            except (discord.HTTPException, discord.InteractionResponded):
+                logger.exception("Operation failed in _close")
 
     async def interaction_check(self, interaction) -> bool:
         if interaction.user.id != self.opener_id:
@@ -1264,7 +1255,7 @@ class SwapConfirm(View):
     ``interaction.edit_original_response`` (rebuild the parent panel).
     """
 
-    def __init__(self, opener_id: int, on_yes, on_no=None, prompt: Optional[str] = None, timeout: int = 60):
+    def __init__(self, opener_id: int, on_yes, on_no=None, prompt: str | None = None, timeout: int = 60):
         super().__init__(timeout=timeout)
         self.opener_id = opener_id
         self.on_yes = on_yes
@@ -1297,7 +1288,7 @@ class SwapConfirm(View):
         await self.on_no(interaction)
 
 
-def render_recipients(recipients: List[Dict[str, Any]]) -> List[str]:
+def render_recipients(recipients: list[dict[str, Any]]) -> list[str]:
     lines = []
     for r in sorted(recipients, key=lambda x: (-int(x["percentage"] or 0), str(x["recipient_type"]))):
         label = RECIPIENT_TYPE_LABELS.get(r["recipient_type"], r["recipient_type"])
@@ -1393,7 +1384,7 @@ class OfficialsView(GovBase):
 class RolesView(GovBase):
     def __init__(self, cog, interaction, perms, selected_type=None, selected_role=None):
         super().__init__(cog, interaction, perms)
-        self.selected_type: Optional[str] = selected_type
+        self.selected_type: str | None = selected_type
         self.selected_role = selected_role
 
     @classmethod
@@ -1499,7 +1490,7 @@ class CoOwnersView(GovBase):
         user = select.values[0]
         if user.id == self.guild.owner_id:
             return await self._respond_once(interaction, content="❌ Сервер эзэмшигч өөрөө co-owner байх шаардлагагүй.", ephemeral=True)
-        ok, msg = await self.cog.add_co_owner(self.guild_id, user.id, self.opener_id)
+        _ok, msg = await self.cog.add_co_owner(self.guild_id, user.id, self.opener_id)
         await self._respond_once(interaction, content=msg, ephemeral=True)
         embed, view = await CoOwnersView.build(self.cog, interaction, self.perms)
         await self._swap(interaction, embed, view)
@@ -1513,7 +1504,7 @@ class CoOwnersView(GovBase):
         user = select.values[0]
         if user.id == self.guild.owner_id:
             return await self._respond_once(interaction, content="❌ Сервер эзэмшигч co-owner биш байна.", ephemeral=True)
-        ok, msg = await self.cog.remove_co_owner(self.guild_id, user.id)
+        _ok, msg = await self.cog.remove_co_owner(self.guild_id, user.id)
         await self._respond_once(interaction, content=msg, ephemeral=True)
         embed, view = await CoOwnersView.build(self.cog, interaction, self.perms)
         await self._swap(interaction, embed, view)
@@ -1625,7 +1616,7 @@ class TaxPanelView(GovBase):
         c = self.cog
         settings = await c.get_settings(self.guild_id)
         recipients = await c.get_recipients(self.guild_id)
-        valid, total, msg = validate_recipient_set(recipients)
+        _valid, _total, msg = validate_recipient_set(recipients)
         treasury = await c.get_treasury_balance(self.guild_id)
         embed = discord.Embed(title="🏛️ Татварын тохиргоо", color=GOLD_COLOR)
         embed.add_field(name="🧾 Татварын хувь", value=f"**{settings.get('tax_rate')}%**", inline=True)
@@ -1697,8 +1688,8 @@ class TaxPanelView(GovBase):
         embed = await view.build_embed()
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in _rebuild")
 
     @discord.ui.button(label="⬅️ Буцах", style=discord.ButtonStyle.secondary, row=2)
     async def back(self, interaction: discord.Interaction, button: Button):
@@ -1730,8 +1721,8 @@ class RateModal(Modal, title="Татварын хувь тохируулах"):
         embed = await view.build_embed()
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in _rebuild")
 
 
 class TreasuryShareModal(Modal, title="Treasury Share"):
@@ -1745,23 +1736,23 @@ class TreasuryShareModal(Modal, title="Treasury Share"):
         pct = parse_pct(self.children[0].value)
         if pct is None:
             return await interaction.response.send_message("❌ 0-100 хооронд бүхэл тоо оруулна уу.", ephemeral=True)
-        ok, msg = await self.cog.set_recipient(self.guild_id, "treasury", 0, pct, interaction.user.id)
+        _ok, msg = await self.cog.set_recipient(self.guild_id, "treasury", 0, pct, interaction.user.id)
         await interaction.response.send_message(msg, ephemeral=True)
         view = TaxPanelView(self.cog, interaction, await self.cog.compute_perms(interaction))
         embed = await view.build_embed()
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in on_submit")
 
 
 class TaxRecipientsView(GovBase):
     def __init__(self, cog, interaction, perms):
         super().__init__(cog, interaction, perms)
-        self.add_type: Optional[str] = None
-        self.add_user_id: Optional[int] = None
-        self.add_role_id: Optional[int] = None
-        self.removing_key: Optional[str] = None
+        self.add_type: str | None = None
+        self.add_user_id: int | None = None
+        self.add_role_id: int | None = None
+        self.removing_key: str | None = None
 
     @classmethod
     async def build(cls, cog, interaction, perms):
@@ -1794,7 +1785,7 @@ class TaxRecipientsView(GovBase):
     async def build_embed(self) -> discord.Embed:
         c = self.cog
         recipients = await c.get_recipients(self.guild_id)
-        valid, total, msg = validate_recipient_set(recipients)
+        _valid, _total, msg = validate_recipient_set(recipients)
         embed = discord.Embed(
             title="🧾 Хүлээн авагчид",
             description="1) Төрөл сонгох · 2) Хэрэглэгч/Роль сонгох · 3) Хувь оруулах.\n`0%` оруулбал хасагдана.",
@@ -1888,8 +1879,8 @@ class TaxRecipientsView(GovBase):
         embed, view = await TaxRecipientsView.build(self.cog, interaction, self.perms)
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in _rebuild")
 
     @discord.ui.button(label="⬅️ Буцах", style=discord.ButtonStyle.secondary, row=4)
     async def back(self, interaction: discord.Interaction, button: Button):
@@ -1912,15 +1903,15 @@ class RecipientPctModal(Modal, title="Хувь тохируулах"):
         pct = parse_pct(self.children[0].value)
         if pct is None:
             return await interaction.response.send_message("❌ 0-100 хооронд бүхэл тоо оруулна уу.", ephemeral=True)
-        ok, msg = await self.cog.set_recipient(
+        _ok, msg = await self.cog.set_recipient(
             self.guild_id, self.type_value, self.key_value, pct, interaction.user.id
         )
         await interaction.response.send_message(msg, ephemeral=True)
         embed, view = await TaxRecipientsView.build(self.cog, interaction, self.perms)
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in on_submit")
 
 
 # ======================================================================
@@ -1931,7 +1922,7 @@ class JobsManagerView(GovBase):
         super().__init__(cog, interaction, perms)
         self.page = max(0, int(page or 0))
         self.jobs = jobs or []
-        self.selected_job_id: Optional[str] = None
+        self.selected_job_id: str | None = None
 
     @classmethod
     async def build(cls, cog, interaction, perms, page=0):
@@ -1963,7 +1954,7 @@ class JobsManagerView(GovBase):
         sel.callback = _cb
         self.add_item(sel)
 
-    async def _selected_job(self) -> Optional[Dict[str, Any]]:
+    async def _selected_job(self) -> dict[str, Any] | None:
         if not self.selected_job_id:
             return None
         return await self.cog.get_job(self.guild_id, self.selected_job_id)
@@ -2028,7 +2019,7 @@ class JobsManagerView(GovBase):
 
     def _make_deleter(self, job):
         async def _do(interaction) -> None:
-            ok, msg = await self.cog.delete_job(self.guild_id, job["id"])
+            _ok, msg = await self.cog.delete_job(self.guild_id, job["id"])
             await self._respond_once(interaction, content=msg, ephemeral=True)
             await self._rebuild(interaction)
         return _do
@@ -2038,7 +2029,7 @@ class JobsManagerView(GovBase):
         job = await self._selected_job()
         if job is None:
             return await self._respond_once(interaction, content="❌ Эхлээд ажил сонгоно уу.", ephemeral=True)
-        ok, msg = await self.cog.toggle_job_enabled(self.guild_id, job["id"])
+        _ok, msg = await self.cog.toggle_job_enabled(self.guild_id, job["id"])
         await self._respond_once(interaction, content=msg, ephemeral=True)
         await self._rebuild(interaction)
 
@@ -2071,8 +2062,8 @@ class JobsManagerView(GovBase):
         embed, view = await JobsManagerView.build(self.cog, interaction, self.perms, self.page)
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in _rebuild")
 
 
 class JobModal(Modal, title="Ажил"):
@@ -2109,15 +2100,15 @@ class JobModal(Modal, title="Ажил"):
             "required_role_id": role,
         }
         if self.job_id is not None:
-            ok, msg = await self.cog.update_job(self.guild_id, self.job_id, **payload)
+            _ok, msg = await self.cog.update_job(self.guild_id, self.job_id, **payload)
         else:
-            ok, msg = await self.cog.create_job(self.guild_id, payload, interaction.user.id)
+            _ok, msg = await self.cog.create_job(self.guild_id, payload, interaction.user.id)
         await interaction.response.send_message(msg, ephemeral=True)
         embed, view = await JobsManagerView.build(self.cog, interaction, self.perms)
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in on_submit")
 
 
 # ======================================================================
@@ -2126,7 +2117,7 @@ class JobModal(Modal, title="Ажил"):
 class RoleIncomeView(GovBase):
     def __init__(self, cog, interaction, perms):
         super().__init__(cog, interaction, perms)
-        self.selected_role_id: Optional[int] = None
+        self.selected_role_id: int | None = None
 
     async def build_embed(self) -> discord.Embed:
         incomes = await self.cog.get_role_incomes(self.guild_id)
@@ -2179,7 +2170,7 @@ class RoleIncomeView(GovBase):
 
     def _make_remover(self):
         async def _do(interaction) -> None:
-            ok, msg = await self.cog.remove_role_income(self.guild_id, self.selected_role_id)
+            _ok, msg = await self.cog.remove_role_income(self.guild_id, self.selected_role_id)
             self.selected_role_id = None
             await self._respond_once(interaction, content=msg, ephemeral=True)
             await self._rebuild(interaction)
@@ -2200,8 +2191,8 @@ class RoleIncomeView(GovBase):
         embed = await view.build_embed()
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in _rebuild")
 
 
 class RoleIncomeModal(Modal, title="Ролын орлого"):
@@ -2234,14 +2225,14 @@ class RoleIncomeModal(Modal, title="Ролын орлого"):
             return await interaction.response.send_message(
                 "❌ Интервал 1 цагаас багагүй, 7 хоногоос хэтрэхгүй байна.", ephemeral=True
             )
-        ok, msg = await self.cog.set_role_income(self.guild_id, self.role_id, amount, interval, interaction.user.id)
+        _ok, msg = await self.cog.set_role_income(self.guild_id, self.role_id, amount, interval, interaction.user.id)
         await interaction.response.send_message(msg, ephemeral=True)
         view = RoleIncomeView(self.cog, interaction, self.perms)
         embed = await view.build_embed()
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in on_submit")
 
 
 # ======================================================================
@@ -2299,8 +2290,8 @@ class EconomySettingsView(GovBase):
         embed = await view.build_embed()
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in _rebuild")
 
     @discord.ui.button(label="⬅️ Буцах", style=discord.ButtonStyle.secondary, row=1)
     async def back(self, interaction: discord.Interaction, button: Button):
@@ -2364,8 +2355,8 @@ class TreasuryView(GovBase):
 class PayTargetView(GovBase):
     def __init__(self, cog, interaction, perms):
         super().__init__(cog, interaction, perms)
-        self.user_ids: List[int] = []
-        self.role_id: Optional[int] = None
+        self.user_ids: list[int] = []
+        self.role_id: int | None = None
 
     async def build_embed(self) -> discord.Embed:
         embed = discord.Embed(
@@ -2432,14 +2423,14 @@ class TreasuryPayConfirm(Modal, title="Тэтгэвэрээс төлбөр"):
                 f"❌ Дүн эерэг бүхэл тоо, дээд тал {MAX_TREASURY_PAY_AMOUNT:,} байна.", ephemeral=True
             )
         reason = (self.children[1].value or "").strip()[:80] or None
-        ok, msg = await self.cog.treasury_pay(self.guild_id, self.member_ids, amount, reason, interaction.user.id)
+        _ok, msg = await self.cog.treasury_pay(self.guild_id, self.member_ids, amount, reason, interaction.user.id)
         await interaction.response.send_message(msg, ephemeral=True)
         view = TreasuryView(self.cog, interaction, self.perms)
         embed = await view.build_embed()
         try:
             await interaction.edit_original_response(embed=embed, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in on_submit")
 
 
 class TreasuryHistoryView(GovBase):
@@ -2467,7 +2458,7 @@ class TreasuryHistoryView(GovBase):
             amt = r["amount"]
             sign = "-" if amt < 0 else "+" if amt > 0 else ""
             try:
-                when = datetime.fromtimestamp(r["created_at"]).strftime("%m-%d %H:%M")
+                when = datetime.fromtimestamp(r["created_at"], tz=timezone.utc).strftime("%m-%d %H:%M UTC")
             except (TypeError, ValueError, OSError):
                 when = "?"
             label = (r.get("reason") or r.get("metadata") or "—")[:70]
@@ -2508,7 +2499,7 @@ class DistributionView(GovBase):
     async def build_embed(self) -> discord.Embed:
         c = self.cog
         recipients = await c.get_recipients(self.guild_id)
-        valid, total, msg = validate_recipient_set(recipients)
+        _valid, _total, msg = validate_recipient_set(recipients)
         embed = discord.Embed(
             title="📊 Татварын хуваарилалт",
             description="Хүлээн авагчдын тохиргоо болон хуваарилалтын симуляци.",
@@ -2566,8 +2557,8 @@ class DistributionSimModal(Modal, title="Хуваарилалтын симуля
         panel = await view.build_embed()
         try:
             await interaction.edit_original_response(embed=panel, view=view)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logger.exception("Operation failed in on_submit")
 
 
 # ======================================================================
@@ -2592,7 +2583,7 @@ class EconomyPanelView(GovBase):
             try:
                 level = await eco.get_discord_level(uid, gid)
             except Exception:
-                pass
+                logger.exception("Operation failed in build_embed")
         job = await c.resolve_user_job(gid, level, member=self.member)
         job_text = "—"
         if job:
@@ -2646,7 +2637,7 @@ class JobsUserView(GovBase):
             try:
                 level = await eco.get_discord_level(self.opener_id, self.guild_id)
             except Exception:
-                pass
+                logger.exception("Operation failed in build_embed")
         embed = discord.Embed(title="💼 Ажлын жагсаалт", description=f"Таны түвшин: **{level}**", color=INFO_COLOR)
         if not jobs:
             embed.add_field(name="Custom ажлууд", value="— байхгүй — легаси ажлуудыг `/jobs`-аар харна уу.", inline=False)

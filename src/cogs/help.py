@@ -1,8 +1,10 @@
-import discord
-from discord.ext import commands
-from discord import app_commands, ui
-from src.utils.branding import BOT_NAME, BOT_FOOTER
 from datetime import datetime, timezone
+
+import discord
+from discord import app_commands, ui
+from discord.ext import commands
+
+from src.utils.branding import BOT_FOOTER, BOT_NAME
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # БҮХ КОМАНДЫН ДЭЛГЭРЭНГҮЙ ТОДОРХОЙЛОЛТ (шинэчлэгдсэн, алдаагүй)
@@ -183,11 +185,32 @@ COMMAND_INFO = {
         "usage": "A!trivia",
         "examples": []
     },
-    "mines": {
-        "description_mn": "Mines тоглоом — найдваргүй талбай нээж урамшуулал цуглуул.",
-        "description_en": "Mines mining game",
+    "animeclash": {
+        "description_mn": "Anime Clash — class, difficulty, action chain ашиглан boss ял.",
+        "description_en": "Turn-based anime boss battle",
         "category": "Тоглоом",
-        "usage": "A!mines <bet>",
+        "usage": "A!animeclash [samurai|mage|assassin|healer] [easy|normal|hard]",
+        "examples": ["A!animeclash mage hard"]
+    },
+    "dailyboss": {
+        "description_mn": "Өдөрт нэг удаа хүчирхэг Anime Clash boss-той тулалдана.",
+        "description_en": "Fight the daily Anime Clash boss",
+        "category": "Тоглоом",
+        "usage": "A!dailyboss [hero]",
+        "examples": ["A!dailyboss healer"]
+    },
+    "animeheroes": {
+        "description_mn": "Anime Clash дүрүүд болон чадваруудыг харуулна.",
+        "description_en": "List Anime Clash hero classes",
+        "category": "Тоглоом",
+        "usage": "A!animeheroes",
+        "examples": []
+    },
+    "animeprofile": {
+        "description_mn": "Anime Clash XP, level болон статистикаа харуулна.",
+        "description_en": "Show your Anime Clash profile",
+        "category": "Тоглоом",
+        "usage": "A!animeprofile",
         "examples": []
     },
     "pvp": {
@@ -232,6 +255,27 @@ COMMAND_INFO = {
         "usage": "A!blackjack <amount_str>",
         "examples": []
     },
+    "texas": {
+        "description_mn": "Texas Hold'em — 2–6 хүнтэй multiplayer poker ширээ.",
+        "description_en": "Multiplayer Texas Hold'em for 2–6 players",
+        "category": "Казино",
+        "usage": "A!texas <buy-in>",
+        "examples": ["A!texas 10000"]
+    },
+    "pokerclaim": {
+        "description_mn": "Амжилтгүй болсон Texas Poker payout/refund-ийг host дахин оролдоно.",
+        "description_en": "Retry a pending Texas Poker payout",
+        "category": "Казино",
+        "usage": "A!pokerclaim",
+        "examples": []
+    },
+    "pokerclaimadmin": {
+        "description_mn": "Сувгийн orphaned Texas Poker payout/refund-ийг админ сэргээнэ.",
+        "description_en": "Admin recovery for an orphaned Texas Poker payout",
+        "category": "Админ",
+        "usage": "A!pokerclaimadmin",
+        "examples": []
+    },
     "rob": {
         "description_mn": "Өөр хэрэглэгчийг дээрэмдэж мөнгө авах (эрсдэлтэй).",
         "description_en": "Rob another user",
@@ -244,13 +288,6 @@ COMMAND_INFO = {
         "description_en": "Hack a user account",
         "category": "Казино",
         "usage": "A!hack <target>",
-        "examples": []
-    },
-    "cgive": {
-        "description_mn": "Казино мөнгөө өөр хэрэглэгчид шилжүүлнэ.",
-        "description_en": "Transfer casino chips",
-        "category": "Казино",
-        "usage": "A!cgive <target> <amount>",
         "examples": []
     },
     "highlow": {
@@ -1571,6 +1608,15 @@ class HelpView(ui.View):
 # pruned at startup against the active command tree, so it never advertises a
 # retired cog.
 COMMAND_INFO.update({
+    "propose": {"description_mn": "Хэрэглэгчид гэрлэх санал тавина.", "description_en": "Propose marriage to a user", "category": "Гэр бүл", "usage": "A!propose <user>", "examples": []},
+    "divorce": {"description_mn": "Гэрлэлтийг цуцална.", "description_en": "Divorce your partner", "category": "Гэр бүл", "usage": "A!divorce [user]", "examples": []},
+    "adopt": {"description_mn": "Хүүхэд үрчлэх санал тавина.", "description_en": "Offer to adopt a child", "category": "Гэр бүл", "usage": "A!adopt <child>", "examples": []},
+    "disown": {"description_mn": "Үрчилсэн хүүхдээсээ татгалзана.", "description_en": "Disown an adopted child", "category": "Гэр бүл", "usage": "A!disown <child>", "examples": []},
+    "spouse": {"description_mn": "Хамтрагчаа харуулна.", "description_en": "Show your spouse", "category": "Гэр бүл", "usage": "A!spouse", "examples": []},
+    "love": {"description_mn": "Өдрийн love оноо өгнө.", "description_en": "Give daily love points", "category": "Гэр бүл", "usage": "A!love <target>", "examples": []},
+    "gift": {"description_mn": "Хамтрагчдаа бэлэг өгнө.", "description_en": "Gift your partner", "category": "Гэр бүл", "usage": "A!gift <gift_type>", "examples": []},
+    "familytree": {"description_mn": "Гэр бүлийн мод харуулна.", "description_en": "Show a family tree", "category": "Гэр бүл", "usage": "A!familytree [member]", "examples": []},
+    "marriagepro": {"description_mn": "Гэрлэлтийн зурагт карт үүсгэнэ.", "description_en": "Create a marriage profile card", "category": "Гэр бүл", "usage": "A!marriagepro [member]", "examples": []},
     "transactions": {"description_mn": "Сүүлийн 10 мөнгөний гүйлгээг харах.", "description_en": "View recent money transactions", "category": "Эдийн засаг", "usage": "A!transactions [member]", "examples": []},
     "ticket_setup": {"description_mn": "Ticket panel, staff role, category, transcript log тохируулах.", "description_en": "Configure the ticket desk and transcript log", "category": "Ticket", "usage": "/ticket_setup <channel> [staff_role] [category] [log_channel]", "examples": []},
     "ticket_stats": {"description_mn": "Нээлттэй, хаагдсан ticket-ийн тоо харах.", "description_en": "View ticket statistics", "category": "Ticket", "usage": "/ticket_stats", "examples": []},
@@ -1656,12 +1702,14 @@ class Help(commands.Cog):
         """Hide documentation for modules excluded by the active manifest."""
         for name in list(COMMAND_INFO):
             root = name.split()[0]
+            if root == "help":
+                continue
             if self.bot.get_command(root) is None and self.bot.tree.get_command(root) is None:
                 COMMAND_INFO.pop(name, None)
 
     @commands.hybrid_command(name='help', description="Командын тусламж (ангилал эсвэл дэлгэрэнгүй)")
     @app_commands.describe(command="Тусламж авах тушаалын нэр (хоосон орхивол ангиллын самбар)")
-    async def help_command(self, ctx, *, command: str = None):
+    async def help_command(self, ctx, *, command: str | None = None):
         if command is None:
             view = HelpView(ctx, default_category="Эдийн засаг")
             await view.send_initial()

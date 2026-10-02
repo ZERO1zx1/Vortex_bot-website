@@ -1,16 +1,19 @@
 """Centralized Discord embed / UI helpers."""
 
+import logging
+
 import discord
 from discord.ext import commands
+
 from src.utils.branding import (
+    ACCENT_COLOR,
     BOT_FOOTER,
-    PRIMARY_COLOR,
-    SUCCESS_COLOR,
     ERROR_COLOR,
-    WARNING_COLOR,
     GOLD_COLOR,
     INFO_COLOR,
-    ACCENT_COLOR,
+    PRIMARY_COLOR,
+    SUCCESS_COLOR,
+    WARNING_COLOR,
     timestamp_now,
 )
 
@@ -62,8 +65,8 @@ async def safe_defer(target, ephemeral=False):
     elif isinstance(target, commands.Context):
         try:
             await target.defer(ephemeral=ephemeral)
-        except Exception:
-            pass
+        except (discord.HTTPException, discord.InteractionResponded):
+            logging.getLogger(__name__).debug("Could not defer response", exc_info=True)
 
 
 async def safe_respond(target, content=None, embed=None, view=None, ephemeral=False, delete_after=None):
@@ -82,8 +85,8 @@ async def safe_respond(target, content=None, embed=None, view=None, ephemeral=Fa
         except discord.HTTPException:
             try:
                 await target.followup.send(**payload)
-            except Exception:
-                pass
+            except discord.HTTPException:
+                logging.getLogger(__name__).warning("Could not send interaction follow-up", exc_info=True)
         return
 
     if isinstance(target, commands.Context):

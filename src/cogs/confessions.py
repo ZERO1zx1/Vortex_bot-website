@@ -1,22 +1,14 @@
-from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-import discord
-from discord.ext import commands
-from discord import app_commands, ui
 import datetime
 import logging
-import asyncio
+
+import discord
+from discord import app_commands, ui
+from discord.ext import commands
 
 from src.utils.config_cache import ConfigCache
+from src.utils.constants import GOLD_COLOR, INFO_COLOR, WARNING_COLOR
 
 logger = logging.getLogger(__name__)
-
-# ===== COLOR SCHEME =====
-EMBED_COLOR = 0x1e1e2f
-SUCCESS_COLOR = 0xa6e3a1
-ERROR_COLOR = 0xf38ba8
-WARNING_COLOR = 0xf9e2af
-GOLD_COLOR = 0xfab387
-INFO_COLOR = 0x89b4fa
 
 # ==================== МОДАЛ: НУУЦ ЗАХИА ИЛГЭЭХ ====================
 class ConfessionModal(ui.Modal, title="📩 Нууц захиа илгээх"):
@@ -34,12 +26,14 @@ class ConfessionModal(ui.Modal, title="📩 Нууц захиа илгээх"):
         required=True
     )
 
-    def __init__(self, cog, interaction: discord.Interaction):
+    def __init__(self, cog):
         super().__init__()
         self.cog = cog
-        self.ia = interaction
 
     async def on_submit(self, interaction: discord.Interaction):
+        if interaction.guild is None:
+            await interaction.response.send_message("❌ Сервер дотор ашиглана уу.", ephemeral=True)
+            return
         await interaction.response.defer(ephemeral=True)
         await self.cog.process_confession(
             user=interaction.user,
@@ -62,16 +56,20 @@ class CooldownModal(ui.Modal, title="⏱️ Cooldown тохируулах"):
         self.view = view
 
     async def on_submit(self, interaction: discord.Interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         try:
             cd = int(self.seconds.value)
-            if cd < 0:
-                await interaction.response.send_message("❌ Эерэг тоо оруулна уу.", ephemeral=True)
-                return
-            await self.view.cog.update_config(interaction.guild_id, cooldown=cd)
-            await interaction.response.send_message(f"✅ Cooldown {cd} секунд болж өөрчлөгдлөө.", ephemeral=True)
-            await self.view.refresh(interaction)
         except ValueError:
             await interaction.response.send_message("❌ Зөвхөн тоо оруулна уу.", ephemeral=True)
+            return
+        if cd < 0:
+            await interaction.response.send_message("❌ Эерэг тоо оруулна уу.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        await self.view.cog.update_config(self.view.guild_id, cooldown=cd)
+        await self.view.refresh_panel(interaction.guild)
+        await interaction.followup.send(f"✅ Cooldown {cd} секунд болж өөрчлөгдлөө.", ephemeral=True)
 
 # ==================== ТОХИРГООНЫ САМБАР (VIEW) ====================
 class SetupView(ui.View):
@@ -83,20 +81,23 @@ class SetupView(ui.View):
         self.message = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild_id != self.guild_id or interaction.guild is None:
+            await interaction.response.send_message("❌ Энэ самбар өөр серверийнх байна.", ephemeral=True)
+            return False
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("❌ Энэ самбар таных биш.", ephemeral=True)
             return False
+        if not interaction.permissions.administrator:
+            await interaction.response.send_message("❌ Админ эрх шаардлагатай.", ephemeral=True)
+            return False
         return True
 
-    async def refresh(self, interaction: discord.Interaction):
+    async def refresh_panel(self, guild):
+        if self.message is None:
+            raise RuntimeError("setup panel message is not available")
         cfg = await self.cog.get_config(self.guild_id)
-        embed = self.build_embed(cfg, interaction.guild)
-        # Component callbacks and modal callbacks have different original
-        # responses. Always edit the setup panel itself when we have it.
-        if self.message is not None:
-            await self.message.edit(embed=embed, view=self)
-        else:
-            await interaction.edit_original_response(embed=embed, view=self)
+        embed = self.build_embed(cfg, guild)
+        await self.message.edit(embed=embed, view=self)
 
     def build_embed(self, cfg, guild):
         if cfg is None:
@@ -128,28 +129,39 @@ class SetupView(ui.View):
 
     @ui.select(cls=ui.ChannelSelect, channel_types=[discord.ChannelType.text], placeholder="📥 Нууц захианы суваг сонго...", min_values=1, max_values=1, row=0)
     async def select_confess_channel(self, interaction: discord.Interaction, select: ui.ChannelSelect):
-        channel = select.values[0]
         await interaction.response.defer()
+        channel = select.values[0]
         await self.cog.update_config(self.guild_id, confess_channel_id=channel.id)
-        await self.refresh(interaction)
+        cfg = await self.cog.get_config(self.guild_id)
+        await interaction.edit_original_response(
+            embed=self.build_embed(cfg, interaction.guild), view=self
+        )
 
     @ui.select(cls=ui.ChannelSelect, channel_types=[discord.ChannelType.text], placeholder="📤 Гаралтын суваг сонго...", min_values=1, max_values=1, row=1)
     async def select_output_channel(self, interaction: discord.Interaction, select: ui.ChannelSelect):
-        channel = select.values[0]
         await interaction.response.defer()
+        channel = select.values[0]
         await self.cog.update_config(self.guild_id, output_channel_id=channel.id)
-        await self.refresh(interaction)
+        cfg = await self.cog.get_config(self.guild_id)
+        await interaction.edit_original_response(
+            embed=self.build_embed(cfg, interaction.guild), view=self
+        )
 
     @ui.button(label="🕶️ Аноним төлөв солих", style=discord.ButtonStyle.primary, row=2)
     async def toggle_anon(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.response.defer()
         cfg = await self.cog.get_config(self.guild_id)
         if cfg is None:
-            await interaction.followup.send("❌ Эхлээд сувгуудыг сонгоно уу.", ephemeral=True)
+            await interaction.followup.send(
+                "❌ Эхлээд сувгуудыг сонгоно уу.", ephemeral=True
+            )
             return
         new_state = not cfg['anonymity']
         await self.cog.update_config(self.guild_id, anonymity=new_state)
-        await self.refresh(interaction)
+        cfg = await self.cog.get_config(self.guild_id)
+        await interaction.edit_original_response(
+            embed=self.build_embed(cfg, interaction.guild), view=self
+        )
 
     @ui.button(label="⏱️ Күүдаун тохируулах", style=discord.ButtonStyle.secondary, row=2)
     async def cooldown_button(self, interaction: discord.Interaction, button: ui.Button):
@@ -158,7 +170,10 @@ class SetupView(ui.View):
     @ui.button(label="🔄 Шинэчлэх", style=discord.ButtonStyle.gray, row=2)
     async def refresh_button(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.response.defer()
-        await self.refresh(interaction)
+        cfg = await self.cog.get_config(self.guild_id)
+        await interaction.edit_original_response(
+            embed=self.build_embed(cfg, interaction.guild), view=self
+        )
 
     async def on_timeout(self):
         if self.message:
@@ -166,17 +181,15 @@ class SetupView(ui.View):
                 for child in self.children:
                     child.disabled = True
                 await self.message.edit(view=self)
-            except Exception:
-                pass
+            except discord.HTTPException:
+                logger.debug("Confession setup panel timeout edit failed", exc_info=True)
 
 # ==================== ҮНДСЭН COG ====================
 class Confessions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self._cfg_cache = ConfigCache(ttl=15.0, name="confession_config")
-        # Prevent two simultaneous submissions in one guild from allocating
-        # the same confession number.
-        self._id_locks = {}
+        self._blacklist_cache = ConfigCache(ttl=30.0, name="confession_blacklist")
 
     # ----- DB туслахууд -----
     async def get_config(self, guild_id):
@@ -190,16 +203,27 @@ class Confessions(commands.Cog):
             if not row:
                 return None
             return {
-                "confess_channel": row.get("confess_channel_id"),
-                "output_channel": row.get("output_channel_id"),
+                "confess_channel": int(row["confess_channel_id"]) if row.get("confess_channel_id") else None,
+                "output_channel": int(row["output_channel_id"]) if row.get("output_channel_id") else None,
                 "anonymity": bool(row.get("anonymity", 1)),
                 "cooldown": row.get("cooldown", 30),
                 "next_id": row.get("next_id", 1)
             }
 
-        if self._cfg_cache.get_cached(guild_id) is not None:
-            return self._cfg_cache.get_cached(guild_id)
         return await self._cfg_cache.get(guild_id, _load)
+
+    async def get_blacklist(self, guild_id):
+        async def _load():
+            rows = await self.bot.db_manager.fetch_all(
+                "confession_blacklist", {"guild_id": str(guild_id)}
+            )
+            return tuple(
+                word
+                for row in rows
+                if (word := str(row.get("word", "")).strip().lower())
+            )
+
+        return await self._blacklist_cache.get(guild_id, _load)
 
     async def update_config(self, guild_id, **kwargs):
         data = {"guild_id": str(guild_id)}
@@ -208,19 +232,20 @@ class Confessions(commands.Cog):
         self._cfg_cache.invalidate(guild_id)
 
     async def increment_id(self, guild_id):
-        lock = self._id_locks.setdefault(guild_id, asyncio.Lock())
-        async with lock:
-            cfg = await self.get_config(guild_id)
-            if not cfg:
-                return 1
-            new_id = cfg["next_id"] + 1
-            await self.bot.db_manager.update(
-                "confession_config",
-                {"guild_id": str(guild_id)},
-                {"next_id": new_id},
-            )
-            self._cfg_cache.invalidate(guild_id)
-            return new_id - 1
+        response = await self.bot.db_manager.rpc(
+            "allocate_confession_id", {"p_guild_id": str(guild_id)}
+        )
+        data = getattr(response, "data", response)
+        if isinstance(data, list):
+            allocated = data[0] if data else None
+        else:
+            allocated = data
+        if isinstance(allocated, dict):
+            allocated = allocated.get("allocate_confession_id")
+        if allocated is None:
+            raise RuntimeError("allocate_confession_id returned no value")
+        self._cfg_cache.invalidate(guild_id)
+        return int(allocated)
 
     # ----- ГОЛ БОЛОВСРУУЛАЛТ -----
     async def process_confession(self, user, guild, content, interaction=None):
@@ -242,21 +267,24 @@ class Confessions(commands.Cog):
             if interaction:
                 await interaction.followup.send(msg, ephemeral=True)
             else:
-                try: await user.send(msg)
-                except Exception: pass
+                try:
+                    await user.send(msg)
+                except discord.HTTPException:
+                    logger.debug("Confession cooldown DM failed for user %s", user.id, exc_info=True)
             return
 
         # Хар жагсаалт шалгах
-        blacklist_rows = await self.bot.db_manager.fetch_all("confession_blacklist", {"guild_id": str(guild.id)})
-        blacklist = [r.get("word", "") for r in blacklist_rows]
+        blacklist = await self.get_blacklist(guild.id)
         for w in blacklist:
             if w in content.lower():
                 msg = "🚫 Таны захиа хориотой үг агуулж байна."
                 if interaction:
                     await interaction.followup.send(msg, ephemeral=True)
                 else:
-                    try: await user.send(msg)
-                    except Exception: pass
+                    try:
+                        await user.send(msg)
+                    except discord.HTTPException:
+                        logger.debug("Confession rejection DM failed for user %s", user.id, exc_info=True)
                 return
 
         # Гаралтын сувагт илгээх
@@ -303,21 +331,26 @@ class Confessions(commands.Cog):
         if interaction:
             await interaction.followup.send(f"✅ Таны нууц захиа (#{confess_id}) амжилттай илгээгдлээ.", ephemeral=True)
         else:
-            try: await user.send(f"✅ Таны нууц захиа (#{confess_id}) амжилттай илгээгдлээ.")
-            except Exception: pass
+            try:
+                await user.send(f"✅ Таны нууц захиа (#{confess_id}) амжилттай илгээгдлээ.")
+            except discord.HTTPException:
+                logger.debug("Confession confirmation DM failed for user %s", user.id, exc_info=True)
 
     # ----- SLASH COMMANDS -----
     @app_commands.command(name="confess", description="Нууц захиа илгээх (модал)")
+    @app_commands.guild_only()
     async def confess_slash(self, interaction: discord.Interaction):
         cfg = await self.get_config(interaction.guild_id)
         if not cfg:
             await interaction.response.send_message("❌ Систем тохируулагдаагүй. `/confess_setup`-ээр тохируулна уу.", ephemeral=True)
             return
-        modal = ConfessionModal(self, interaction)
+        modal = ConfessionModal(self)
         await interaction.response.send_modal(modal)
 
     @app_commands.command(name="confess_setup", description="Нууц захианы тохиргооны самбар нээх")
+    @app_commands.guild_only()
     @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     async def confess_setup(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         cfg = await self.get_config(interaction.guild_id)
@@ -326,8 +359,15 @@ class Confessions(commands.Cog):
         view.message = await interaction.followup.send(embed=embed, view=view, ephemeral=True, wait=True)
 
     @app_commands.command(name="confess_blacklist", description="Хориотой үг удирдах")
+    @app_commands.guild_only()
     @app_commands.default_permissions(administrator=True)
-    async def confess_blacklist(self, interaction: discord.Interaction, action: str, word: str = None):
+    @app_commands.checks.has_permissions(administrator=True)
+    async def confess_blacklist(
+        self,
+        interaction: discord.Interaction,
+        action: str,
+        word: str | None = None,
+    ):
         await interaction.response.defer(ephemeral=True)
         if action.lower() == "add":
             if not word:
@@ -337,6 +377,7 @@ class Confessions(commands.Cog):
                 {"guild_id": str(interaction.guild_id), "word": word.lower()},
                 on_conflict="guild_id,word",
             )
+            self._blacklist_cache.invalidate(interaction.guild_id)
             await interaction.followup.send(f"✅ `{word}` хар жагсаалтад нэмэгдлээ.", ephemeral=True)
         elif action.lower() == "remove":
             if not word:
@@ -345,6 +386,7 @@ class Confessions(commands.Cog):
                 "confession_blacklist",
                 {"guild_id": str(interaction.guild_id), "word": word.lower()},
             )
+            self._blacklist_cache.invalidate(interaction.guild_id)
             await interaction.followup.send(f"✅ `{word}` хар жагсаалтаас хасагдлаа.", ephemeral=True)
         elif action.lower() == "list":
             rows = await self.bot.db_manager.fetch_all(
@@ -359,9 +401,11 @@ class Confessions(commands.Cog):
             await interaction.followup.send("❌ `add`, `remove`, `list` сонголтыг ашиглана уу.", ephemeral=True)
 
     @app_commands.command(name="confess_delete", description="Нууц захиаг устгах (админ)")
+    @app_commands.guild_only()
     @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     async def confess_delete(self, interaction: discord.Interaction, confession_id: int):
-        await interaction.response.defer(ephemeral=False)
+        await interaction.response.defer(ephemeral=True)
         cfg = await self.get_config(interaction.guild_id)
         if not cfg:
             return await interaction.followup.send("❌ Систем тохируулагдаагүй.", ephemeral=True)
@@ -371,14 +415,25 @@ class Confessions(commands.Cog):
         )
         if not msg_row:
             return await interaction.followup.send(f"❌ #{confession_id} олдсонгүй.", ephemeral=True)
-        msg_id, user_id, content = msg_row.get("message_id"), msg_row.get("user_id"), msg_row.get("content", "")
+        msg_id = int(msg_row["message_id"])
+        content = msg_row.get("content", "")
         channel = interaction.guild.get_channel(cfg["output_channel"])
-        if channel:
-            try:
-                msg = await channel.fetch_message(msg_id)
-                await msg.delete()
-            except Exception:
-                pass
+        if channel is None:
+            return await interaction.followup.send("❌ Гаралтын суваг олдсонгүй. Бүртгэлийг устгаагүй.", ephemeral=True)
+        try:
+            msg = await channel.fetch_message(msg_id)
+            await msg.delete()
+        except discord.NotFound:
+            # Older records have no source channel. A changed output channel
+            # makes NotFound ambiguous; retain history instead of claiming
+            # deletion of a message that may still exist in the old channel.
+            return await interaction.followup.send(
+                "❌ Захиа одоогийн гаралтын сувагт олдсонгүй. Хуучин сувгийг шалгана уу; бүртгэлийг хадгалсан.",
+                ephemeral=True,
+            )
+        except discord.HTTPException:
+            logger.warning("Confession deletion failed for message %s", msg_id, exc_info=True)
+            return await interaction.followup.send("❌ Discord захиаг устгаж чадсангүй. Бүртгэлийг хадгалсан; дахин оролдоно уу.", ephemeral=True)
         await self.bot.db_manager.delete(
             "confession_messages",
             {"guild_id": str(interaction.guild_id), "confession_id": confession_id},
@@ -386,9 +441,10 @@ class Confessions(commands.Cog):
         embed = discord.Embed(title="🗑️ Захиа устгагдлаа",
                               description=f"Захиа #{confession_id} устгагдсан.\nАгуулга: {content[:100]}...",
                               color=WARNING_COLOR)
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="confess_stats", description="Нууц захианы системийн статистик")
+    @app_commands.guild_only()
     async def confess_stats(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
         cfg = await self.get_config(interaction.guild_id)
@@ -397,7 +453,11 @@ class Confessions(commands.Cog):
         cooldown_rows = await self.bot.db_manager.fetch_all(
             "confession_cooldown", {"guild_id": str(interaction.guild_id)}
         )
-        active = len(cooldown_rows)
+        now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+        active = sum(
+            1 for row in cooldown_rows
+            if row.get("last_time") and now - int(row["last_time"]) < cfg["cooldown"]
+        )
         msg_rows = await self.bot.db_manager.fetch_all(
             "confession_messages", {"guild_id": str(interaction.guild_id)}
         )
@@ -405,7 +465,7 @@ class Confessions(commands.Cog):
         embed = discord.Embed(
             title="📊 Нууц захианы статистик",
             color=INFO_COLOR,
-            description=f"**Нийт илгээгдсэн:** {cfg['next_id'] - 1}\n**Идэвхтэй күүдаун:** {active}\n**Хадгалагдсан мессеж:** {total_msgs}\n**Аноним:** {'Идэвхтэй' if cfg['anonymity'] else 'Унтарсан'}\n**Күүдаун:** {cfg['cooldown']}s"
+            description=f"**Одоогоор хадгалагдсан:** {total_msgs}\n**Хамгийн сүүлд олгосон ID:** {cfg['next_id'] - 1}\n**Идэвхтэй күүдаун:** {active}\n**Аноним:** {'Идэвхтэй' if cfg['anonymity'] else 'Унтарсан'}\n**Күүдаун:** {cfg['cooldown']}s"
         )
         await interaction.followup.send(embed=embed)
 
@@ -415,7 +475,7 @@ class Confessions(commands.Cog):
         if message.author.bot or not message.guild:
             return
         cfg = await self.get_config(message.guild.id)
-        if not cfg or message.channel.id != cfg["confess_channel"]:
+        if not cfg or message.channel.id != cfg.get("confess_channel"):
             return
         try:
             await self.process_confession(user=message.author, guild=message.guild, content=message.content)
@@ -425,14 +485,17 @@ class Confessions(commands.Cog):
             if getattr(exc, "code", None) in ("42501", "PGRST205"):
                 logger.debug(
                     "confession DB unavailable in guild %s: %s",
-                    message.guild.id, exc,
+                    message.guild.id, exc, exc_info=True,
                 )
             else:
-                logger.warning("confession error in guild %s: %s", message.guild.id, exc, exc_info=True)
+                logger.warning("confession error in guild %s", message.guild.id, exc_info=True)
+            # Do not destroy the original submission when delivery/storage
+            # fails: keep it available for recovery, without logging its text.
+            return
         try:
             await message.delete()
-        except Exception:
-            pass
+        except discord.HTTPException:
+            logger.warning("Confession source message deletion failed", exc_info=True)
 
     async def cog_load(self):
         # Tables are pre-configured in Supabase via SQL migrations

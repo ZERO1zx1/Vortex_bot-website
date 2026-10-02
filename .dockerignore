@@ -5,6 +5,9 @@ __pycache__
 *.pyc
 *.pyo
 .pytest_cache
+.ruff_cache
+.uv-cache
+.agentcore
 .mypy_cache
 .venv
 venv
@@ -14,7 +17,8 @@ logs/
 tests/
 docs/
 website/
-backend/
+trash/
+**/node_modules/
 tools/
 README.md
 *.md

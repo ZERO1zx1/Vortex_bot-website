@@ -1,4 +1,5 @@
 import asyncio
+import gc
 
 import pytest
 
@@ -83,7 +84,6 @@ async def test_falsy_values_are_cacheable():
     async def loader():
         nonlocal calls
         calls += 1
-        return None
 
     assert await cache.get("k", loader) is None
     assert await cache.get("k", loader) is None
@@ -114,3 +114,54 @@ async def test_loader_exception_propagates_but_does_not_cache():
     with pytest.raises(RuntimeError):
         await cache.get("k", loader)
     assert cache.get_cached("k") is None
+
+
+@pytest.mark.asyncio
+async def test_completed_loads_release_locks_when_entries_are_evicted():
+    cache = ConfigCache(ttl=60.0, maxsize=2, name="bounded-locks")
+
+    async def loader():
+        return "loaded"
+
+    for key in range(100):
+        assert await cache.get(key, loader) == "loaded"
+
+    gc.collect()
+    assert len(cache._entries) == 2
+    assert len(cache._locks) == 0
+    assert len(cache._loads) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalidate_all", [False, True])
+async def test_invalidation_during_load_does_not_recache_stale_value(invalidate_all):
+    cache = ConfigCache(ttl=60.0, name="inflight-invalidation")
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def stale_loader():
+        started.set()
+        await release.wait()
+        return "before-write"
+
+    task = asyncio.create_task(cache.get("guild", stale_loader))
+    try:
+        await asyncio.wait_for(started.wait(), timeout=1)
+        if invalidate_all:
+            cache.clear()
+        else:
+            cache.invalidate("guild")
+        release.set()
+        assert await asyncio.wait_for(task, timeout=1) == "before-write"
+    finally:
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    assert cache.get_cached("guild") is None
+    assert len(cache._loads) == 0
+
+    async def fresh_loader():
+        return "after-write"
+
+    assert await cache.get("guild", fresh_loader) == "after-write"

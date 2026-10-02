@@ -1,7 +1,7 @@
 ﻿-- ========================================================================
 -- AETHER full-schema bootstrap: run this ENTIRE file once in the Supabase
 -- Dashboard SQL Editor for a fresh/empty test project.
---   https://supabase.com/dashboard/project/onpxpvemmjesobxpilgd/sql
+--   https://supabase.com/dashboard/project/zwpgweaikpjkftkzmlak/sql
 -- Every section is idempotent (IF NOT EXISTS / OR REPLACE / DO block), so
 -- re-running any part is safe.
 -- Ordered chronologically; grants and RLS applied last.
@@ -1378,7 +1378,7 @@ NOTIFY pgrst, 'reload schema';
 -- ============ BEGIN: 20260818_lang_column.sql ============
 -- AETHER i18n: серверийн хэлний тохиргоо (MN/EN)
 -- ЭНЭ ФАЙЛЫГ Supabase SQL Editor дотор хуулж ажиллуул:
---   https://supabase.com/dashboard/project/onpxpvemmjesobxpilgd/sql
+--   https://supabase.com/dashboard/project/zwpgweaikpjkftkzmlak/sql
 -- RLS-ийн бодлоготой нийцэж байгаа тул анон (бот) key-ээр ч бичиж уншина.
 
 -- 1. guild_config хүснэгтэд lang багана нэмэх (байхгүй бол)
@@ -2154,4 +2154,681 @@ ALTER TABLE public.user_equips ENABLE ROW LEVEL SECURITY;
 NOTIFY pgrst, 'reload schema';
 
 -- ============ END: 20260917_fix_user_equips_rls.sql ============
+
+
+-- ============ BEGIN: Anime Clash profiles ============
+CREATE TABLE IF NOT EXISTS anime_clash_profiles (
+    user_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    xp INTEGER NOT NULL DEFAULT 0 CHECK (xp >= 0),
+    level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1),
+    wins INTEGER NOT NULL DEFAULT 0 CHECK (wins >= 0),
+    losses INTEGER NOT NULL DEFAULT 0 CHECK (losses >= 0),
+    best_combo INTEGER NOT NULL DEFAULT 0 CHECK (best_combo >= 0),
+    total_reward BIGINT NOT NULL DEFAULT 0 CHECK (total_reward >= 0),
+    favorite_hero TEXT NOT NULL DEFAULT 'samurai',
+    last_daily_date DATE,
+    PRIMARY KEY (user_id, guild_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_anime_clash_profiles_guild
+    ON anime_clash_profiles (guild_id, level DESC, xp DESC);
+
+ALTER TABLE anime_clash_profiles ENABLE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE anime_clash_profiles TO service_role;
+NOTIFY pgrst, 'reload schema';
+-- ============ END: Anime Clash profiles ============
+
+
+-- ============ BEGIN: Durable Texas Poker payouts ============
+CREATE TABLE IF NOT EXISTS poker_pending_payouts (
+    channel_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    host_id TEXT NOT NULL,
+    intent TEXT NOT NULL DEFAULT 'settlement' CHECK (intent IN ('refund', 'settlement')),
+    amount BIGINT NOT NULL CHECK (amount > 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    settled_at TIMESTAMPTZ,
+    PRIMARY KEY (channel_id, user_id)
+);
+
+ALTER TABLE poker_pending_payouts
+    ADD COLUMN IF NOT EXISTS intent TEXT NOT NULL DEFAULT 'settlement';
+ALTER TABLE poker_pending_payouts
+    ADD COLUMN IF NOT EXISTS settled_at TIMESTAMPTZ;
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'poker_pending_payouts_intent_check'
+          AND conrelid = 'poker_pending_payouts'::regclass
+    ) THEN
+        ALTER TABLE poker_pending_payouts
+            ADD CONSTRAINT poker_pending_payouts_intent_check
+            CHECK (intent IN ('refund', 'settlement'));
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_poker_pending_payouts_channel_guild
+    ON poker_pending_payouts (channel_id, guild_id);
+CREATE INDEX IF NOT EXISTS idx_poker_pending_payouts_unsettled
+    ON poker_pending_payouts (channel_id, guild_id)
+    WHERE settled_at IS NULL;
+
+ALTER TABLE poker_pending_payouts ENABLE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE poker_pending_payouts TO service_role;
+
+CREATE OR REPLACE FUNCTION begin_poker_table(p_channel_id TEXT, p_guild_id TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_channel_id || ':' || p_guild_id, 0));
+    IF EXISTS (
+        SELECT 1 FROM poker_pending_payouts
+        WHERE channel_id = p_channel_id AND guild_id = p_guild_id
+          AND settled_at IS NULL
+    ) THEN
+        RAISE EXCEPTION 'Unsettled poker obligation exists';
+    END IF;
+    DELETE FROM poker_pending_payouts
+    WHERE channel_id = p_channel_id AND guild_id = p_guild_id;
+    RETURN TRUE;
+END;
+$$;
+COMMENT ON FUNCTION begin_poker_table(TEXT, TEXT) IS
+    'Fails if unsettled obligations exist; otherwise removes settled history. It creates no persistent lock row.';
+
+CREATE OR REPLACE FUNCTION charge_poker_buyin(
+    p_channel_id TEXT, p_guild_id TEXT, p_user_id TEXT,
+    p_host_id TEXT, p_amount BIGINT
+) RETURNS BIGINT
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_marker BIGINT;
+BEGIN
+    IF p_amount <= 0 THEN RAISE EXCEPTION 'Invalid poker buy-in'; END IF;
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_channel_id || ':' || p_guild_id, 0));
+    IF EXISTS (
+        SELECT 1 FROM poker_pending_payouts
+        WHERE channel_id = p_channel_id AND guild_id = p_guild_id
+          AND intent = 'settlement'
+    ) THEN
+        RAISE EXCEPTION 'Poker settlement already prepared';
+    END IF;
+    INSERT INTO poker_pending_payouts(channel_id, guild_id, user_id, host_id, amount, intent)
+    VALUES (p_channel_id, p_guild_id, p_user_id, p_host_id, p_amount, 'refund')
+    ON CONFLICT (channel_id, user_id) DO NOTHING
+    RETURNING amount INTO v_marker;
+    IF v_marker IS NULL THEN RAISE EXCEPTION 'Poker buy-in already charged'; END IF;
+    UPDATE economy SET balance = balance - p_amount
+    WHERE user_id = p_user_id AND guild_id = p_guild_id AND balance >= p_amount;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Insufficient poker balance'; END IF;
+    RETURN p_amount;
+END;
+$$;
+
+DROP FUNCTION IF EXISTS prepare_poker_settlement(TEXT, TEXT, TEXT, JSONB);
+CREATE OR REPLACE FUNCTION prepare_poker_settlement(
+    p_channel_id TEXT, p_guild_id TEXT, p_host_id TEXT,
+    p_expected_total BIGINT, p_payouts JSONB
+) RETURNS INTEGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_count INTEGER; v_plan_total BIGINT; v_refund_total BIGINT;
+BEGIN
+    IF p_expected_total <= 0 THEN
+        RAISE EXCEPTION 'Poker expected total must be positive';
+    END IF;
+    IF jsonb_typeof(p_payouts) <> 'array' OR jsonb_array_length(p_payouts) = 0 THEN
+        RAISE EXCEPTION 'Poker settlement plan is empty';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM jsonb_array_elements(p_payouts) AS item
+        WHERE jsonb_typeof(item) <> 'object'
+           OR NULLIF(BTRIM(item->>'user_id'), '') IS NULL
+           OR COALESCE(item->>'amount', '') !~ '^[0-9]+$'
+    ) THEN
+        RAISE EXCEPTION 'Poker settlement plan contains an invalid payout';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM jsonb_array_elements(p_payouts) AS item
+        WHERE (item->>'amount')::BIGINT <= 0
+    ) THEN
+        RAISE EXCEPTION 'Poker settlement plan contains an invalid payout';
+    END IF;
+    IF (
+        SELECT COUNT(*) FROM jsonb_array_elements(p_payouts)
+    ) <> (
+        SELECT COUNT(DISTINCT item->>'user_id') FROM jsonb_array_elements(p_payouts) AS item
+    ) THEN
+        RAISE EXCEPTION 'Poker settlement plan contains duplicate users';
+    END IF;
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_channel_id || ':' || p_guild_id, 0));
+    IF EXISTS (
+        SELECT 1 FROM poker_pending_payouts
+        WHERE channel_id = p_channel_id AND guild_id = p_guild_id
+          AND settled_at IS NULL AND host_id <> p_host_id
+    ) THEN
+        RAISE EXCEPTION 'Poker settlement contains another host';
+    END IF;
+    SELECT COALESCE(SUM((item->>'amount')::BIGINT), 0) INTO v_plan_total
+    FROM jsonb_array_elements(p_payouts) AS item;
+    SELECT COALESCE(SUM(amount), 0) INTO v_refund_total
+    FROM poker_pending_payouts
+    WHERE channel_id = p_channel_id AND guild_id = p_guild_id
+      AND host_id = p_host_id AND intent = 'refund' AND settled_at IS NULL;
+    IF v_plan_total <> p_expected_total OR v_refund_total <> p_expected_total THEN
+        RAISE EXCEPTION 'Poker settlement total mismatch: plan %, committed %, expected %',
+            v_plan_total, v_refund_total, p_expected_total;
+    END IF;
+    DELETE FROM poker_pending_payouts
+    WHERE channel_id = p_channel_id AND guild_id = p_guild_id
+      AND settled_at IS NULL;
+    INSERT INTO poker_pending_payouts(channel_id, guild_id, user_id, host_id, amount, intent)
+    SELECT p_channel_id, p_guild_id, item->>'user_id', p_host_id,
+           (item->>'amount')::BIGINT, 'settlement'
+    FROM jsonb_array_elements(p_payouts) AS item
+    WHERE (item->>'amount')::BIGINT > 0;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    IF v_count = 0 THEN RAISE EXCEPTION 'Poker settlement plan has no payouts'; END IF;
+    RETURN v_count;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION charge_poker_buyin(TEXT, TEXT, TEXT, TEXT, BIGINT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION charge_poker_buyin(TEXT, TEXT, TEXT, TEXT, BIGINT) TO service_role;
+REVOKE ALL ON FUNCTION begin_poker_table(TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION begin_poker_table(TEXT, TEXT) TO service_role;
+REVOKE ALL ON FUNCTION prepare_poker_settlement(TEXT, TEXT, TEXT, BIGINT, JSONB) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION prepare_poker_settlement(TEXT, TEXT, TEXT, BIGINT, JSONB) TO service_role;
+
+CREATE OR REPLACE FUNCTION settle_poker_payout(
+    p_channel_id TEXT,
+    p_guild_id TEXT,
+    p_user_id TEXT
+) RETURNS BIGINT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_amount BIGINT;
+    v_row_guild_id TEXT;
+BEGIN
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_channel_id || ':' || p_guild_id, 0));
+    UPDATE poker_pending_payouts
+    SET settled_at = NOW()
+    WHERE channel_id = p_channel_id
+      AND guild_id = p_guild_id
+      AND user_id = p_user_id
+      AND settled_at IS NULL
+    RETURNING amount, guild_id INTO v_amount, v_row_guild_id;
+    IF v_amount IS NULL THEN RETURN 0; END IF;
+    UPDATE economy SET balance = COALESCE(balance, 0) + v_amount
+    WHERE user_id = p_user_id AND guild_id = v_row_guild_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Economy account not found for user % guild %', p_user_id, p_guild_id;
+    END IF;
+    RETURN v_amount;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION settle_poker_payout(TEXT, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION settle_poker_payout(TEXT, TEXT, TEXT) TO service_role;
+NOTIFY pgrst, 'reload schema';
+-- ============ END: Durable Texas Poker payouts ============
+
+
+-- ============ BEGIN: Idempotent Economy balance updates ============
+CREATE TABLE IF NOT EXISTS economy_balance_references (
+    reference TEXT PRIMARY KEY CHECK (char_length(reference) BETWEEN 1 AND 200),
+    user_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    delta BIGINT NOT NULL,
+    tax BIGINT NOT NULL DEFAULT 0,
+    balance_after BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_economy_balance_references_created_at
+    ON economy_balance_references (created_at);
+
+ALTER TABLE economy_balance_references ENABLE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE ON TABLE economy_balance_references TO service_role;
+
+CREATE OR REPLACE FUNCTION apply_economy_balance_once(
+    p_reference TEXT,
+    p_user_id TEXT,
+    p_guild_id TEXT,
+    p_delta BIGINT,
+    p_max_balance BIGINT
+) RETURNS TABLE(applied BOOLEAN, balance BIGINT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_claimed_count BIGINT;
+    v_existing economy_balance_references%ROWTYPE;
+    v_balance BIGINT;
+BEGIN
+    IF p_reference IS NULL OR char_length(p_reference) NOT BETWEEN 1 AND 200 THEN
+        RAISE EXCEPTION 'reference must contain 1-200 characters';
+    END IF;
+    IF p_max_balance < 0 THEN
+        RAISE EXCEPTION 'max balance must be non-negative';
+    END IF;
+
+    INSERT INTO economy_balance_references (reference, user_id, guild_id, delta, tax)
+    VALUES (p_reference, p_user_id, p_guild_id, p_delta, 0)
+    ON CONFLICT (reference) DO NOTHING;
+    GET DIAGNOSTICS v_claimed_count = ROW_COUNT;
+
+    IF v_claimed_count = 0 THEN
+        SELECT * INTO v_existing
+        FROM economy_balance_references
+        WHERE reference = p_reference;
+
+        IF v_existing.user_id IS DISTINCT FROM p_user_id
+           OR v_existing.guild_id IS DISTINCT FROM p_guild_id
+           OR v_existing.delta IS DISTINCT FROM p_delta
+           OR v_existing.tax IS DISTINCT FROM 0 THEN
+            RAISE EXCEPTION 'reference % was already used with a different payload', p_reference;
+        END IF;
+        IF v_existing.balance_after IS NULL THEN
+            RAISE EXCEPTION 'reference % has no completed balance result', p_reference;
+        END IF;
+
+        RETURN QUERY SELECT FALSE, v_existing.balance_after;
+        RETURN;
+    END IF;
+
+    UPDATE economy
+    SET balance = LEAST(p_max_balance, COALESCE(economy.balance, 0) + p_delta)
+    WHERE user_id = p_user_id
+      AND guild_id = p_guild_id
+      AND COALESCE(economy.balance, 0) + p_delta >= 0
+    RETURNING economy.balance INTO v_balance;
+
+    IF v_balance IS NULL THEN
+        IF EXISTS (
+            SELECT 1 FROM economy
+            WHERE user_id = p_user_id AND guild_id = p_guild_id
+        ) THEN
+            RAISE EXCEPTION 'insufficient balance for user % in guild %', p_user_id, p_guild_id;
+        END IF;
+        RAISE EXCEPTION 'economy account not found for user % in guild %', p_user_id, p_guild_id;
+    END IF;
+
+    UPDATE economy_balance_references
+    SET balance_after = v_balance
+    WHERE reference = p_reference;
+
+    RETURN QUERY SELECT TRUE, v_balance;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION apply_economy_balance_once(TEXT, TEXT, TEXT, BIGINT, BIGINT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION apply_economy_balance_once(TEXT, TEXT, TEXT, BIGINT, BIGINT) TO service_role;
+
+NOTIFY pgrst, 'reload schema';
+-- ============ END: Idempotent Economy balance updates ============
+
+-- ============ BEGIN: Atomic confession ID allocation ============
+CREATE OR REPLACE FUNCTION allocate_confession_id(p_guild_id TEXT)
+RETURNS BIGINT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_allocated BIGINT;
+BEGIN
+    UPDATE confession_config
+    SET next_id = next_id + 1
+    WHERE guild_id = p_guild_id
+    RETURNING next_id - 1 INTO v_allocated;
+
+    IF v_allocated IS NULL THEN
+        RAISE EXCEPTION 'confession config not found for guild %', p_guild_id;
+    END IF;
+
+    RETURN v_allocated;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION allocate_confession_id(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION allocate_confession_id(TEXT) TO service_role;
+
+NOTIFY pgrst, 'reload schema';
+-- ============ END: Atomic confession ID allocation ============
+
+-- ============ BEGIN: Atomic reward + tax distribution (2026-10-02) ============
+-- apply_economy_balance_with_tax_once: atomically claims a reference, updates
+-- recipient balance, credits tax recipients, increments treasury, and writes
+-- ledger entries in a single transaction. Idempotent via reference key.
+CREATE OR REPLACE FUNCTION apply_economy_balance_with_tax_once(
+    p_reference TEXT,
+    p_user_id TEXT,
+    p_guild_id TEXT,
+    p_delta BIGINT,
+    p_max_balance BIGINT,
+    p_tax BIGINT,
+    p_credits JSONB,
+    p_treasury BIGINT,
+    p_discarded BIGINT
+) RETURNS TABLE(
+    applied BOOLEAN,
+    balance BIGINT,
+    tax_shipped BIGINT,
+    treasury BIGINT,
+    discarded BIGINT
+) LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    v_claimed_count BIGINT;
+    v_existing economy_balance_references%ROWTYPE;
+    v_balance BIGINT;
+    v_credit_record RECORD;
+    v_tax_shipped BIGINT := 0;
+BEGIN
+    -- Validate inputs
+    IF p_reference IS NULL OR char_length(p_reference) NOT BETWEEN 1 AND 200 THEN
+        RAISE EXCEPTION 'reference must contain 1-200 characters';
+    END IF;
+    IF p_max_balance < 0 THEN
+        RAISE EXCEPTION 'max balance must be non-negative';
+    END IF;
+    IF p_tax < 0 THEN
+        RAISE EXCEPTION 'tax must be non-negative';
+    END IF;
+    IF p_treasury < 0 THEN
+        RAISE EXCEPTION 'treasury must be non-negative';
+    END IF;
+    IF p_discarded < 0 THEN
+        RAISE EXCEPTION 'discarded must be non-negative';
+    END IF;
+
+    -- Verify credits JSONB is an array of objects with user_id, amount
+    IF p_credits IS NOT NULL AND jsonb_typeof(p_credits) <> 'array' THEN
+        RAISE EXCEPTION 'credits must be a JSON array';
+    END IF;
+
+    -- Claim the reference (idempotency key)
+    INSERT INTO economy_balance_references (reference, user_id, guild_id, delta, tax)
+    VALUES (p_reference, p_user_id, p_guild_id, p_delta, p_tax)
+    ON CONFLICT (reference) DO NOTHING;
+    GET DIAGNOSTICS v_claimed_count = ROW_COUNT;
+
+    IF v_claimed_count = 0 THEN
+        -- Reference already exists: verify payload matches, return committed result
+        SELECT * INTO v_existing
+        FROM economy_balance_references
+        WHERE reference = p_reference;
+
+        IF v_existing.user_id IS DISTINCT FROM p_user_id
+           OR v_existing.guild_id IS DISTINCT FROM p_guild_id
+           OR v_existing.delta IS DISTINCT FROM p_delta
+           OR v_existing.tax IS DISTINCT FROM p_tax THEN
+            RAISE EXCEPTION 'reference % was already used with a different payload', p_reference;
+        END IF;
+        IF v_existing.balance_after IS NULL THEN
+            RAISE EXCEPTION 'reference % has no completed balance result', p_reference;
+        END IF;
+
+        -- Return the originally committed result (no re-distribution)
+        RETURN QUERY SELECT FALSE, v_existing.balance_after, 0, 0, 0;
+        RETURN;
+    END IF;
+
+    -- 1. Update recipient balance (capped at max_balance, floor at 0)
+    UPDATE economy
+    SET balance = LEAST(
+        p_max_balance,
+        GREATEST(0, COALESCE(economy.balance, 0) + p_delta)
+    )
+    WHERE user_id = p_user_id
+      AND guild_id = p_guild_id
+      AND GREATEST(0, COALESCE(economy.balance, 0) + p_delta) <= p_max_balance
+    RETURNING economy.balance INTO v_balance;
+
+    IF v_balance IS NULL THEN
+        IF EXISTS (
+            SELECT 1 FROM economy
+            WHERE user_id = p_user_id AND guild_id = p_guild_id
+        ) THEN
+            RAISE EXCEPTION 'insufficient balance for user % in guild %', p_user_id, p_guild_id;
+        END IF;
+        -- Account doesn't exist: create it with the delta (ON CONFLICT handled by upsert below)
+        INSERT INTO economy (user_id, guild_id, balance)
+        VALUES (p_user_id, p_guild_id, GREATEST(0, LEAST(p_max_balance, p_delta)))
+        ON CONFLICT (user_id, guild_id) DO UPDATE
+            SET balance = LEAST(p_max_balance, GREATEST(0, COALESCE(economy.balance, 0) + p_delta))
+        RETURNING balance INTO v_balance;
+    END IF;
+
+    -- 2. Credit tax recipients (ON CONFLICT DO NOTHING for account init, then add amount)
+    IF p_credits IS NOT NULL AND jsonb_array_length(p_credits) > 0 THEN
+        FOR v_credit_record IN
+            SELECT (elem->>'user_id')::TEXT AS uid, (elem->>'amount')::BIGINT AS amt
+            FROM jsonb_array_elements(p_credits) AS elem
+        LOOP
+            IF v_credit_record.amt > 0 THEN
+                INSERT INTO economy (user_id, guild_id, balance)
+                VALUES (v_credit_record.uid, p_guild_id, v_credit_record.amt)
+                ON CONFLICT (user_id, guild_id) DO UPDATE
+                    SET balance = LEAST(p_max_balance, economy.balance + v_credit_record.amt);
+                v_tax_shipped := v_tax_shipped + v_credit_record.amt;
+            END IF;
+        END LOOP;
+    END IF;
+
+    -- 3. Increment treasury
+    IF p_treasury > 0 THEN
+        UPDATE economy_guild_settings
+        SET treasury_balance = treasury_balance + p_treasury,
+            updated_at = EXTRACT(EPOCH FROM NOW())::BIGINT
+        WHERE guild_id = p_guild_id;
+    END IF;
+
+    -- 4. Write ledger entries (best-effort within transaction)
+    -- Main balance change
+    INSERT INTO economy_ledger (guild_id, user_id, actor_id, transaction_type, amount, balance_before, balance_after, reason, created_at)
+    VALUES (p_guild_id, p_user_id, p_user_id, 'work', p_delta, v_balance - p_delta, v_balance, 'tax_atomic_reward', EXTRACT(EPOCH FROM NOW())::BIGINT);
+
+    -- Tax collected
+    IF p_tax > 0 THEN
+        INSERT INTO economy_ledger (guild_id, user_id, actor_id, transaction_type, amount, reason, metadata, created_at)
+        VALUES (p_guild_id, p_user_id, p_user_id, 'tax_collected', p_tax, 'tax_atomic_reward', jsonb_build_object('shipped', v_tax_shipped, 'treasury', p_treasury, 'discarded', p_discarded), EXTRACT(EPOCH FROM NOW())::BIGINT);
+    END IF;
+
+    -- Individual tax credits
+    IF p_credits IS NOT NULL AND jsonb_array_length(p_credits) > 0 THEN
+        FOR v_credit_record IN
+            SELECT (elem->>'user_id')::TEXT AS uid, (elem->>'amount')::BIGINT AS amt
+            FROM jsonb_array_elements(p_credits) AS elem
+        LOOP
+            IF v_credit_record.amt > 0 THEN
+                INSERT INTO economy_ledger (guild_id, user_id, actor_id, transaction_type, amount, reason, created_at)
+                VALUES (p_guild_id, v_credit_record.uid, p_user_id, 'tax_distributed', v_credit_record.amt, 'tax_atomic_reward', EXTRACT(EPOCH FROM NOW())::BIGINT);
+            END IF;
+        END LOOP;
+    END IF;
+
+    -- Treasury share
+    IF p_treasury > 0 THEN
+        INSERT INTO economy_ledger (guild_id, user_id, actor_id, transaction_type, amount, reason, created_at)
+        VALUES (p_guild_id, NULL, p_user_id, 'treasury_deposit', p_treasury, 'tax_atomic_reward', EXTRACT(EPOCH FROM NOW())::BIGINT);
+    END IF;
+
+    -- 5. Record the completed balance in the reference table
+    UPDATE economy_balance_references
+    SET balance_after = v_balance
+    WHERE reference = p_reference;
+
+    RETURN QUERY SELECT TRUE, v_balance, v_tax_shipped, p_treasury, p_discarded;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION apply_economy_balance_with_tax_once(TEXT, TEXT, TEXT, BIGINT, BIGINT, BIGINT, JSONB, BIGINT, BIGINT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION apply_economy_balance_with_tax_once(TEXT, TEXT, TEXT, BIGINT, BIGINT, BIGINT, JSONB, BIGINT, BIGINT) TO service_role;
+
+NOTIFY pgrst, 'reload schema';
+-- ============ END: Atomic reward + tax distribution ============
+
+-- ============ BEGIN: Atomic treasury payments (2026-10-02) ============
+-- treasury_payments table for idempotency
+CREATE TABLE IF NOT EXISTS treasury_payments (
+    reference TEXT PRIMARY KEY CHECK (char_length(reference) BETWEEN 1 AND 200),
+    guild_id TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    amount BIGINT NOT NULL,
+    recipient_ids BIGINT[] NOT NULL,
+    reason TEXT,
+    treasury_after BIGINT,
+    credits JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_treasury_payments_created_at
+    ON treasury_payments (created_at);
+
+ALTER TABLE treasury_payments ENABLE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE ON TABLE treasury_payments TO service_role;
+
+-- treasury_pay_once RPC
+CREATE OR REPLACE FUNCTION treasury_pay_once(
+    p_reference TEXT,
+    p_guild_id TEXT,
+    p_actor_id TEXT,
+    p_amount BIGINT,
+    p_recipient_ids BIGINT[],
+    p_reason TEXT
+) RETURNS TABLE(
+    applied BOOLEAN,
+    treasury_after BIGINT,
+    credits JSONB
+) LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    v_claimed_count BIGINT;
+    v_existing treasury_payments%ROWTYPE;
+    v_treasury_before BIGINT;
+    v_treasury_after BIGINT;
+    v_recipient_count INT;
+    v_share BIGINT;
+    v_remainder BIGINT;
+    v_credit_json JSONB := '[]'::JSONB;
+    v_uid BIGINT;
+    v_amt BIGINT;
+    v_idx INT := 0;
+BEGIN
+    -- Validate inputs
+    IF p_reference IS NULL OR char_length(p_reference) NOT BETWEEN 1 AND 200 THEN
+        RAISE EXCEPTION 'reference must contain 1-200 characters';
+    END IF;
+    IF p_amount <= 0 THEN
+        RAISE EXCEPTION 'amount must be positive';
+    END IF;
+    IF p_recipient_ids IS NULL OR array_length(p_recipient_ids, 1) IS NULL THEN
+        RAISE EXCEPTION 'recipient_ids must be a non-empty array';
+    END IF;
+    v_recipient_count := array_length(p_recipient_ids, 1);
+    IF v_recipient_count > 50 THEN
+        RAISE EXCEPTION 'maximum 50 recipients per payment';
+    END IF;
+    IF p_amount > 100000000000 THEN
+        RAISE EXCEPTION 'amount exceeds maximum (100B)';
+    END IF;
+
+    -- Claim the reference (idempotency key)
+    INSERT INTO treasury_payments (reference, guild_id, actor_id, amount, recipient_ids, reason)
+    VALUES (p_reference, p_guild_id, p_actor_id, p_amount, p_recipient_ids, p_reason)
+    ON CONFLICT (reference) DO NOTHING;
+    GET DIAGNOSTICS v_claimed_count = ROW_COUNT;
+
+    IF v_claimed_count = 0 THEN
+        -- Reference already exists: verify payload matches, return committed result
+        SELECT * INTO v_existing
+        FROM treasury_payments
+        WHERE reference = p_reference;
+
+        IF v_existing.guild_id IS DISTINCT FROM p_guild_id
+           OR v_existing.actor_id IS DISTINCT FROM p_actor_id
+           OR v_existing.amount IS DISTINCT FROM p_amount
+           OR v_existing.recipient_ids IS DISTINCT FROM p_recipient_ids THEN
+            RAISE EXCEPTION 'reference % was already used with a different payload', p_reference;
+        END IF;
+        IF v_existing.treasury_after IS NULL THEN
+            RAISE EXCEPTION 'reference % has no completed treasury result', p_reference;
+        END IF;
+
+        -- Return the originally committed result (no re-credit)
+        RETURN QUERY SELECT FALSE, v_existing.treasury_after, v_existing.credits;
+        RETURN;
+    END IF;
+
+    -- Check treasury balance and debit atomically
+    UPDATE economy_guild_settings
+    SET treasury_balance = treasury_balance - p_amount,
+        updated_at = EXTRACT(EPOCH FROM NOW())::BIGINT
+    WHERE guild_id = p_guild_id
+      AND treasury_balance >= p_amount
+    RETURNING treasury_balance INTO v_treasury_after;
+
+    IF v_treasury_after IS NULL THEN
+        RAISE EXCEPTION 'insufficient treasury balance for guild %', p_guild_id;
+    END IF;
+
+    -- Credit recipients (equal split, remainder to first)
+    v_share := p_amount / v_recipient_count;
+    v_remainder := p_amount % v_recipient_count;
+
+    FOR v_idx IN 0 .. v_recipient_count - 1 LOOP
+        v_uid := p_recipient_ids[v_idx + 1];
+        v_amt := v_share + CASE WHEN v_idx = 0 THEN v_remainder ELSE 0 END;
+
+        IF v_amt > 0 THEN
+            INSERT INTO economy (user_id, guild_id, balance)
+            VALUES (v_uid::TEXT, p_guild_id, v_amt)
+            ON CONFLICT (user_id, guild_id) DO UPDATE
+                SET balance = economy.balance + v_amt;
+
+            v_credit_json := v_credit_json || jsonb_build_object('user_id', v_uid, 'amount', v_amt);
+        END IF;
+    END LOOP;
+
+    -- Write ledger entries
+    -- Treasury payment (debit)
+    INSERT INTO economy_ledger (guild_id, user_id, actor_id, transaction_type, amount, reason, metadata, created_at)
+    VALUES (p_guild_id, NULL, p_actor_id, 'treasury_payment', -p_amount, p_reason, to_jsonb(p_recipient_ids), EXTRACT(EPOCH FROM NOW())::BIGINT);
+
+    -- Individual payouts
+    FOR v_idx IN 0 .. v_recipient_count - 1 LOOP
+        v_uid := p_recipient_ids[v_idx + 1];
+        v_amt := v_share + CASE WHEN v_idx = 0 THEN v_remainder ELSE 0 END;
+
+        IF v_amt > 0 THEN
+            INSERT INTO economy_ledger (guild_id, user_id, actor_id, transaction_type, amount, reason, created_at)
+            VALUES (p_guild_id, v_uid::TEXT, p_actor_id, 'treasury_payout', v_amt, p_reason, EXTRACT(EPOCH FROM NOW())::BIGINT);
+        END IF;
+    END LOOP;
+
+    -- Record completion
+    UPDATE treasury_payments
+    SET treasury_after = v_treasury_after,
+        credits = v_credit_json
+    WHERE reference = p_reference;
+
+    RETURN QUERY SELECT TRUE, v_treasury_after, v_credit_json;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION treasury_pay_once(TEXT, TEXT, TEXT, BIGINT, BIGINT[], TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION treasury_pay_once(TEXT, TEXT, TEXT, BIGINT, BIGINT[], TEXT) TO service_role;
+
+NOTIFY pgrst, 'reload schema';
+-- ============ END: Atomic treasury payments ============
 

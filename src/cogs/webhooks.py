@@ -8,8 +8,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from src.core.exceptions import DatabaseSchemaError
-from src.utils.embeds import accent_embed, error_embed, success_embed
-
+from src.utils.embeds import accent_embed, success_embed
 
 EVENTS = {
     "member_join": "Гишүүн орж ирэхэд",

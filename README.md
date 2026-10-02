@@ -7,17 +7,18 @@ A feature-rich Discord bot for the **𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹** communit
 - **Economy** — balance, bank, daily, work, jobs, hunger/mood, prison
 - **Leveling** — XP, ranks, level roles, level rewards, voice XP, XP drops, rank cards
 - **Marriage & Family** — proposals, divorce, adoption, family tree cards, love points, gifts
-- **Games & Casino** — slots, blackjack, mines, mafia, PvP, lottery
+- **Games & Casino** — Anime Clash, multiplayer Texas Hold'em, slots, blackjack, PvP, lottery
 - **Shop & Inventory** — items, stock, marketplace, food buffs (cafe)
 - **Moderation** — warnings, temproles, sticky messages, avatar logging
 - **Counting** — counting game with configurable channels, roles, streaks
 - **Confessions** — anonymous confessions with blacklist & cooldown
 - **Giveaways** — hosted giveaways with entries & winners
-- **Invite Tracking** — invite stats, fake detection, labels, daily stats
 - **Greetings** — customizable welcome/goodbye/boost embeds with templates
-- **Temp Voice** — temporary voice channels with owner controls
-- **Quests** — daily/weekly quests with rewards
 - **Leaderboards** — level, messages, voice, reactions, money, invites, counting, games
+
+Active features are defined in `src/utils/cog_loader.py` (`ACTIVE_COGS`). Retired
+invite-tracking, temp-voice, quests and mafia cogs remain in `trash/`; they are
+not registered at startup.
 
 ## Tech Stack
 
@@ -37,32 +38,35 @@ A feature-rich Discord bot for the **𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹** communit
 │   ├── core/                      # config loader, logging setup, exceptions
 │   ├── database/
 │   │   ├── db_manager.py          # Async Supabase repository layer (retry + error classify)
-│   │   ├── schema.sql             # Original full schema + RPC functions
-│   │   └── migrations/            # Versioned SQL migrations (apply newest last)
-│   ├── utils/                     # branding, embeds, fonts, i18n, caches, cog loader
-│   └── cogs/                      # 36 feature modules (auto-discovered, one per feature)
-├── assets/gifs/                   # Action-command GIF sets (hug, kiss, slap, ...)
-├── backend/                       # FastAPI status/leaderboard/giveaway API (+ data/commands.json)
+│   │   └── migrations/            # Supabase bootstrap + incremental migrations
+│   ├── utils/                     # branding, embeds, fonts, caches, cog loader
+│   └── cogs/                      # 28 active feature modules (manifest + discovery)
+├── assets/                        # fonts/, images/, gifs/ (separate asset types)
 ├── website/                       # Static marketing site (Firebase Hosting)
 │   ├── index.html, css/, js/      # config.js = single place for links/keys
 │   └── tools/                     # Website-specific sync scripts (commands, i18n)
 ├── tools/                         # Dev/ops scripts (offline probes, smoke tests, migrations)
 ├── tests/                         # pytest unit tests (offline, no Discord/Supabase)
 ├── docs/                          # Audit & repair reports, production hardening notes
+├── trash/                         # Retired source, tools and historical SQL (not runtime)
 ├── requirements.txt
 ├── .env.example                   # Environment template (copy to .env)
 ├── Dockerfile / railway.json      # Container deploy (Railway: python -m src.main)
 └── firebase.json / .firebaserc    # Website hosting deploy
 ```
 
+See [the structure guide](docs/PROJECT_STRUCTURE.md) for ownership and placement rules.
+
 House rules:
 
-- **Бүх Python код** `src/` package дотор; root-д зөвхөн `main.py` shim.
+- **Runtime Python код** `src/` package дотор; root-д зөвхөн `main.py` shim.
+  Test source нь `tests/`, reusable diagnostics нь `tools/`, website tooling нь
+  `website/tools/` дотор байна.
 - **Нэг удаагийн codemod/миграц скрипт** ажилласныхаа дараа `tools/`-ээс устгана
   эсвэл `docs/`-д тайлан болгон архивлана — `tools/` зөвхөн дахин хэрэглэгдэх
   probe/smoke/sync скриптүүдийг хадгална.
 - **Generated зүйлс** (`__pycache__/`, `.pytest_cache/`, `.firebase/`, `logs/`,
-  `.agentcore/`) хэзээ ч commit хийхгүй — `.gitignore`-д бүртгэлтэй.
+  `.ruff_cache/`, `.uv-cache/`, `.agentcore/`) хэзээ ч commit хийхгүй — `.gitignore`-д бүртгэлтэй.
 - **AgentCore audit** (сонголтоор): `python tools/agentcore_audit.py . --mode FULL`
   — repo-г real deterministic шалгалтаар (pytest/compileall/node + бүтцийн
   hygiene) үнэлж, `.agentcore/` дотор checkpoint + artifact + тайлан үлдээнэ.
@@ -89,17 +93,28 @@ Edit `.env` and fill in:
 - `DISCORD_TOKEN` — your bot token
 - `SUPABASE_URL` / `SUPABASE_SECRET_KEY` — server-only Supabase credentials (`SUPABASE_SERVICE_ROLE_KEY` and legacy `SUPABASE_KEY` remain supported during migration)
 - `OWNER_ID` / `CO_OWNERS` — your Discord user IDs
+- `GUILD_ID` — server ID for immediate slash-command sync (multiple IDs may be comma-separated)
 
-### 3. Set up the database
+### 3. Configure Discord
+
+In the [Discord Developer Portal](https://discord.com/developers/applications), open the bot application and enable the privileged Gateway intents it uses:
+
+- **Message Content Intent** — required for prefix commands and message-based features.
+- **Server Members Intent** — required for member, invite, and moderation features.
+- **Presence Intent** — required for presence-aware features.
+
+Also invite the bot with both the `bot` and `applications.commands` OAuth2 scopes. Guild command sync is immediate and is useful for testing; global commands are the production scope and Discord refreshes stale command definitions when a user invokes one.
+
+### 4. Set up the database
 
 1. Create a Supabase project at [supabase.com](https://supabase.com)
 2. Open the **SQL Editor**
-3. Paste the contents of `src/database/migrations/20260101_001_initial_schema.sql` and run it
-4. Then apply any later migrations in `src/database/migrations/` (newest last). This creates all tables, indexes, and the `increment()` RPC function without dropping existing data
+3. Paste the contents of `src/database/migrations/000_aether_complete.sql` and run it
+4. Restart the bot and confirm the startup log reports a successful database health check. The migration is idempotent and creates the tables, indexes, grants, and RPC functions required by the bot without dropping existing data.
 
-### 4. Configure the bot
+### 5. Configure the bot
 
-Edit `config.json`:
+Edit `src/config.json`:
 
 ```json
 {
@@ -109,7 +124,7 @@ Edit `config.json`:
 }
 ```
 
-### 5. Run the bot
+### 6. Run the bot
 
 ```bash
 # From the repository root. The src/ package is importable either way:
@@ -153,9 +168,9 @@ await self.bot.db_manager.increment("economy", {"user_id": "123"}, "balance", 10
 
 ## Website
 
-`website/` хавтас — ботын албан ёсны статик UI. Командын каталог зэрэг хэсэг backend-гүй ажиллана; live status нь нууц database key-г browser-т гаргахгүйн тулд `backend/` API шаарддаг.
+`website/` хавтас — ботын албан ёсны статик UI. Командын каталог болон live status нь тусдаа FastAPI service шаардахгүй; status нь зөвхөн нийтэд унших эрхтэй `bot_status` мөрийг Supabase publishable key-ээр уншина.
 
-- Hero (3D orb + particles), Онцлогууд, 201 командын хайлттай жагсаалт, Статистик, Статус, About Us, Premium (3 төлөвлөгөө), Invite CTA
+- Hero (3D orb + particles), Онцлогууд, 176 entry-тэй командын каталог, Статистик, Статус, About Us, Premium (3 төлөвлөгөө), Invite CTA
 - Hosting: Vercel / Netlify / GitHub Pages дээр `website/` хавтсыг publish directory болгох (нарийвчилсан заавар: `website/README.md`)
 - Тохиргоо: `website/js/config.js`-с invite холбоосоо тохируулна (`INVITE_URL`)
 ## Branding
@@ -163,8 +178,8 @@ await self.bot.db_manager.increment("economy", {"user_id": "123"}, "balance", 10
 All embeds and UI use the centralized branding layer in `src/utils/branding.py`:
 
 ```python
-from utils.branding import BOT_NAME, BOT_ICON_URL, PRIMARY_COLOR, footer_text
-from utils.embeds import success_embed, error_embed, info_embed
+from src.utils.branding import BOT_NAME, BOT_ICON_URL, PRIMARY_COLOR, footer_text
+from src.utils.embeds import success_embed, error_embed, info_embed
 ```
 
 ## License

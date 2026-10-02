@@ -1,18 +1,24 @@
-import discord
-from discord.ext import commands
-from discord import ui
 import asyncio
 import io
+import logging
+
 import aiohttp
+import discord
+from discord import ui
+from discord.ext import commands
 from PIL import Image, ImageDraw
 
+from src.utils.branding import BOT_NAME
+from src.utils.fonts import (
+    draw_text_with_fallback,
+    get_branding_font,
+    get_font_manager,
+)
 from src.utils.fonts import (
     load_font as get_font,
-    draw_text_with_fallback,
-    get_font_manager,
-    get_branding_font,
 )
-from src.utils.branding import BOT_NAME
+
+log = logging.getLogger(__name__)
 
 # ---------- K/M/B товчлол ----------
 def _format_number(num: int) -> str:
@@ -26,14 +32,15 @@ async def fetch_avatar_image(session, url, size=64):
     try:
         async with session.get(url) as resp: data = await resp.read()
         img = Image.open(io.BytesIO(data)).convert("RGBA").resize((size, size))
-    except Exception:
+    except (aiohttp.ClientError, TimeoutError, OSError, ValueError):
+        log.exception("Operation failed in fetch_avatar_image")
         img = Image.new("RGBA", (size, size), (88,101,242,255))
     mask = Image.new("L", (size, size), 0); draw = ImageDraw.Draw(mask)
     draw.ellipse((0, 0, size, size), fill=255); img.putalpha(mask)
     return img
 
 # ---------- XP тооцоолол ----------
-def xp_for_level(level: int, cfg: dict = None):
+def xp_for_level(level: int, cfg: dict | None = None):
     if cfg is None: cfg = {}
     if cfg.get("prog_type") == "geometric":
         mult = float(cfg.get("prog_step", 1.5))
@@ -72,9 +79,7 @@ class CardRenderer:
         fm = get_font_manager()
         kept = []
         for ch in text:
-            if ch.isspace() or ch.isascii() or ch in ("…",):
-                kept.append(ch)
-            elif fm.any_font_has_glyph(ch):
+            if ch.isspace() or ch.isascii() or ch in ("…",) or fm.any_font_has_glyph(ch):
                 kept.append(ch)
         return " ".join("".join(kept).split())
 
@@ -87,7 +92,8 @@ class CardRenderer:
         if right_edge is not None:
             try:
                 w = draw.textlength(text, font=font)
-            except Exception:
+            except (AttributeError, TypeError, ValueError, OSError):
+                log.debug("Text width measurement failed; using bounding box", exc_info=True)
                 bbox = draw.textbbox((0, 0), text, font=font)
                 w = bbox[2] - bbox[0]
             xy = (int(right_edge - w), xy[1])
@@ -102,7 +108,8 @@ class CardRenderer:
             while text and draw.textlength(text + "…", font=font) > max_w:
                 text = text[:-1]
             return text + "…"
-        except Exception:
+        except (AttributeError, TypeError, ValueError, OSError):
+            log.debug("Text fitting failed; using shortened label", exc_info=True)
             return text[:20]
 
     def _gradient_bg(self, height: int) -> Image.Image:
@@ -148,8 +155,8 @@ class CardRenderer:
             tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
             ox, oy = (size - tw) / 2 - bbox[0], (size - th) / 2 - bbox[1]
             d.text((ox, oy), letter, font=font, fill=(235, 238, 255, 255))
-        except Exception:
-            pass
+        except (AttributeError, TypeError, ValueError, OSError):
+            log.debug("Placeholder avatar glyph could not be drawn", exc_info=True)
         mask = Image.new("L", (size, size), 0)
         ImageDraw.Draw(mask).ellipse((0, 0, size, size), fill=255)
         img.putalpha(mask)
@@ -342,7 +349,9 @@ class LeaderboardView(ui.View):
                 member = self.ctx.guild.get_member(uid)
                 if not member:
                     try: member = await self.ctx.bot.fetch_user(uid)
-                    except Exception: member = None
+                    except discord.HTTPException:
+                        log.exception("Operation failed in render_current")
+                        member = None
                 name = member.display_name if member else f"ID {uid}"
 
                 if callable(label_func):
@@ -355,7 +364,8 @@ class LeaderboardView(ui.View):
                 try:
                     if member and member.display_avatar:
                         url = member.display_avatar.replace(size=128, format="png").url
-                except Exception:
+                except (AttributeError, TypeError, ValueError):
+                    log.exception("Operation failed in render_current")
                     url = None
 
                 cache_key = (uid, url or "")
@@ -369,6 +379,7 @@ class LeaderboardView(ui.View):
                             self.cog._avatar_cache.clear()
                         self.cog._avatar_cache[cache_key] = avatar
                     except Exception:
+                        log.exception("Operation failed in render_current")
                         avatar = None
 
                 entries.append((uid, name, label, avatar))
@@ -381,9 +392,10 @@ class LeaderboardView(ui.View):
     async def _refresh_panel(self, interaction: discord.Interaction):
         try:
             file, embed, state = await self.render_current()
-        except Exception as e:
+        except Exception:
+            log.exception("Operation failed in _refresh_panel")
             await interaction.edit_original_response(
-                embed=discord.Embed(description=f"❌ Карт үүсгэж чадсангүй: {e}", color=0xff0000),
+                embed=discord.Embed(description="❌ Карт үүсгэж чадсангүй. Дахин оролдоно уу.", color=0xff0000),
                 view=self,
             )
             return
@@ -437,8 +449,8 @@ class LeaderboardView(ui.View):
                 child.disabled = True
             try:
                 await self.message.edit(view=self)
-            except Exception:
-                pass
+            except discord.HTTPException:
+                log.exception("Operation failed in on_timeout")
 
 
 # ==================== MAIN COG ====================
@@ -451,8 +463,8 @@ class Leaderboard(commands.Cog):
         # Font cmap-уудыг дэвсгэрт урьдчилан уншиж эхний картыг хурдасгана
         try:
             asyncio.get_running_loop().create_task(asyncio.to_thread(self._warm_font_cache))
-        except Exception:
-            pass
+        except RuntimeError:
+            log.exception("Font cache warm-up could not be scheduled")
 
     @staticmethod
     def _warm_font_cache():
@@ -461,7 +473,7 @@ class Leaderboard(commands.Cog):
             for path, _bold in fm._discover_fonts():
                 fm._get_cmap(path)
         except Exception:
-            pass
+            log.exception("Operation failed in _warm_font_cache")
 
     # ── DB queries ──
     async def get_top_levels(self, guild_id, limit=10, offset=0):
@@ -499,9 +511,10 @@ class Leaderboard(commands.Cog):
         view = LeaderboardView(self, ctx, ctx.guild.id)
         try:
             file, embed, _state = await view.render_current()
-        except Exception as e:
+        except Exception:
+            log.exception("Operation failed in leaderboard_cmd")
             file, embed = None, discord.Embed(
-                description=f"❌ Карт үүсгэж чадсангүй: {e}", color=0xff0000,
+                description="❌ Карт үүсгэж чадсангүй. Дахин оролдоно уу.", color=0xff0000,
             )
         if file:
             msg = await ctx.send(embed=embed, file=file, view=view)

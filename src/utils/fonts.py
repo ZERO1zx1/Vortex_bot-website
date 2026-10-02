@@ -18,15 +18,15 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 import unicodedata
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any
 
 from PIL import ImageDraw, ImageFont
 
 try:
     from fontTools.ttLib import TTFont as _TTFont
-except Exception:  # pragma: no cover - fontTools нь matplotlib-ийн хамаарал
+except ImportError:  # pragma: no cover - optional font metadata support
     _TTFont = None
 
 log = logging.getLogger("aether.fonts")
@@ -39,6 +39,7 @@ ASSETS_DIR = str(PROJECT_ROOT / "assets")
 FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
 IMAGE_ASSETS_DIR = os.path.join(ASSETS_DIR, "images")
 LEVEL_FONT_PATHS = (
+    os.path.join(FONTS_DIR, "levelfont.otf"),
     os.path.join(ASSETS_DIR, "levelfont.otf"),
     os.path.join(IMAGE_ASSETS_DIR, "levelfont.otf"),
 )
@@ -60,7 +61,7 @@ LEVEL_FONT_PATHS = (
 # We do NOT hardcode a single path — we search multiple locations.
 
 # Primary font candidates (broad Unicode coverage)
-_FONT_CANDIDATES: List[Tuple[str, bool]] = [
+_FONT_CANDIDATES: list[tuple[str, bool]] = [
     # Project-bundled fonts
     ("levelfont.otf", True),
     ("levelfont.otf", False),
@@ -97,7 +98,7 @@ _FONT_CANDIDATES: List[Tuple[str, bool]] = [
 ]
 
 # Emoji font candidates (color emoji support is limited in Pillow)
-_EMOJI_FONT_CANDIDATES: List[str] = [
+_EMOJI_FONT_CANDIDATES: list[str] = [
     "C:/Windows/Fonts/seguiemj.ttf",           # Segoe UI Emoji (Windows)
     "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
     "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
@@ -109,21 +110,21 @@ class FontManager:
     """Manages font discovery, caching, and per-glyph fallback rendering."""
 
     def __init__(self) -> None:
-        self._font_cache: Dict[Any, Any] = {}
-        self._glyph_cache: Dict[Tuple[int, str], bool] = {}
-        self._cmap_cache: Dict[str, Optional[set]] = {}
-        self._available_fonts: Optional[List[Tuple[str, bool]]] = None
-        self._available_emoji_fonts: Optional[List[str]] = None
+        self._font_cache: dict[Any, Any] = {}
+        self._glyph_cache: dict[tuple[int, str], bool] = {}
+        self._cmap_cache: dict[str, set | None] = {}
+        self._available_fonts: list[tuple[str, bool]] | None = None
+        self._available_emoji_fonts: list[str] | None = None
 
     # ------------------------------------------------------------------
     # Font discovery
     # ------------------------------------------------------------------
-    def _discover_fonts(self) -> List[Tuple[str, bool]]:
+    def _discover_fonts(self) -> list[tuple[str, bool]]:
         """Discover available fonts from assets dir and system paths."""
         if self._available_fonts is not None:
             return self._available_fonts
 
-        found: List[Tuple[str, bool]] = []
+        found: list[tuple[str, bool]] = []
         seen_paths: set = set()
 
         # 1. Check assets/fonts directory
@@ -185,12 +186,12 @@ class FontManager:
         log.debug("Discovered %d fonts", len(found))
         return found
 
-    def _discover_emoji_fonts(self) -> List[str]:
+    def _discover_emoji_fonts(self) -> list[str]:
         """Discover available emoji-capable fonts."""
         if self._available_emoji_fonts is not None:
             return self._available_emoji_fonts
 
-        found: List[str] = []
+        found: list[str] = []
         seen: set = set()
 
         for path in _EMOJI_FONT_CANDIDATES:
@@ -242,7 +243,7 @@ class FontManager:
                     font = ImageFont.truetype(lf, size)
                     self._font_cache[key] = font
                     return font
-                except Exception as e:
+                except (OSError, ValueError) as e:
                     log.debug("Failed to load level font %s: %s", lf, e)
 
         fonts = self._discover_fonts()
@@ -252,7 +253,7 @@ class FontManager:
                     font = ImageFont.truetype(path, size)
                     self._font_cache[key] = font
                     return font
-                except Exception as e:
+                except (OSError, ValueError) as e:
                     log.debug("Failed to load font %s: %s", path, e)
                     continue
 
@@ -262,7 +263,8 @@ class FontManager:
                 font = ImageFont.truetype(path, size)
                 self._font_cache[key] = font
                 return font
-            except Exception:
+            except (OSError, ValueError):
+                log.debug("Failed to load fallback font %s", path, exc_info=True)
                 continue
 
         # Last resort: Pillow default
@@ -293,8 +295,8 @@ class FontManager:
                     if self._font_has_glyph(font, "𝓐"):
                         self._font_cache[key] = font
                         return font
-                except Exception:
-                    pass
+                except (OSError, ValueError):
+                    log.debug("Failed to load branding font %s", lf, exc_info=True)
 
         # A single font rarely covers both Mathematical Script and CJK.
         # Pick one that renders at least one distinctive branding glyph;
@@ -306,7 +308,8 @@ class FontManager:
                 if any(self._font_has_glyph(font, ch) for ch in ("𝓐", "蒼", "穹")):
                     self._font_cache[key] = font
                     return font
-            except Exception:
+            except (OSError, ValueError):
+                log.debug("Failed to load branding fallback %s", path, exc_info=True)
                 continue
 
         # Fallback to default
@@ -314,7 +317,7 @@ class FontManager:
         self._font_cache[key] = font
         return font
 
-    def get_emoji_font(self, size: int) -> Optional[ImageFont.FreeTypeFont]:
+    def get_emoji_font(self, size: int) -> ImageFont.FreeTypeFont | None:
         """Get a font for emoji rendering.  Returns None if no emoji font found."""
         key = ("__emoji__", size, False)
         if key in self._font_cache:
@@ -327,7 +330,8 @@ class FontManager:
                 font = ImageFont.truetype(path, size)
                 self._font_cache[key] = font
                 return font
-            except Exception:
+            except (OSError, ValueError):
+                log.debug("Failed to load emoji font %s", path, exc_info=True)
                 continue
 
         self._font_cache[key] = None
@@ -336,18 +340,17 @@ class FontManager:
     # ------------------------------------------------------------------
     # Glyph detection
     # ------------------------------------------------------------------
-    def _get_cmap(self, font_path: str) -> Optional[set]:
+    def _get_cmap(self, font_path: str) -> set | None:
         """Font файлын cmap кодын цэгүүдийг буцаана (кештэй). None = тодорхойгүй."""
         if font_path in self._cmap_cache:
             return self._cmap_cache[font_path]
         cmap = None
         if _TTFont is not None:
             try:
-                tt = _TTFont(font_path, fontNumber=0, lazy=True)
-                cmap = set(tt.getBestCmap().keys())
-                tt.close()
+                with _TTFont(font_path, fontNumber=0, lazy=True) as tt:
+                    cmap = set(tt.getBestCmap() or {})
             except Exception as e:
-                log.debug("cmap read failed for %s: %s", font_path, e)
+                log.debug("cmap read failed for %s: %s", font_path, e, exc_info=True)
                 cmap = None
         self._cmap_cache[font_path] = cmap
         return cmap
@@ -388,7 +391,7 @@ class FontManager:
                 if same:
                     same = bytes(mask) == bytes(notdef)
                 result = not same
-            except Exception:
+            except (OSError, ValueError, UnicodeError):
                 result = False
 
         self._glyph_cache[cache_key] = result
@@ -405,10 +408,9 @@ class FontManager:
         found = False
         for path, _bold in self._discover_fonts():
             cmap = self._get_cmap(path)
-            if cmap is not None:
-                if ord(char) in cmap:
-                    found = True
-                    break
+            if cmap is not None and ord(char) in cmap:
+                found = True
+                break
         self._glyph_cache[cache_key] = found
         return found
 
@@ -444,7 +446,8 @@ class FontManager:
                 if self._font_has_glyph(font, char):
                     self._font_cache[cache_key] = font
                     return font
-            except Exception:
+            except (OSError, ValueError):
+                log.debug("Failed to load character font %s", path, exc_info=True)
                 continue
 
         # Try any font regardless of bold
@@ -454,7 +457,8 @@ class FontManager:
                 if self._font_has_glyph(font, char):
                     self._font_cache[cache_key] = font
                     return font
-            except Exception:
+            except (OSError, ValueError):
+                log.debug("Failed to load character fallback %s", path, exc_info=True)
                 continue
 
         # Fallback to default
@@ -484,7 +488,8 @@ class FontManager:
                 if self._font_has_glyphs(font, text):
                     self._font_cache[cache_key] = font
                     return font
-            except Exception:
+            except (OSError, ValueError):
+                log.debug("Failed to load text fallback %s", path, exc_info=True)
                 continue
 
         # No single font covers everything — return primary font
@@ -499,10 +504,10 @@ class FontManager:
     def draw_text_with_fallback(
         self,
         draw: ImageDraw.ImageDraw,
-        xy: Tuple[int, int],
+        xy: tuple[int, int],
         text: str,
         font: ImageFont.FreeTypeFont,
-        fill: Tuple[int, int, int, int] = (255, 255, 255, 255),
+        fill: tuple[int, int, int, int] = (255, 255, 255, 255),
         size: int = 20,
         bold: bool = True,
     ) -> int:
@@ -521,8 +526,8 @@ class FontManager:
         y = xy[1]
 
         # Group characters into runs by font
-        runs: List[Tuple[Optional[ImageFont.FreeTypeFont], str]] = []
-        current_font: Optional[ImageFont.FreeTypeFont] = None
+        runs: list[tuple[ImageFont.FreeTypeFont | None, str]] = []
+        current_font: ImageFont.FreeTypeFont | None = None
         current_run = ""
 
         for ch in text:
@@ -605,7 +610,7 @@ class FontManager:
 # ---------------------------------------------------------------------------
 # Module-level singleton
 # ---------------------------------------------------------------------------
-_font_manager: Optional[FontManager] = None
+_font_manager: FontManager | None = None
 
 
 def get_font_manager() -> FontManager:
@@ -629,17 +634,17 @@ def get_branding_font(size: int) -> ImageFont.FreeTypeFont:
     return get_font_manager().get_branding_font(size)
 
 
-def get_emoji_font(size: int) -> Optional[ImageFont.FreeTypeFont]:
+def get_emoji_font(size: int) -> ImageFont.FreeTypeFont | None:
     """Get a font for emoji rendering."""
     return get_font_manager().get_emoji_font(size)
 
 
 def draw_text_with_fallback(
     draw: ImageDraw.ImageDraw,
-    xy: Tuple[int, int],
+    xy: tuple[int, int],
     text: str,
     font: ImageFont.FreeTypeFont,
-    fill: Tuple[int, int, int, int] = (255, 255, 255, 255),
+    fill: tuple[int, int, int, int] = (255, 255, 255, 255),
     size: int = 20,
     bold: bool = True,
 ) -> int:

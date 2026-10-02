@@ -11,8 +11,6 @@ import logging.handlers
 import os
 import sys
 from pathlib import Path
-from typing import Optional
-
 
 # Repo root (src/-с 2 түвшин дээш)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -20,8 +18,8 @@ LOG_DIR = Path(os.getenv("LOG_DIR", REPO_ROOT / "logs"))
 
 
 def setup_logging(
-    level: Optional[str] = None,
-    log_file: Optional[str] = None,
+    level: str | None = None,
+    log_file: str | None = None,
     max_bytes: int = 10 * 1024 * 1024,  # 10 MB
     backup_count: int = 5,
 ) -> None:

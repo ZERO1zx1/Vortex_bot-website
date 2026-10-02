@@ -23,7 +23,6 @@ import src.cogs.government as gov_mod
 from src.cogs.economy import Economy
 from src.cogs.government import Government
 
-
 # ══════════════ FAKES ══════════════
 
 class FakeGuild:

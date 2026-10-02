@@ -11,10 +11,10 @@ import os
 import time
 from collections import OrderedDict
 from datetime import datetime, timezone
-from typing import Any, Dict, List, NoReturn, Optional
+from typing import Any, ClassVar, NoReturn
 
 import httpx
-from supabase import create_client, Client
+from supabase import Client, create_client
 from supabase.lib.client_options import SyncClientOptions
 
 # Network errors that are transient (Windows/Python 3.13 socket flakiness,
@@ -33,11 +33,11 @@ except ImportError:
 _NETWORK_EXCEPTIONS = tuple({t for t in _NETWORK_EXCEPTIONS})
 
 
-from src.core.config import pick_server_supabase_key
+from src.core.config import is_server_level_key, pick_server_supabase_key
 from src.core.exceptions import (
-    DatabaseUnavailableError,
     DatabasePermissionError,
     DatabaseSchemaError,
+    DatabaseUnavailableError,
 )
 
 _KNOWN_STATUS_ATTRS = ("http_status", "status_code", "status")
@@ -56,10 +56,7 @@ def classify_supabase_error(exc: BaseException) -> BaseException:
     code = getattr(exc, "code", None) or ""
     status = next((getattr(exc, a, None) for a in _KNOWN_STATUS_ATTRS
                    if getattr(exc, a, None) is not None), 0)
-    try:
-        code_str = str(code)
-    except Exception:
-        code_str = ""
+    code_str = str(code)
     try:
         status_int = int(status)
     except (TypeError, ValueError):
@@ -183,21 +180,21 @@ class SupabaseManager:
             and not os.getenv("SUPABASE_SECRET_KEY")
             and os.getenv("SUPABASE_KEY")
         )
-        self.client: Optional[Client] = None
+        self.client: Client | None = None
         self._table_error_tracker = _TableErrorTracker()
 
     def _pick_first_defined(self) -> str:
         return pick_server_supabase_key()
 
-    def available_keys(self) -> List[Dict[str, str]]:
-        """All key env names that have a value, in precedence order."""
+    def available_keys(self) -> list[dict[str, str]]:
+        """Configured server-level keys only, in precedence order."""
         return [
             {"env": env, "key": os.getenv(env, "").strip()}
             for env in self.KEY_CANDIDATE_ENVS
-            if os.getenv(env, "").strip()
+            if is_server_level_key(os.getenv(env, "").strip())
         ]
 
-    async def probe_best_key(self, probe_table: str = "leveling_config") -> Optional[str]:
+    async def probe_best_key(self, probe_table: str = "leveling_config") -> str | None:
         """Find the first key (in precedence order) that can read ``probe_table``.
 
         Runs at startup after connection so a restricted key is silently
@@ -229,6 +226,9 @@ class SupabaseManager:
                 finally:
                     self.client = saved
             except Exception:
+                logging.getLogger("aether.db").debug(
+                    "Supabase key probe failed for env '%s'", cand["env"], exc_info=True
+                )
                 continue
         # fall back to the first configured key (log-worthy but non-fatal)
         return candidates[0]["env"]
@@ -280,11 +280,16 @@ class SupabaseManager:
             logger = logging.getLogger("aether.db")
             logger.warning("switch_key: env '%s' is empty/undefined", env_name)
             return False
+        if not is_server_level_key(key):
+            logging.getLogger("aether.db").error(
+                "switch_key: env '%s' is not a server-level key", env_name
+            )
+            return False
         try:
             new_client = self._make_client(key)
-        except Exception as exc:
+        except Exception:
             logger = logging.getLogger("aether.db")
-            logger.error("switch_key: failed to build client for '%s': %s", env_name, exc)
+            logger.exception("switch_key: failed to build client for '%s'", env_name)
             return False
         self.client = new_client
         self.key = key
@@ -298,7 +303,7 @@ class SupabaseManager:
     async def close(self):
         self.client = None
 
-    REQUIRED_TABLES = [
+    REQUIRED_TABLES: ClassVar[list[str]] = [
         "economy", "levels", "giveaways", "temproles", "role_income",
         "tempvoice_setup_msg", "user_inventory",
         # Government/economy commands depend on these tables.  Keep them in
@@ -317,24 +322,20 @@ class SupabaseManager:
         """
         logger = logging.getLogger("aether.db")
         for table in self.REQUIRED_TABLES:
-            exists = await self.table_exists(table)
-            if not exists:
+            status = await self.probe_table(table)
+            if status == "MISSING":
                 logger.warning(
                     "Required Supabase table '%s' is missing. "
                     "Apply database migration: src/database/migrations/000_aether_complete.sql",
                     table,
                 )
+            elif status != "OK":
+                logger.warning("Required Supabase table '%s': %s", table, status)
         logger.info("Supabase schema validation complete.")
 
     async def table_exists(self, table_name: str) -> bool:
         """Check if a table exists by attempting a count query."""
-        try:
-            def _check():
-                self.client.table(table_name).select("*", count="exact").limit(0).execute()
-            await self._run(_check, _table=table_name)
-            return True
-        except Exception:
-            return False
+        return await self.probe_table(table_name) == "OK"
 
     async def probe_table(self, table_name: str) -> str:
         """Return a machine-readable health status for ``table_name``.
@@ -349,6 +350,9 @@ class SupabaseManager:
             await self._run(_check, _table=table_name)
             return "OK"
         except Exception as e:
+            logging.getLogger("aether.db").debug(
+                "Supabase table probe failed for '%s'", table_name, exc_info=True
+            )
             cls = classify_supabase_error(e)
             if isinstance(cls, DatabaseSchemaError):
                 return "MISSING"
@@ -358,7 +362,7 @@ class SupabaseManager:
                 return "UNAVAILABLE"
             return f"ERROR: {cls.__class__.__name__}: {e}"
 
-    async def health_check(self, tables: Optional[List[str]] = None) -> List[Dict[str, str]]:
+    async def health_check(self, tables: list[str] | None = None) -> list[dict[str, str]]:
         """Probe every required/critical table and report one status each.
 
         Used by the startup sequence and the db-health diagnostic tool so a
@@ -372,7 +376,7 @@ class SupabaseManager:
                 "greeting_config", "invite_log_config", "user_quests",
                 "temp_channels", "work_phrases", "game_stats", "warnings",
             ]
-        results: List[Dict[str, str]] = []
+        results: list[dict[str, str]] = []
         for t in tables:
             results.append({"table": t, "status": await self.probe_table(t)})
         return results
@@ -402,9 +406,9 @@ class SupabaseManager:
                 f"{table}: {msg}\n"
                 "Hint: Apply src/database/migrations/000_aether_complete.sql."
             )
-        raise
+        raise exc
 
-    async def _run(self, fn, *args, _table: str = "", **kwargs):
+    async def _run(self, fn, *args, _table: str = "", _retry: bool = True, **kwargs):
         if self.client is None:
             raise RuntimeError("Supabase client is not connected.")
         # Retry wrapper: transient network errors (e.g. [WinError 10035]) and
@@ -416,7 +420,11 @@ class SupabaseManager:
             try:
                 return await asyncio.to_thread(fn, *args, **kwargs)
             except Exception as exc:
-                if not _is_retryable(exc):
+                logging.getLogger("aether.db").debug(
+                    "Supabase operation failed for '%s' (attempt %d)",
+                    _table, attempt + 1, exc_info=True,
+                )
+                if not _retry or not _is_retryable(exc):
                     self._raise_with_hint(_table, exc)
                 last_exc = exc
                 attempt += 1
@@ -431,10 +439,12 @@ class SupabaseManager:
             raise RuntimeError("Supabase client is not connected.")
         return self.client.table(name)
 
-    async def rpc(self, fn: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    async def rpc(self, fn: str, params: dict[str, Any] | None = None) -> Any:
         def _call():
             return self.client.rpc(fn, params or {}).execute()
-        return await self._run(_call, _table=f"rpc:{fn}")
+        # A network error may arrive after COMMIT. Only the caller knows
+        # whether this RPC has an idempotency key and can be safely replayed.
+        return await self._run(_call, _table=f"rpc:{fn}", _retry=False)
 
     # ------------------------------------------------------------------
     # Generic queries
@@ -442,11 +452,11 @@ class SupabaseManager:
     async def fetch_one(
         self,
         table: str,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         selects: str = "*",
-        order_by: Optional[str] = None,
+        order_by: str | None = None,
         desc: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Fetch a single row as a dict, or None."""
         def _fetch():
             q = self.table(table).select(selects)
@@ -462,13 +472,13 @@ class SupabaseManager:
     async def fetch_all(
         self,
         table: str,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         selects: str = "*",
-        order_by: Optional[str] = None,
+        order_by: str | None = None,
         desc: bool = False,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[dict[str, Any]]:
         """Fetch multiple rows as a list of dicts."""
         def _fetch():
             q = self.table(table).select(selects)
@@ -485,16 +495,16 @@ class SupabaseManager:
             return result.data or []
         return await self._run(_fetch, _table=table)
 
-    async def insert(self, table: str, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def insert(self, table: str, data: dict[str, Any]) -> list[dict[str, Any]]:
         def _insert():
             result = self.table(table).insert(data).execute()
             d = result.data
             if isinstance(d, bool) or not isinstance(d, list):
                 return []
             return d or []
-        return await self._run(_insert, _table=table)
+        return await self._run(_insert, _table=table, _retry=False)
 
-    async def update(self, table: str, filters: Dict[str, Any], data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def update(self, table: str, filters: dict[str, Any], data: dict[str, Any]) -> list[dict[str, Any]]:
         def _update():
             q = self.table(table).update(data)
             for k, v in filters.items():
@@ -504,9 +514,9 @@ class SupabaseManager:
             if isinstance(d, bool) or not isinstance(d, list):
                 return []
             return d or []
-        return await self._run(_update, _table=table)
+        return await self._run(_update, _table=table, _retry=False)
 
-    async def upsert(self, table: str, data: Dict[str, Any], on_conflict: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def upsert(self, table: str, data: dict[str, Any], on_conflict: str | None = None) -> list[dict[str, Any]]:
         def _upsert():
             # postgrest >= 2.x: on_conflict is a kwarg of upsert() itself;
             # the returned SyncQueryRequestBuilder has NO .on_conflict() method.
@@ -520,19 +530,19 @@ class SupabaseManager:
             if isinstance(d, bool) or not isinstance(d, list):
                 return []
             return d or []
-        return await self._run(_upsert, _table=table)
+        return await self._run(_upsert, _table=table, _retry=False)
 
-    async def delete(self, table: str, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def delete(self, table: str, filters: dict[str, Any]) -> list[dict[str, Any]]:
         def _delete():
             q = self.table(table).delete()
             for k, v in filters.items():
                 q = q.eq(k, v)
             result = q.execute()
             return result.data or []
-        return await self._run(_delete, _table=table)
+        return await self._run(_delete, _table=table, _retry=False)
 
     # Whitelist of tables/columns allowed for atomic increment via RPC.
-    _INCREMENT_WHITELIST = {
+    _INCREMENT_WHITELIST: ClassVar[dict[str, set[str]]] = {
         "economy": {"balance", "bank_balance"},
         "levels": {"xp", "message_count", "voice_seconds", "reaction_count"},
         "game_stats": {"wins", "losses", "total_won", "total_bet"},
@@ -549,7 +559,7 @@ class SupabaseManager:
         "lottery_entries": {"tickets"},
     }
 
-    async def increment(self, table: str, filters: Dict[str, Any], column: str, amount: int = 1) -> bool:
+    async def increment(self, table: str, filters: dict[str, Any], column: str, amount: int = 1) -> bool:
         """Atomically increment a numeric column via the ``increment`` RPC.
 
         Requires the migration in supabase_schema.sql that defines:
@@ -561,6 +571,8 @@ class SupabaseManager:
         """
         if not table or not filters or not column:
             return False
+        if len(filters) != 1:
+            raise ValueError("increment() requires exactly one filter; compound filters are not supported by the RPC")
 
         allowed = self._INCREMENT_WHITELIST.get(table)
         if allowed is None:
@@ -583,7 +595,7 @@ class SupabaseManager:
             ).execute()
 
         try:
-            await self._run(_call, _table=table)
+            await self._run(_call, _table=table, _retry=False)
             return True
         except Exception as e:
             import logging
@@ -607,16 +619,20 @@ class SupabaseManager:
         crashing every background loop that reads the table.
         """
         msg = str(error)
-        code = getattr(error, "code", None) or ""
+        code = str(getattr(error, "code", None) or "")
         status = getattr(error, "status_code", None) or getattr(error, "status", None) or 0
+        try:
+            status = int(status)
+        except (TypeError, ValueError):
+            status = 0
         return ("PGRST205" in code or "PGRST205" in msg
-                or int(status) == 404
+                or status == 404
                 or "42501" in code or "42501" in msg)
 
     async def fetch_safe(
         self,
         table: str,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         single: bool = False,
         **kwargs: Any,
     ) -> Any:
@@ -643,16 +659,16 @@ class SupabaseManager:
     # ------------------------------------------------------------------
     # Backward-compatible aliases (shorten migration of older cogs)
     # ------------------------------------------------------------------
-    async def execute_sync(self, table: str, data: Dict[str, Any]):
+    async def execute_sync(self, table: str, data: dict[str, Any]):
         return await self.upsert(table, data)
 
-    async def fetchone(self, table: str, query_filter: Dict[str, Any]):
+    async def fetchone(self, table: str, query_filter: dict[str, Any]):
         return await self.fetch_one(table, query_filter)
 
-    async def fetchall(self, table: str, query_filter: Optional[Dict[str, Any]] = None, order_by: Optional[str] = None, desc: bool = False):
+    async def fetchall(self, table: str, query_filter: dict[str, Any] | None = None, order_by: str | None = None, desc: bool = False):
         return await self.fetch_all(table, query_filter, order_by=order_by, desc=desc)
 
-    async def execute(self, table: str, data: Dict[str, Any]):
+    async def execute(self, table: str, data: dict[str, Any]):
         return await self.upsert(table, data)
 
     # ------------------------------------------------------------------
@@ -667,7 +683,7 @@ class SupabaseManager:
         """
         try:
             now = datetime.now(timezone.utc).isoformat()
-            data: Dict[str, Any] = {"id": 1, "status": status, "last_ping": now}
+            data: dict[str, Any] = {"id": 1, "status": status, "last_ping": now}
 
             def _ping():
                 # postgrest 2.x upsert() defaults to merge-duplicates;
@@ -682,6 +698,9 @@ class SupabaseManager:
                     d = result.data
                     return d if isinstance(d, list) else []
                 except Exception:
+                    logging.getLogger("aether.db").debug(
+                        "Heartbeat upsert failed; attempting update", exc_info=True
+                    )
                     # Fallback: row already exists with uptime_since — update status/last_ping only
                     result = (
                         self.table("bot_status")
@@ -693,9 +712,9 @@ class SupabaseManager:
                     return d if isinstance(d, list) else []
 
             return bool(await self._run(_ping, _table="bot_status"))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             reason = classify_supabase_error(exc)
             logging.getLogger("aether.db").warning(
-                "Heartbeat failed: %s: %s", type(reason).__name__, exc
+                "Heartbeat failed: %s: %s", type(reason).__name__, exc, exc_info=True
             )
             return False

@@ -13,14 +13,19 @@ Persistent: cog_load-д add_view() хийснээр бот restart-д ч view ha
 from __future__ import annotations
 
 import logging
-from typing import Any, List, Optional
 
 import discord
 from discord import app_commands, ui
 from discord.ext import commands
 
-from src.cogs.help import COMMAND_INFO, CATEGORY_EMOJIS, CATEGORY_COLORS
-from src.utils.branding import ACCENT_COLOR, BOT_NAME, BOT_FOOTER, PRIMARY_COLOR, timestamp_now
+from src.cogs.help import CATEGORY_COLORS, CATEGORY_EMOJIS, COMMAND_INFO
+from src.utils.branding import (
+    ACCENT_COLOR,
+    BOT_FOOTER,
+    BOT_NAME,
+    PRIMARY_COLOR,
+    timestamp_now,
+)
 
 # EN нэрийн харгалзаа (command-д харуулахын тулд)
 log = logging.getLogger("cogs.menu")
@@ -35,7 +40,7 @@ MENU_TIMEOUT = 300
 # Туслах функцүүд
 # ─────────────────────────────────────────────────────────────────────
 
-def _get_categories() -> List[str]:
+def _get_categories() -> list[str]:
     """Бүх command агуулсан Монгол ангиллуудыг жагсаах."""
     return [c for c in CATEGORY_EMOJIS if any(i.get("category") == c for i in COMMAND_INFO.values())]
 
@@ -44,7 +49,7 @@ def _mn_category(cat: str) -> str:
     return cat
 
 
-def _cmd_list(category_mn: str) -> List[str]:
+def _cmd_list(category_mn: str) -> list[str]:
     """Нэг ангиллын командуудыг COMMAND_INFO-оос цуглуулна."""
     return sorted(cmd for cmd, info in COMMAND_INFO.items()
                   if info.get("category") == category_mn)
@@ -64,7 +69,7 @@ class MenuView(ui.View):
         self,
         original: discord.abc.User,
         guild_id: int,
-        start_category: Optional[str] = None,
+        start_category: str | None = None,
         page: int = 0,
         timeout: float = MENU_TIMEOUT,
         persistent: bool = False,
@@ -78,12 +83,12 @@ class MenuView(ui.View):
         self.guild_id = guild_id
         self.category = start_category  # MN нэр (COMMAND_INFO-той ижил)
         self.page = page
-        self._embed: Optional[discord.Embed] = None
+        self._embed: discord.Embed | None = None
         self.category_select.options = self._build_select_options()
 
     # ── interaction check ─────────────────────────────────────────────
 
-    def _build_select_options(self) -> List[discord.SelectOption]:
+    def _build_select_options(self) -> list[discord.SelectOption]:
         options = []
         for cat in _get_categories():
             emoji = CATEGORY_EMOJIS.get(cat, "📁")
@@ -110,7 +115,7 @@ class MenuView(ui.View):
                     child.disabled = True
             if self._embed is not None:
                 self._embed.set_footer(text="Хугацаа дууссан — самбарыг дахин нээх: A!menu")
-        except Exception:  # noqa: BLE001 — message аль хэдийн устсан байж болно
+        except Exception:
             log.debug("menu view timeout cleanup skipped", exc_info=True)
 
     # ── Embed ─────────────────────────────────────────────────────────
@@ -139,7 +144,6 @@ class MenuView(ui.View):
         color = CATEGORY_COLORS.get(self.category, 0x1E1E2F)
         cmds = _cmd_list(self.category)
         page_cmds = cmds[self.page * CMDS_PER_PAGE:(self.page + 1) * CMDS_PER_PAGE]
-        title_key = "menu.cat_title"
         cat_label = self.category
 
         embed = discord.Embed(
@@ -273,7 +277,7 @@ class MenuView(ui.View):
 class Menu(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.persistent_view: Optional[MenuView] = None
+        self.persistent_view: MenuView | None = None
 
     async def cog_load(self) -> None:
         """Persistent view — бот restart/reconnect-д ч view handler сэргэнэ.
@@ -298,7 +302,7 @@ class Menu(commands.Cog):
         self,
         ctx: commands.Context[commands.Bot],
         *,
-        category: Optional[str] = None,
+        category: str | None = None,
     ) -> None:
         guild_id = ctx.guild.id if ctx.guild else 0
         if category is not None:

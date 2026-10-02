@@ -1,24 +1,24 @@
-from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-from src.utils.slash_context import SlashContext
-from src.utils.embed_style import style_embed, success_embed, error_embed, warning_embed, info_embed, add_box_field
-import logging
-
-logger = logging.getLogger(__name__)
-import discord
-from discord.ext import commands, tasks
-from discord import app_commands, ui
-from src.utils.supabase_cog import SupabaseCog
 import datetime
-from typing import Optional
-import asyncio
+import logging
 import time
 
-EMBED_COLOR = 0x1e1e2f
-SUCCESS_COLOR = 0xa6e3a1
-ERROR_COLOR = 0xf38ba8
-WARNING_COLOR = 0xf9e2af
-GOLD_COLOR = 0xfab387
-INFO_COLOR = 0x89b4fa
+import discord
+from discord import app_commands, ui
+from discord.ext import commands, tasks
+
+from src.utils.constants import (
+    EMBED_COLOR,
+    ERROR_COLOR,
+    GOLD_COLOR,
+    INFO_COLOR,
+    SUCCESS_COLOR,
+    WARNING_COLOR,
+)
+from src.utils.slash_context import SlashContext
+from src.utils.supabase_cog import SupabaseCog
+
+logger = logging.getLogger(__name__)
+
 
 # ---------- Staff тохиргооны модал ----------
 class AddStaffModal(ui.Modal, title="Staff нэмэх"):
@@ -30,6 +30,8 @@ class AddStaffModal(ui.Modal, title="Staff нэмэх"):
         self.view = view
 
     async def on_submit(self, interaction: discord.Interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         try:
             uid = int(self.user_id.value)
         except ValueError:
@@ -37,11 +39,11 @@ class AddStaffModal(ui.Modal, title="Staff нэмэх"):
         member = interaction.guild.get_member(uid)
         if not member:
             return await interaction.response.send_message("❌ Хэрэглэгч серверт байхгүй.", ephemeral=True)
-        await self.view.cog.update_data("staff_members", {
+        await self.view.cog.bot.db_manager.upsert("staff_members", {
             "user_id": str(uid),
             "guild_id": str(interaction.guild.id),
             "staff_group": self.group.value
-        })
+        }, on_conflict="user_id,guild_id")
         await interaction.response.send_message(f"✅ {member.mention} **{self.group.value}** бүлэгт нэмэгдлээ.", ephemeral=True)
 
 class RemoveStaffModal(ui.Modal, title="Staff хасах"):
@@ -52,6 +54,8 @@ class RemoveStaffModal(ui.Modal, title="Staff хасах"):
         self.view = view
 
     async def on_submit(self, interaction: discord.Interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         try:
             uid = int(self.user_id.value)
         except ValueError:
@@ -71,14 +75,23 @@ class StaffSetupView(ui.View):
         self.message = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None or interaction.guild.id != self.guild_id:
+            await interaction.response.send_message("❌ Энэ самбар өөр серверийнх байна.", ephemeral=True)
+            return False
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("❌ Энэ самбар таных биш.", ephemeral=True)
+            return False
+        if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ Administrator эрх шаардлагатай.", ephemeral=True)
             return False
         return True
 
     async def refresh(self, interaction: discord.Interaction):
         embed = await self.build_embed(interaction.guild)
-        await interaction.edit_original_response(embed=embed, view=self)
+        if self.message is not None:
+            await self.message.edit(embed=embed, view=self)
+        else:
+            logger.warning("Staff setup panel has no bound message in guild %s", self.guild_id)
 
     async def build_embed(self, guild):
         guild_id = str(guild.id)
@@ -158,7 +171,8 @@ class StaffSetupView(ui.View):
             for child in self.children:
                 child.disabled = True
             try: await self.message.edit(view=self)
-            except Exception: pass
+            except discord.HTTPException:
+                logger.warning("Could not disable staff panel in guild %s", self.guild_id, exc_info=True)
 
 # ==================== ҮНДСЭН COG ====================
 class Moderation(SupabaseCog):
@@ -166,8 +180,14 @@ class Moderation(SupabaseCog):
         super().__init__(bot)
         self.bot = bot
         self.voice_times = {}
+        self._processed_weeks = set()
         self.weekly_task.start()
         self.leaderboard_task.start()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None:
+            raise app_commands.NoPrivateMessage
+        return True
 
     async def cog_load(self):
         # Tables are pre-configured in Supabase via SQL migrations
@@ -192,19 +212,34 @@ class Moderation(SupabaseCog):
     async def weekly_task(self):
         now = datetime.datetime.now(datetime.timezone.utc)
         if now.weekday() == 6 and now.hour == 23 and now.minute == 59:
+            week_start = now.date() - datetime.timedelta(days=now.weekday())
             for guild in self.bot.guilds:
+                key = (guild.id, week_start)
+                if key in self._processed_weeks:
+                    continue
+                self._processed_weeks.add(key)
                 try:
-                    await self.process_weekly_winner(guild)
-                except Exception as e:
-                    logger.error("7 хоногийн staff шилдэг боловсруулалт сервер %s дээр амжилтгүй: %s", guild.id, e)
-            await asyncio.sleep(60)
+                    await self.process_weekly_winner(guild, week_start=week_start)
+                except Exception:
+                    self._processed_weeks.discard(key)
+                    logger.exception("7 хоногийн staff шилдэг боловсруулалт сервер %s дээр амжилтгүй", guild.id)
 
     @weekly_task.before_loop
     async def before_weekly_task(self):
         await self.bot.wait_until_ready()
 
-    async def process_weekly_winner(self, guild: discord.Guild):
+    async def process_weekly_winner(self, guild: discord.Guild, week_start=None):
         guild_id = str(guild.id)
+        if week_start is None:
+            today = datetime.datetime.now(datetime.timezone.utc).date()
+            week_start = today - datetime.timedelta(days=today.weekday())
+        existing_winner = await self.bot.db_manager.fetch_safe(
+            "staff_weekly_winners",
+            {"guild_id": guild_id, "week_start": str(week_start)},
+            single=True,
+        )
+        if existing_winner:
+            return
         members = await self.bot.db_manager.fetch_safe("staff_members", {"guild_id": guild_id})
         activity_rows = await self.bot.db_manager.fetch_safe("staff_activity", {"guild_id": guild_id})
         if not members or not activity_rows:
@@ -229,8 +264,6 @@ class Moderation(SupabaseCog):
         if not scores: return
 
         top_user_id, top_score = max(scores, key=lambda x: x[1])
-        week_start = datetime.date.today() - datetime.timedelta(days=datetime.date.today().weekday())
-
         await self.bot.db_manager.insert("staff_weekly_winners", {
             "guild_id": guild_id,
             "user_id": str(top_user_id),
@@ -274,8 +307,8 @@ class Moderation(SupabaseCog):
         guild_id = str(guild.id)
         try:
             await self._update_leaderboard_inner(guild, guild_id)
-        except Exception as e:
-            logger.error("Staff лидерборд шинэчлэлт сервер %s дээр амжилтгүй: %s", guild.id, e)
+        except Exception:
+            logger.exception("Staff лидерборд шинэчлэлт сервер %s дээр амжилтгүй", guild.id)
 
     async def _update_leaderboard_inner(self, guild: discord.Guild, guild_id: str):
         channel = await self._get_configured_channel(guild, "stats")
@@ -337,11 +370,13 @@ class Moderation(SupabaseCog):
     # ================== Staff тохиргоо (шинэ самбар) ==================
     @app_commands.command(name="staff_setup", description="Staff тохиргооны самбар нээх")
     @app_commands.default_permissions(administrator=True)
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(administrator=True)
     async def staff_setup(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         view = StaffSetupView(self, interaction.guild_id, interaction.user.id)
         embed = await view.build_embed(interaction.guild)
-        msg = await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        msg = await interaction.followup.send(embed=embed, view=view, ephemeral=True, wait=True)
         view.message = msg
 
     async def _get_configured_channel(self, guild: discord.Guild, channel_type: str):
@@ -453,8 +488,8 @@ class Moderation(SupabaseCog):
             return
         try:
             await self.increment_staff_activity(message.author.id, message.guild.id, "messages")
-        except Exception as e:
-            logger.debug("staff activity increment skipped: %s", e)
+        except Exception:
+            logger.exception("Staff activity increment failed in guild %s", message.guild.id)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -468,26 +503,26 @@ class Moderation(SupabaseCog):
             )
             if not member_row:
                 return
-            now = time.time()
+            now = time.monotonic()
+            voice_key = (guild_id, user_id)
             if before.channel is None and after.channel is not None:
                 if not after.self_mute and not after.deaf:
-                    self.voice_times[user_id] = now
+                    self.voice_times[voice_key] = now
             elif before.channel is not None and after.channel is None:
-                if user_id in self.voice_times:
-                    elapsed = now - self.voice_times[user_id]
+                if voice_key in self.voice_times:
+                    elapsed = now - self.voice_times[voice_key]
                     await self.increment_staff_activity(user_id, guild_id, "voice_seconds", int(elapsed))
-                    del self.voice_times[user_id]
+                    del self.voice_times[voice_key]
             elif before.channel == after.channel:
                 was_muted = before.self_mute or before.deaf
                 now_muted = after.self_mute or after.deaf
                 if not was_muted and now_muted:
-                    if user_id in self.voice_times:
-                        elapsed = now - self.voice_times[user_id]
+                    if voice_key in self.voice_times:
+                        elapsed = now - self.voice_times[voice_key]
                         await self.increment_staff_activity(user_id, guild_id, "voice_seconds", int(elapsed))
-                        del self.voice_times[user_id]
-                elif was_muted and not now_muted:
-                    if after.channel is not None:
-                        self.voice_times[user_id] = now
+                        del self.voice_times[voice_key]
+                elif was_muted and not now_muted and after.channel is not None:
+                    self.voice_times[voice_key] = now
         except Exception as exc:
             guild_id = getattr(getattr(member, "guild", None), "id", "?")
             if str(getattr(exc, "code", None)) in ("42501", "PGRST205"):
@@ -517,7 +552,7 @@ class Moderation(SupabaseCog):
     @app_commands.command(name='lock', description="Сувгийг түгжих")
     @app_commands.checks.has_permissions(manage_channels=True)
     @app_commands.describe(channel="Түгжих суваг (хоосон бол одоогийн суваг)", reason="Шалтгаан")
-    async def lock(self, interaction, channel: Optional[discord.TextChannel] = None, *, reason: str = "Тодорхойгүй"):
+    async def lock(self, interaction, channel: discord.TextChannel | None = None, *, reason: str = "Тодорхойгүй"):
         ctx = SlashContext(interaction)
         target_channel = channel or ctx.channel
         await ctx.defer(ephemeral=False)
@@ -538,7 +573,7 @@ class Moderation(SupabaseCog):
     @app_commands.command(name='unlock', description="Сувгийн түгжээг тайлах")
     @app_commands.checks.has_permissions(manage_channels=True)
     @app_commands.describe(channel="Нээх суваг (хоосон бол одоогийн суваг)", reason="Шалтгаан")
-    async def unlock(self, interaction, channel: Optional[discord.TextChannel] = None, *, reason: str = "Тодорхойгүй"):
+    async def unlock(self, interaction, channel: discord.TextChannel | None = None, *, reason: str = "Тодорхойгүй"):
         ctx = SlashContext(interaction)
         target_channel = channel or ctx.channel
         await ctx.defer(ephemeral=False)
@@ -566,6 +601,8 @@ class Moderation(SupabaseCog):
             return await ctx.send("❌ Ботод `Kick Members` зөвшөөрөл байхгүй!", ephemeral=True)
         if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
             return await ctx.send("❌ Та энэ хэрэглэгчийг хөөх эрхгүй!", ephemeral=True)
+        if member == ctx.guild.owner or member.top_role >= ctx.guild.me.top_role:
+            return await ctx.send("❌ Ботын роль энэ хэрэглэгчээс дээгүүр байх ёстой!", ephemeral=True)
         await member.kick(reason=reason)
         embed = discord.Embed(title="👢 ХАСАГДЛАА", description=f"{member.mention} хасагдлаа.", color=SUCCESS_COLOR)
         embed.add_field(name="📝 Шалтгаан", value=f"```fix\n{reason}```", inline=False)
@@ -589,6 +626,8 @@ class Moderation(SupabaseCog):
             return await ctx.send("❌ Ботод `Ban Members` зөвшөөрөл байхгүй!", ephemeral=True)
         if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
             return await ctx.send("❌ Та энэ хэрэглэгчийг баних эрхгүй!", ephemeral=True)
+        if member == ctx.guild.owner or member.top_role >= ctx.guild.me.top_role:
+            return await ctx.send("❌ Ботын роль энэ хэрэглэгчээс дээгүүр байх ёстой!", ephemeral=True)
         await member.ban(reason=reason)
         embed = discord.Embed(title="🔨 БАН ХИЙГДЛЭЭ", description=f"{member.mention} бан хийгдлээ.", color=ERROR_COLOR)
         embed.add_field(name="📝 Шалтгаан", value=f"```fix\n{reason}```", inline=False)
@@ -661,8 +700,9 @@ class Moderation(SupabaseCog):
             return await ctx.send("❌ Ботод `Manage Messages` зөвшөөрөл байхгүй!", ephemeral=True)
         try:
             deleted = await ctx.channel.purge(limit=amount)
-        except Exception as e:
-            return await ctx.send(f"❌ Алдаа: {e}", ephemeral=True)
+        except discord.HTTPException:
+            logger.warning("Could not clear channel %s in guild %s", ctx.channel.id, ctx.guild.id, exc_info=True)
+            return await ctx.send("❌ Мессеж устгаж чадсангүй. Ботын эрх болон холболтыг шалгана уу.", ephemeral=True)
         embed = discord.Embed(title="🗑️ МЕССЭЖ УСТГАГДЛАА", description=f"✅ {len(deleted)} мессэж устгагдсан.", color=SUCCESS_COLOR)
         embed.add_field(name="📍 Суваг", value=ctx.channel.mention, inline=True)
         embed.add_field(name="👮 Гүйцэтгэсэн", value=ctx.author.mention, inline=True)
@@ -695,6 +735,10 @@ class Moderation(SupabaseCog):
         await ctx.defer(ephemeral=False)
         if not ctx.guild.me.guild_permissions.moderate_members:
             return await ctx.send("❌ Ботод `Moderate Members` зөвшөөрөл байхгүй!", ephemeral=True)
+        if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
+            return await ctx.send("❌ Та энэ хэрэглэгчийг түр хаах эрхгүй!", ephemeral=True)
+        if member == ctx.guild.owner or member.top_role >= ctx.guild.me.top_role or member.guild_permissions.administrator:
+            return await ctx.send("❌ Бот энэ хэрэглэгчийг түр хаах эрхгүй!", ephemeral=True)
         duration_map = {
             "30s":30,"1m":60,"5m":300,"10m":600,"30m":1800,
             "1h":3600,"3h":10800,"6h":21600,"12h":43200,
@@ -750,9 +794,11 @@ class Moderation(SupabaseCog):
     @app_commands.command(name='warn', description="Анхааруулга өгөх")
     @app_commands.checks.has_permissions(kick_members=True)
     @app_commands.describe(member="Анхааруулга өгөх хэрэглэгч", reason="Шалтгаан")
-    async def warn(self, interaction, member: discord.User, *, reason: str):
+    async def warn(self, interaction, member: discord.Member, *, reason: str):
         ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
+        if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
+            return await ctx.send("❌ Та энэ хэрэглэгчид анхааруулга өгөх эрхгүй!", ephemeral=True)
         now_ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
         await self.bot.db_manager.insert("warnings", {
             "user_id": str(member.id),
@@ -782,7 +828,7 @@ class Moderation(SupabaseCog):
         member="Анхааруулга хасах хэрэглэгч",
         amount="Хасах тоо (хоосон бол жагсаалтаас сонгоно)"
     )
-    async def unwarn(self, interaction, member: discord.User, amount: Optional[int] = None):
+    async def unwarn(self, interaction, member: discord.User, amount: int | None = None):
         ctx = SlashContext(interaction)
         await ctx.defer(ephemeral=False)
         warning_rows = await self.bot.db_manager.fetch_all(
@@ -805,7 +851,7 @@ class Moderation(SupabaseCog):
             to_remove = warning_rows[:amount]
             removed = []
             for w in to_remove:
-                await self.bot.db_manager.delete("warnings", {"id": w["id"]})
+                await self.bot.db_manager.delete("warnings", {"id": w["id"], "guild_id": str(ctx.guild.id)})
                 removed.append(w)
             remaining = await self.get_warn_count(member.id, ctx.guild.id)
             lines = "\n".join(
@@ -843,11 +889,17 @@ class Moderation(SupabaseCog):
         view.add_item(select)
 
         async def unwarn_select(cb_interaction: discord.Interaction):
+            if cb_interaction.guild is None or cb_interaction.guild.id != ctx.guild.id:
+                return await cb_interaction.response.send_message("❌ Энэ цэс өөр серверийнх байна.", ephemeral=True)
             if cb_interaction.user.id != ctx.author.id:
                 return await cb_interaction.response.send_message("❌ Энэ цэс танд зориулагдаагүй!", ephemeral=True)
+            if not isinstance(cb_interaction.user, discord.Member) or not cb_interaction.user.guild_permissions.kick_members:
+                return await cb_interaction.response.send_message("❌ Kick Members эрх шаардлагатай.", ephemeral=True)
             warning_id = int(select.values[0])
             warn_row = next((w for w in warning_rows if w["id"] == warning_id), None)
-            await self.bot.db_manager.delete("warnings", {"id": warning_id})
+            if warn_row is None:
+                return await cb_interaction.response.send_message("❌ Анхааруулга олдсонгүй.", ephemeral=True)
+            await self.bot.db_manager.delete("warnings", {"id": warning_id, "guild_id": str(ctx.guild.id), "user_id": str(member.id)})
             remaining = await self.get_warn_count(member.id, ctx.guild.id)
             reason = str(warn_row.get("reason", "")) if warn_row else "?"
             embed = discord.Embed(
@@ -883,7 +935,7 @@ class Moderation(SupabaseCog):
         if not warn_row:
             return await ctx.send(embed=discord.Embed(title="❌ АЛДАА", description=f"`{warning_id}` ID-тай анхааруулга олдсонгүй.", color=ERROR_COLOR))
         user_id, mod_id, reason = warn_row["user_id"], warn_row["moderator_id"], warn_row["reason"]
-        await self.bot.db_manager.delete("warnings", {"id": warning_id})
+        await self.bot.db_manager.delete("warnings", {"id": warning_id, "guild_id": str(ctx.guild.id)})
         user = ctx.guild.get_member(int(user_id))
         user_mention = user.mention if user else f"<@{user_id}>"
         mod = ctx.guild.get_member(int(mod_id))
@@ -959,7 +1011,8 @@ class Moderation(SupabaseCog):
             try:
                 mod = await self.bot.fetch_user(int(mod_id))
                 mod_name = mod.name
-            except Exception:
+            except discord.HTTPException:
+                logger.warning("Could not fetch warning moderator %s", mod_id, exc_info=True)
                 mod_name = "Тодорхойгүй"
             embed.add_field(name=f"#{wid} | {ts_str}", value=f"👮 Модератор: `{mod_name}`\n📝 Шалтгаан: `{reason}`", inline=False)
         if len(rows) > 10:
@@ -991,7 +1044,8 @@ class Moderation(SupabaseCog):
             try:
                 user = await self.bot.fetch_user(int(user_id))
                 name = user.name
-            except Exception:
+            except discord.HTTPException:
+                logger.warning("Could not fetch warned user %s", user_id, exc_info=True)
                 name = "Тодорхойгүй"
             embed.add_field(name=f"👤 {name}", value=f"🆔 ID: `{user_id}`\n⚠️ Анхааруулга: **{cnt}**\n📅 Сүүлийн: `{last_str}`", inline=False)
         embed.set_footer(text="Хамгийн их 20 хэрэглэгч")

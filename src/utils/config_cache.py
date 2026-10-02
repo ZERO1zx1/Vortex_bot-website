@@ -23,28 +23,31 @@ import asyncio
 import logging
 import time
 from collections import OrderedDict
-from typing import Awaitable, Callable, Dict, Generic, Optional, Tuple, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import Generic, TypeVar
+from weakref import WeakValueDictionary
 
 T = TypeVar("T")
 
 logger = logging.getLogger("aether.config_cache")
 
-_MISSING = object()
-
-
 class ConfigCache(Generic[T]):
     def __init__(self, ttl: float = 20.0, maxsize: int = 512, name: str = "config"):
+        if maxsize < 1:
+            raise ValueError("maxsize must be positive")
         self._ttl = ttl
         self._maxsize = maxsize
         self._name = name
-        self._entries: "OrderedDict[str, Tuple[float, T]]" = OrderedDict()
-        self._mutex = asyncio.Lock()
-        self._locks: Dict[str, asyncio.Lock] = {}
+        self._entries: OrderedDict[str, tuple[float, T]] = OrderedDict()
+        # Active callers keep their lock alive. Completed keys do not leak
+        # locks, and LRU eviction cannot split one key's in-flight waiters.
+        self._locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
+        self._loads: dict[str, object] = {}
 
     def _now(self) -> float:
         return time.monotonic()
 
-    def _peek(self, key: str) -> Tuple[bool, T]:
+    def _peek(self, key: str) -> tuple[bool, T]:
         """Return ``(present, value)`` — ``present=False`` when absent/expired."""
         item = self._entries.get(key)
         if item is None:
@@ -57,12 +60,15 @@ class ConfigCache(Generic[T]):
         return True, value
 
     def invalidate(self, key: object) -> None:
-        self._entries.pop(str(key), None)
+        k = str(key)
+        self._entries.pop(k, None)
+        self._loads.pop(k, None)
 
     def clear(self) -> None:
         self._entries.clear()
+        self._loads.clear()
 
-    def get_cached(self, key: object) -> Optional[T]:
+    def get_cached(self, key: object) -> T | None:
         """Synchronous lookup (no DB fetch). ``None`` for a genuinely cached
         ``None`` value is indistinguishable from a miss here; use
         :meth:`get` when that distinction matters."""
@@ -90,19 +96,25 @@ class ConfigCache(Generic[T]):
             present, value = self._peek(k)
             if present:
                 return value
-            value = await loader()
-            self._store(k, value)
-            return value
+            token = object()
+            self._loads[k] = token
+            try:
+                value = await loader()
+                # A write may invalidate while the read awaits the DB. Never
+                # let that stale read resurrect the invalidated cache entry.
+                if self._loads.get(k) is token:
+                    self._store(k, value)
+                return value
+            finally:
+                if self._loads.get(k) is token:
+                    self._loads.pop(k, None)
 
     def _store(self, key: str, value: T) -> None:
         self._entries[key] = (self._now() + self._ttl, value)
         self._entries.move_to_end(key)
         # Bound memory: evict oldest entries beyond maxsize.
         while len(self._entries) > self._maxsize:
-            _, (old_key, __) = self._entries.popitem(last=False)
-            # Bound lock memory too: drop the evicted key's lock so the
-            # `_locks` dict cannot grow without limit.
-            self._locks.pop(old_key, None)
+            self._entries.popitem(last=False)
 
 
 def cached_config(

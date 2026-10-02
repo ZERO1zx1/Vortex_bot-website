@@ -12,7 +12,6 @@ The active public systems are defined in `src/utils/cog_loader.py`.
 | avatar_check | Not part of the selected product scope. |
 | cafe | Legacy economy add-on. |
 | invite_tracker | Not part of the selected product scope. |
-| level_admin | Legacy level administration surface. |
 | mafia | Legacy game mode. |
 | quests | Legacy cross-feature progression. |
 | roles | Legacy role utility. |

@@ -1,12 +1,15 @@
-﻿from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-import discord
-from discord.ext import commands
-from discord.ui import View, Button
-from discord import ButtonStyle
+﻿import asyncio
+import logging
 import random
 import time
-import asyncio
-from datetime import datetime, timezone
+from typing import ClassVar
+
+import discord
+from discord import ButtonStyle
+from discord.ext import commands
+from discord.ui import View
+
+logger = logging.getLogger(__name__)
 
 # ══════════════ ӨНГӨ ══════════════
 SUCCESS_COLOR = 0x57f287
@@ -30,7 +33,6 @@ DEFAULT_COOLDOWNS = {
     "highcard": 60,
     "rob": 3600,
     "hack": 7200,
-    "cgive": 86400,
     "trivia": 15,
 }
 MAX_BET = 1_000_000  # нэг тоглоомд тавих дээд хязгаар
@@ -286,8 +288,8 @@ class DiceView(View):
 
 class RPSView(View):
     """🪨📄✂️ RPS — хожиход 2x"""
-    CHOICES = {"rock": "🪨 Чулуу", "paper": "📄 Даавуу", "scissors": "✂️ Хайч"}
-    BEATS = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
+    CHOICES: ClassVar[dict[str, str]] = {"rock": "🪨 Чулуу", "paper": "📄 Даавуу", "scissors": "✂️ Хайч"}
+    BEATS: ClassVar[dict[str, str]] = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
 
     def __init__(self, cog, ctx, amount):
         super().__init__(timeout=30)
@@ -391,7 +393,7 @@ class NumberGuessView(View):
             await self.cog.give_rewards(self.ctx, -self.amount, 2, won=False, bet=self.amount)
             await self.message.edit(embed=embed, view=self)
         except Exception:
-            pass
+            logger.exception("Operation failed in on_timeout")
 
 
 class HighCardView(View):
@@ -454,7 +456,7 @@ class CrashView(View):
 
     async def start(self):
         self.cashout.disabled = False
-        embed = discord.Embed(title="💥 CRASH", description=f"Хүчин зүйл: **1.00x**\n📈 Өсөж байна...", color=INFO_COLOR)
+        embed = discord.Embed(title="💥 CRASH", description="Хүчин зүйл: **1.00x**\n📈 Өсөж байна...", color=INFO_COLOR)
         embed.set_footer(text=f"Бооцоо: {_format_money(self.amount)} — CASH OUT эсвэл CRASH хүлээ")
         self.message = await self.ctx.send(embed=embed, view=self)
         while self.running and self.multiplier < self.crash_point:
@@ -464,7 +466,8 @@ class CrashView(View):
                 embed = discord.Embed(title="💥 CRASH", description=f"Хүчин зүйл: **{self.multiplier:.2f}x**\n📈 Өсөж байна...", color=WARNING_COLOR)
                 embed.set_footer(text=f"CASH OUT дарж хож! Бооцоо: {_format_money(self.amount)}")
                 await self.message.edit(embed=embed, view=self)
-            except Exception:
+            except discord.HTTPException:
+                logger.exception("Operation failed in start")
                 break
         if self.running:
             self.running = False
@@ -475,7 +478,7 @@ class CrashView(View):
                 await self.cog.give_rewards(self.ctx, -self.amount, 3, won=False, bet=self.amount)
                 await self.message.edit(embed=embed, view=self)
             except Exception:
-                pass
+                logger.exception("Operation failed in start")
             self.stop()
 
     @discord.ui.button(label="💰 CASH OUT", style=ButtonStyle.success)
@@ -493,7 +496,7 @@ class CrashView(View):
         try:
             await self.message.edit(embed=embed, view=self)
         except Exception:
-            pass
+            logger.exception("Operation failed in cashout")
         self.stop()
 
 class Games(commands.Cog):
@@ -534,7 +537,7 @@ class Games(commands.Cog):
         key = f"{guild_id}:{user_id}:{command}"
         self.cooldowns[key] = time.time()
 
-    async def check_common_restrictions(self, ctx, amount: int = None) -> bool:
+    async def check_common_restrictions(self, ctx, amount: int | None = None) -> bool:
         """Нийтлэг хязгаарлалт: шорон, өлсгөлөн, уур, мөнгө. False буцаавал тоглох ёсгүй."""
         if ctx.guild is None:
             await ctx.send("❌ Зөвхөн серверт ашиглана уу.")
@@ -584,9 +587,8 @@ class Games(commands.Cog):
                 await economy.update_balance(ctx.author.id, ctx.guild.id, bet)
             # Хожигдол (<0): бооцоог эхэнд хасчихсан тул дахин хасахгүй —
             # өмнө нь энд дахин хасаж давхар торгуулж байсан (C7 double-charge)
-        if level and xp_amount > 0:
-            if hasattr(level, 'add_xp'):
-                await level.add_xp(ctx.author.id, ctx.guild.id, xp_amount, member=ctx.author, check_mute=True, channel=ctx.channel)
+        if level and xp_amount > 0 and hasattr(level, 'add_xp'):
+            await level.add_xp(ctx.author.id, ctx.guild.id, xp_amount, member=ctx.author, check_mute=True, channel=ctx.channel)
         await self.update_stats(ctx.author.id, ctx.guild.id, won, bet, final_money if won else 0)
 
         quests_cog = self.bot.get_cog("Quests")
@@ -621,7 +623,7 @@ class Games(commands.Cog):
                 }
                 await self.bot.db_manager.insert("game_stats", data)
         except Exception:
-            pass
+            logger.exception("Operation failed in update_stats")
 
     # ══════════════ ТОГЛООМЫН КОМАНДУУД ══════════════
     async def _prep_bet(self, ctx, command_name: str, amount: int) -> bool:
@@ -739,7 +741,7 @@ class Games(commands.Cog):
         try:
             msg = await self.bot.wait_for('message', timeout=10.0, check=check)
             answer_idx = int(msg.content) - 1
-        except Exception:
+        except TimeoutError:
             return await ctx.send("⏰ Хугацаа дууссан!")
 
         xp = random.randint(5, 15)

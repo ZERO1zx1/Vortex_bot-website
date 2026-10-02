@@ -12,7 +12,7 @@ import inspect
 import logging
 import os
 import sys
-import traceback
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import discord
@@ -20,12 +20,32 @@ from discord.ext import commands
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.main import MyBot
+from src.utils.cog_loader import ACTIVE_COGS, discover_cogs
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("cmdtest")
 
 BOT_OWNER_ID = 1468270807686840543  # the real owner from logs (Light)
 GUILD_ID = 1501605621584363720
+
+
+class OfflineDB:
+    """SupabaseManager-compatible no-network test double."""
+
+    async def fetchone(self, *args, **kwargs): return None
+    async def fetch(self, *args, **kwargs): return None
+    async def fetchall(self, *args, **kwargs): return []
+    async def fetch_safe(self, *args, single=False, **kwargs):
+        return None if single else []
+    async def fetch_one(self, *args, **kwargs): return None
+    async def fetch_all(self, *args, **kwargs): return []
+    async def insert(self, *args, **kwargs): return []
+    async def update(self, *args, **kwargs): return []
+    async def delete(self, *args, **kwargs): return []
+    async def execute(self, *args, **kwargs): return None
+    async def upsert(self, *args, **kwargs): return []
+    async def rpc(self, *args, **kwargs): return None
+    async def close(self): return None
 
 
 class FakeRole:
@@ -96,10 +116,6 @@ class FakeMember:
         return f"<@{self.id}>"
 
     @property
-    def mention(self):
-        return f"<@{self.id}>"
-
-    @property
     def display_name(self):
         return "CmdTest"
 
@@ -141,6 +157,7 @@ class FakeCtx:
         self.args = []
         self.valid = True
         self.result = None
+        self.interaction = None
 
     async def send(self, *args, **kwargs):
         return MagicMock()
@@ -169,12 +186,7 @@ async def run_all():
             "name": "Aether", "id": 123,
         })()
     )
-    from dotenv import load_dotenv
-    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
-    from src.database.db_manager import SupabaseManager
-    db = SupabaseManager()
-    db.connect()
-    bot.db_manager = db
+    bot.db_manager = OfflineDB()
     bot.config = {"max_balance": 100_000_000}
     # The economy cog's cog_load spawns background tasks via bot.loop;
     # a non-logged-in bot raises AttributeError on .loop, so stub it.
@@ -184,19 +196,14 @@ async def run_all():
         bot.loop = asyncio.new_event_loop()
     bot.get_guild = lambda gid: None
     bot.wait_until_ready = lambda: asyncio.sleep(0)
-    # Exact cog list from main.py
-    cogs_to_load = (
-        "admin", "avatar_check", "cafe", "carts", "confessions",
-        "counting", "economy", "fun", "games", "giveaway",
-        "help", "invite_tracker", "leveling", "mafia", "mines",
-        "moderation", "pvp", "roles", "shop", "stock",
-        "stick", "marriage", "announcement", "tempvoice", "trade",
-        "quests", "leaderboard", "casino", "greetings"
+    cogs_to_load = discover_cogs(
+        Path(__file__).resolve().parents[1] / "src" / "cogs", ACTIVE_COGS
     )
     for ext in (f"src.cogs.{c}" for c in cogs_to_load):
         try:
             await bot.load_extension(ext)
         except Exception as e:
+            logger.exception("Could not load command-check extension %s", ext)
             print(f"[setup] {ext}: {type(e).__name__}: {e}")
 
     # bot.db_manager already attached above
@@ -214,7 +221,6 @@ async def run_all():
         # Build kwargs from the command's parameters (skip optional members etc. —
         # provide defaults when available).
         params = {}
-        skip = False
         for pname, p in cmd.params.items():
             if pname in ("ctx", "self", "interaction"):
                 continue
@@ -231,9 +237,8 @@ async def run_all():
             await cmd.callback(cmd.cog, ctx, **params)
             results.append((name, "OK"))
         except Exception as e:
-            tb = traceback.format_exc()
             results.append((name, f"FAIL: {type(e).__name__}: {e}"))
-            logger.error("=== %s FAILED ===\n%s", name, tb)
+            logger.exception("Command %s failed", name)
 
     print("\n===== RESULT SUMMARY =====")
     ok = fail = 0
@@ -248,4 +253,5 @@ async def run_all():
     await bot.close()
 
 
-asyncio.run(run_all())
+if __name__ == "__main__":
+    asyncio.run(run_all())

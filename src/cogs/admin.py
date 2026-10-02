@@ -1,25 +1,55 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
-from datetime import datetime, timezone
-import time
+import math
 import platform
+import time
+from datetime import datetime, timezone
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
 try:
     import psutil
 except ImportError:
     psutil = None
 
-from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
+from src.utils.constants import (
+    EMBED_COLOR,
+    ERROR_COLOR,
+    GOLD_COLOR,
+    INFO_COLOR,
+    SUCCESS_COLOR,
+    WARNING_COLOR,
+)
+from src.utils.embed_style import add_box_field, error_embed, style_embed
 from src.utils.slash_context import SlashContext
-from src.utils.embed_style import style_embed, add_box_field, error_embed, gold_embed
+
 
 class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.start_time = time.time()
 
-    def is_owner_or_co_owner(self, user_id):
-        return user_id in self.bot.owner_ids
+    async def is_owner_or_co_owner(self, ctx):
+        """Resolve global and per-guild ownership consistently.
+
+        ``OWNER_ID``/``CO_OWNERS`` grant bot-wide access.  The live Discord
+        guild owner and co-owners appointed through ``/government`` receive
+        access only inside their own guild.
+        """
+        user_id = ctx.author.id
+        if user_id in self.bot.owner_ids:
+            return True
+
+        guild = ctx.guild
+        if guild is None:
+            return False
+        if user_id == guild.owner_id:
+            return True
+
+        government = self.bot.get_cog("Government")
+        if government is not None:
+            return await government.is_co_owner_id(guild.id, user_id)
+        return False
 
     @app_commands.command(name='status', description='Check bot status and health')
     async def status(self, interaction):
@@ -32,7 +62,7 @@ class Admin(commands.Cog):
         m, s = divmod(rem, 60)
         uptime = f"{days} хоног {h:02d}:{m:02d}:{s:02d}" if days else f"{h:02d}:{m:02d}:{s:02d}"
         latency_ms = self.bot.latency * 1000
-        latency = round(latency_ms) if latency_ms == latency_ms else 0
+        latency = round(latency_ms) if math.isfinite(latency_ms) else 0
         if psutil:
             cpu_usage = psutil.cpu_percent()
             ram_usage = psutil.virtual_memory().percent
@@ -133,11 +163,9 @@ class Admin(commands.Cog):
         await ctx.send(embed=embed)
 
     @app_commands.command(name='addmoney', description='Мөнгө нэмэх')
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.default_permissions(administrator=True)
     async def addmoney(self, interaction, member: discord.Member, amount: int):
         ctx = SlashContext(interaction)
-        if not self.is_owner_or_co_owner(ctx.author.id):
+        if not await self.is_owner_or_co_owner(ctx):
             embed = discord.Embed(title="⛔ ЭРХ ХҮРЭХГҮЙ", description="Зөвхөн бот эзэмшигч / хамт эзэмшигч", color=ERROR_COLOR)
             return await ctx.send(embed=embed)
         await ctx.defer(ephemeral=False)
@@ -158,11 +186,9 @@ class Admin(commands.Cog):
         await ctx.send(embed=embed)
 
     @app_commands.command(name='removemoney', description='Мөнгө хасах')
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.default_permissions(administrator=True)
     async def removemoney(self, interaction, member: discord.Member, amount: int):
         ctx = SlashContext(interaction)
-        if not self.is_owner_or_co_owner(ctx.author.id):
+        if not await self.is_owner_or_co_owner(ctx):
             embed = discord.Embed(title="⛔ ЭРХ ХҮРЭХГҮЙ", description="Зөвхөн бот эзэмшигч / хамт эзэмшигч", color=ERROR_COLOR)
             return await ctx.send(embed=embed)
         await ctx.defer(ephemeral=False)

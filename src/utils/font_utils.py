@@ -8,31 +8,28 @@ This module now delegates to the centralized Unicode-aware font manager in
 
 import os
 from pathlib import Path
-from typing import List, Optional
-
-from PIL import ImageFont
 
 from src.utils.fonts import (
     FontManager,
-    get_font_manager,
-    load_font,
+    draw_text_with_fallback,
     get_branding_font,
     get_emoji_font,
-    draw_text_with_fallback,
+    get_font_manager,
     is_emoji,
+    load_font,
 )
 
 # Re-export for backward compatibility
 __all__ = [
-    "load_font",
-    "list_fonts",
+    "FontManager",
+    "draw_text_with_fallback",
     "find_font",
     "get_branding_font",
     "get_emoji_font",
-    "draw_text_with_fallback",
-    "is_emoji",
-    "FontManager",
     "get_font_manager",
+    "is_emoji",
+    "list_fonts",
+    "load_font",
 ]
 
 # Keep the original FONTS_DIR for backward compatibility
@@ -40,7 +37,7 @@ ASSETS_DIR = str(Path(__file__).resolve().parents[2] / "assets")
 FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
 
 
-def list_fonts() -> List[str]:
+def list_fonts() -> list[str]:
     """List all available .ttf and .otf fonts in the assets directory."""
     fonts = []
     if os.path.isdir(FONTS_DIR):
@@ -50,7 +47,7 @@ def list_fonts() -> List[str]:
     return fonts
 
 
-def find_font(name: str) -> Optional[str]:
+def find_font(name: str) -> str | None:
     """Find a font by name in the assets directory."""
     if os.path.isdir(FONTS_DIR):
         for f in os.listdir(FONTS_DIR):

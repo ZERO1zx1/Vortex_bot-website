@@ -6,24 +6,26 @@ so we map every command into the website's 7 user-facing filter categories
 by command name/semantics — producing a balanced, well-structured catalog.
 
 Run from anywhere:
-    python3 tools/sync_website_commands.py
+    python website/tools/sync_website_commands.py
+    python website/tools/sync_website_commands.py --check
 
-Outputs:
-  - accurate MN (description_mn) + EN (description_en)
-  - correct slash/text type derived from the `usage` field
-  - 7-category mapping, icons preserved from the old catalog where present
+Outputs an accurate, categorized `website/js/commands.js` catalog. The removed
+legacy backend is intentionally not generated here.
 """
+import argparse
 import ast
 import json
 import os
 import re
+from pathlib import Path
+
+from catalog_source import command_rows
 
 HERE = os.path.dirname(os.path.abspath(__file__))          # website/tools
 WEB = os.path.dirname(HERE)                                 # website
 REPO = os.path.dirname(WEB)                                # repo root
 HELP = os.path.join(REPO, "src", "cogs", "help.py")
 WEB_JS = os.path.join(WEB, "js", "commands.js")
-BACKEND_JSON = os.path.join(REPO, "backend", "data", "commands.json")
 COGS_DIR = os.path.join(REPO, "src", "cogs")
 LOADER = os.path.join(REPO, "src", "utils", "cog_loader.py")
 
@@ -66,11 +68,11 @@ WEB_CAT = {
     "confess": "Social", "confess_setup": "Social", "confess_stats": "Social",
     "confess_delete": "Social", "confess_blacklist": "Social",
     # Games
-    "8ball": "Games", "blackjack": "Games", "cgive": "Games", "coin": "Games",
+    "8ball": "Games", "blackjack": "Games", "coin": "Games",
     "coinflipgame": "Games", "count_save": "Games", "count_stats_server": "Games",
     "count_stats_user": "Games", "crash": "Games", "dice": "Games", "gamble": "Games",
     "gamestats": "Games", "highcard": "Games", "highlow": "Games", "mafia_setup": "Games",
-    "mafiacreate": "Games", "mafiaend": "Games", "mafiastart": "Games", "mines": "Games",
+    "mafiacreate": "Games", "mafiaend": "Games", "mafiastart": "Games",
     "numberguess": "Games", "roll": "Games", "roulettegame": "Games", "rps": "Games",
     "slot": "Games", "trivia": "Games",
     # Moderation
@@ -87,6 +89,7 @@ WEB_CAT = {
     "status": "Admin", "stick": "Admin", "unstick": "Admin", "voicesettings": "Admin",
     "voicesetup": "Admin", "template_create": "Admin", "template_delete": "Admin",
     "template_edit": "Admin", "template_list": "Admin", "template_preview": "Admin",
+    "pokerclaimadmin": "Admin",
     # Utility (info, fun/emote, misc)
     "angry": "Utility", "autoaccept": "Utility", "avatar": "Utility", "bite": "Utility",
     "boop": "Utility", "bully": "Utility", "cat": "Utility", "cry": "Utility",
@@ -121,7 +124,7 @@ HELP_CAT_FALLBACK = {
 }
 
 def load_help():
-    src = open(HELP, encoding="utf-8-sig").read()
+    src = Path(HELP).read_text(encoding="utf-8-sig")
     tree = ast.parse(src)
     info = None
     for node in tree.body:
@@ -146,7 +149,7 @@ def load_help():
 
 def active_command_roots():
     """Read the active cog manifest and discover command roots without imports."""
-    loader_tree = ast.parse(open(LOADER, encoding="utf-8-sig").read())
+    loader_tree = ast.parse(Path(LOADER).read_text(encoding="utf-8-sig"))
     active_cogs = set()
     for node in loader_tree.body:
         if isinstance(node, ast.Assign) and any(
@@ -161,7 +164,7 @@ def active_command_roots():
     roots = set()
     for cog in active_cogs:
         path = os.path.join(COGS_DIR, f"{cog}.py")
-        tree = ast.parse(open(path, encoding="utf-8-sig").read())
+        tree = ast.parse(Path(path).read_text(encoding="utf-8-sig"))
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 for dec in node.decorator_list:
@@ -194,22 +197,24 @@ def active_command_roots():
 def existing_icons():
     if not os.path.exists(WEB_JS):
         return {}
-    text = open(WEB_JS, encoding="utf-8").read()
-    m = {}
-    for mm in re.finditer(r"name:\s*'([^']+)',\s*cat:\s*'[^']+',\s*icon:\s*'([^']+)'", text):
-        m[mm.group(1)] = mm.group(2)
-    return m
+    text = Path(WEB_JS).read_text(encoding="utf-8")
+    return {row["name"]: row["icon"] for row in command_rows(text) if row.get("icon")}
 
 def parse_args(usage):
     out = []
     for tok in re.findall(r"<([^>]+)>", usage):
         tok = tok.strip()
+        if not tok:
+            continue
         optional = tok.endswith("?")
         key = tok.rstrip("?").split()[0]
         out.append({"key": key, "req": not optional})
     return out
 
-def main():
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="Generate the static website command catalog.")
+    parser.add_argument("--check", action="store_true", help="Report catalog drift without writing files.")
+    options = parser.parse_args(argv)
     info = load_help()
     active_roots = active_command_roots()
     info = {name: data for name, data in info.items() if name.split()[0] in active_roots}
@@ -246,20 +251,15 @@ def main():
         print(f"  {c}: {cats.get(c,0)}")
 
     def jsobj(r):
-        args_js = json.dumps(r["args"], ensure_ascii=False)
-        return (
-            "  { name: '%s', cat: '%s', icon: '%s', desc: %s, descEN: %s, "
-            "args: %s, example: '%s' }"
-            % (r["name"], r["cat"], r["icon"],
-               json.dumps(r["desc"], ensure_ascii=False),
-               json.dumps(r["descEN"], ensure_ascii=False),
-               args_js, r["example"])
-        )
+        fields = ("name", "cat", "icon", "desc", "descEN", "args", "example")
+        return "  { " + ", ".join(
+            f"{key}: {json.dumps(r[key], ensure_ascii=False)}" for key in fields
+        ) + " }"
 
     body = ",\n".join(jsobj(r) for r in rows)
     out = f"""/* ============================================================
    𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Command catalog (auto-generated from src/cogs/help.py COMMAND_INFO)
-   {total} commands · slash={slash} text={text} · generated by tools/sync_website_commands.py
+   {total} commands · slash={slash} text={text} · generated by website/tools/sync_website_commands.py
    Mapped into the website's 7 user-facing filter categories.
    ============================================================ */
 const COMMANDS = [
@@ -293,13 +293,16 @@ window.CAT_META = {{
   Utility:    {{ label: 'Бусад',       labelEN: 'Utility',       color: '#8C8FA1', icon: '🔧' }},
 }};
 """
-    open(WEB_JS, "w", encoding="utf-8").write(out)
+    destination = Path(WEB_JS)
+    if options.check:
+        if destination.is_file() and destination.read_text(encoding="utf-8") == out:
+            print("Catalog is current; no files written.")
+            return 0
+        print("Catalog is out of date; no files written.")
+        return 1
+    destination.write_text(out, encoding="utf-8")
     print(f"Wrote {WEB_JS} ({total} commands)")
-    backend_rows = [{k: v for k, v in row.items() if k != "_order"} for row in rows]
-    with open(BACKEND_JSON, "w", encoding="utf-8") as fh:
-        json.dump(backend_rows, fh, ensure_ascii=False, indent=4)
-        fh.write("\n")
-    print(f"Wrote {BACKEND_JSON} ({total} commands)")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

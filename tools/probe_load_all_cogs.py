@@ -3,13 +3,19 @@ with a stubbed db_manager and report every load failure + duplicate names.
 No Discord login, no network traffic.
 """
 import asyncio
+import logging
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import discord
 from discord.ext import commands
+
+from src.utils.cog_loader import ACTIVE_COGS, discover_cogs
+
+logger = logging.getLogger(__name__)
 
 
 class StubDB:
@@ -27,19 +33,12 @@ class StubDB:
     async def delete(self, *a, **k): return None
     async def execute(self, *a, **k): return None
     async def upsert(self, *a, **k): return None
+    async def rpc(self, *a, **k): return None
     async def init_tables(self): return None
     def connect(self): return None
 
 
-COGS = [
-    "admin", "avatar_check", "cafe", "carts", "confessions",
-    "counting", "economy", "fun", "games", "giveaway",
-    "help", "invite_tracker", "leveling", "level_admin", "mafia", "mines",
-    "lang", "moderation", "pvp", "roles", "shop", "stock",
-    "stick", "marriage", "announcement", "tempvoice", "trade",
-    "quests", "leaderboard", "casino", "greetings", "presence",
-    "reaction_roles", "automod", "menu", "government",
-]
+COGS = discover_cogs(Path(__file__).resolve().parents[1] / "src" / "cogs", ACTIVE_COGS)
 
 
 async def main():
@@ -71,6 +70,7 @@ async def main():
             failed.append(name)
             print(f"[LOAD TIMEOUT] {name}")
         except Exception as e:
+            logger.exception("Could not load cog %s", name)
             failed.append(name)
             print(f"[LOAD FAIL] {name}: {type(e).__name__}: {e}")
 
@@ -84,6 +84,8 @@ async def main():
             all_cmds.setdefault(cmd.name, []).append(type(cmd.cog).__name__)
     print(f"Total registered commands: {len(all_cmds)}")
     await bot.close()
+    return int(bool(failed))
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(main()))

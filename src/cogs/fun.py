@@ -1,13 +1,16 @@
-import discord
-from discord.ext import commands
-import random
+import logging
 import os
-import aiohttp
-from typing import Optional
+import random
 from pathlib import Path
 
-from src.utils.embeds import brand_embed, success_embed, info_embed, error_embed
-from src.utils.branding import PRIMARY_COLOR, ACCENT_COLOR, BOT_FOOTER
+import aiohttp
+import discord
+from discord.ext import commands
+
+from src.utils.branding import ACCENT_COLOR, BOT_FOOTER, PRIMARY_COLOR
+from src.utils.embeds import brand_embed, info_embed, success_embed
+
+logger = logging.getLogger(__name__)
 
 class Fun(commands.Cog):
     def __init__(self, bot):
@@ -69,7 +72,7 @@ class Fun(commands.Cog):
 
     # ==================== ЛОКАЛ ГИФ ХАЙЛТ ====================
     @commands.command(name='gif')
-    async def gif_local(self, ctx, *, query: str = None):
+    async def gif_local(self, ctx, *, query: str | None = None):
         """assets/gifs/ доторх .gif файлуудаас хайлт хийх"""
         gifs_folder = self.gifs_base
 
@@ -128,7 +131,8 @@ class Fun(commands.Cog):
                     embed.set_image(url=data['url'])
                     embed.set_footer(text=f"👍 {data['ups']} | r/{data['subreddit']}")
                     await ctx.send(embed=embed)
-            except Exception as e:
+            except (aiohttp.ClientError, TimeoutError, discord.HTTPException, KeyError, IndexError, TypeError, ValueError):
+                logger.exception("Operation failed in meme")
                 await ctx.send("❌ Мийм татахад алдаа гарлаа.")
 
     @commands.command(name='coin')
@@ -137,7 +141,7 @@ class Fun(commands.Cog):
         await ctx.send(f"🪙 {ctx.author.mention} зоос шидэв... **{result}**!")
 
     @commands.command(name='roll')
-    async def roll(self, ctx, maximum: Optional[int] = 6):
+    async def roll(self, ctx, maximum: int | None = 6):
         if maximum < 1:
             maximum = 6
         result = random.randint(1, maximum)
@@ -160,7 +164,8 @@ class Fun(commands.Cog):
                     embed = discord.Embed(title="🐶 Сайн уу нохой!", color=0xffcc00)
                     embed.set_image(url=data['message'])
                     await ctx.send(embed=embed)
-            except Exception:
+            except (aiohttp.ClientError, TimeoutError, discord.HTTPException, KeyError, IndexError, TypeError, ValueError):
+                logger.exception("Operation failed in dog")
                 await ctx.send("❌ Нохойн зураг авахад алдаа гарлаа.")
 
     @commands.command(name='cat')
@@ -175,7 +180,8 @@ class Fun(commands.Cog):
                         await ctx.send(embed=embed)
                     else:
                         await ctx.send("❌ Муур олдсонгүй.")
-            except Exception:
+            except (aiohttp.ClientError, TimeoutError, discord.HTTPException, KeyError, IndexError, TypeError, ValueError):
+                logger.exception("Operation failed in cat")
                 await ctx.send("❌ Муурны зураг авахад алдаа гарлаа.")
 
     @commands.command(name='fox')
@@ -187,7 +193,8 @@ class Fun(commands.Cog):
                     embed = discord.Embed(title="🦊 Үнэг ирлээ!", color=0xff6600)
                     embed.set_image(url=data['image'])
                     await ctx.send(embed=embed)
-            except Exception:
+            except (aiohttp.ClientError, TimeoutError, discord.HTTPException, KeyError, IndexError, TypeError, ValueError):
+                logger.exception("Operation failed in fox")
                 await ctx.send("❌ Үнэгний зураг авахад алдаа гарлаа.")
 
     # ==================== ACTION COMMANDS ====================

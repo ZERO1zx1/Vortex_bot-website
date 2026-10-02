@@ -1,14 +1,13 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
-from discord.ui import Modal, TextInput, View, Button
 import json
-import asyncio
-from typing import Optional, Dict, List
-from datetime import datetime
-from dataclasses import dataclass, field
-import random
 import logging
+import random
+from dataclasses import dataclass
+from urllib.parse import urlsplit
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+from discord.ui import Button, Modal, TextInput, View
 
 from src.utils.config_cache import ConfigCache
 
@@ -26,17 +25,17 @@ PURPLE_COLOR  = 0xcba6f7
 @dataclass
 class GuildConfig:
     guild_id: int
-    welcome_channel: Optional[int] = None
-    goodbye_channel: Optional[int] = None
-    boost_channel: Optional[int] = None
-    welcome_template_id: Optional[int] = None
-    goodbye_template_id: Optional[int] = None
-    boost_template_id: Optional[int] = None
+    welcome_channel: int | None = None
+    goodbye_channel: int | None = None
+    boost_channel: int | None = None
+    welcome_template_id: int | None = None
+    goodbye_template_id: int | None = None
+    boost_template_id: int | None = None
     welcome_enabled: bool = True
     goodbye_enabled: bool = True
     boost_enabled: bool = True
     dm_on_welcome: bool = False
-    log_channel: Optional[int] = None
+    log_channel: int | None = None
 
     @property
     def is_welcome_active(self) -> bool:
@@ -137,6 +136,34 @@ PLACEHOLDERS = {
 }
 
 # ===== UI COMPONENTS =====
+async def authorize_template_editor(
+    interaction: discord.Interaction, guild_id: int, owner_id: int
+) -> bool:
+    """Recheck the editor's identity and current permissions on every UI action."""
+    if (
+        interaction.guild_id != guild_id
+        or interaction.user.id != owner_id
+        or not isinstance(interaction.user, discord.Member)
+        or not interaction.permissions.manage_guild
+    ):
+        await interaction.response.send_message(
+            "❌ Энэ засварлагчийг зөвхөн нээсэн серверийн эрхтэй хэрэглэгч ашиглана.",
+            ephemeral=True,
+        )
+        return False
+    return True
+
+
+def valid_button_url(url: str) -> bool:
+    if not isinstance(url, str):
+        return False
+    try:
+        parsed = urlsplit(url)
+        return parsed.scheme in {"http", "https"} and bool(parsed.hostname)
+    except ValueError:
+        return False
+
+
 class GreetingButtonModal(Modal):
     def __init__(self, callback_func):
         super().__init__(title="🔘 Товчлуур нэмэх")
@@ -150,9 +177,15 @@ class GreetingButtonModal(Modal):
         await self.callback(interaction, self.label_input.value, self.url_input.value)
 
 class TemplateCreateModal(Modal, title="📝 Embed Загвар бүтээх"):
-    def __init__(self, existing: Dict = None, cog=None):
+    def __init__(
+        self, cog, guild_id: int, owner_id: int,
+        existing: dict | None = None, template_id: int | None = None,
+    ):
         super().__init__()
         self.cog = cog
+        self.guild_id = guild_id
+        self.owner_id = owner_id
+        self.template_id = template_id
         self.existing = existing or {}
         self.template_name = TextInput(
             label="🏷️ Загварын нэр",
@@ -176,7 +209,7 @@ class TemplateCreateModal(Modal, title="📝 Embed Загвар бүтээх"):
             max_length=2000,
             default=self.existing.get("description", "")
         )
-        color_default = hex(self.existing["color"]) if "color" in self.existing else ""
+        color_default = f"#{self.existing['color']:06x}" if "color" in self.existing else ""
         self.color_input = TextInput(
             label="🎨 Өнгө (Hex)",
             placeholder="#57f287",
@@ -198,9 +231,13 @@ class TemplateCreateModal(Modal, title="📝 Embed Загвар бүтээх"):
         self.add_item(self.thumbnail_input)
 
     async def on_submit(self, interaction: discord.Interaction):
+        if not await authorize_template_editor(interaction, self.guild_id, self.owner_id):
+            return
         try:
-            color = int(self.color_input.value.strip('#'), 16) if self.color_input.value else 0x57f287
+            color = int(self.color_input.value.lstrip('#'), 16) if self.color_input.value else 0x57f287
         except ValueError:
+            return await interaction.response.send_message("❌ Буруу Hex өнгө!", ephemeral=True)
+        if not 0 <= color <= 0xFFFFFF:
             return await interaction.response.send_message("❌ Буруу Hex өнгө!", ephemeral=True)
 
         base = self.existing.copy() if self.existing else {}
@@ -217,19 +254,32 @@ class TemplateCreateModal(Modal, title="📝 Embed Загвар бүтээх"):
             "footer_icon": base.get("footer_icon", ""),
             "buttons": base.get("buttons", [])
         })
-        self.result = base
         await interaction.response.send_message(
-            "✅ Загвар бүтээгдлээ! Одоо товчлуур нэмэх үү?",
-            view=ButtonAddView(self.result, interaction, self.cog),
+            "✅ Загвар бэлэн боллоо! Товчлуур нэмээд хадгалах боломжтой.",
+            view=ButtonAddView(base, self.guild_id, self.owner_id, self.cog, self.template_id),
             ephemeral=True
         )
 
 class ButtonAddView(View):
-    def __init__(self, template: Dict, original_interaction: discord.Interaction, cog):
+    def __init__(
+        self, template: dict, guild_id: int, owner_id: int, cog,
+        template_id: int | None = None,
+    ):
         super().__init__(timeout=300)
         self.template = template
-        self.original_interaction = original_interaction
+        self.guild_id = guild_id
+        self.owner_id = owner_id
+        self.template_id = template_id
         self.cog = cog
+        self.saved = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not await authorize_template_editor(interaction, self.guild_id, self.owner_id):
+            return False
+        if self.saved:
+            await interaction.response.send_message("✅ Энэ загвар аль хэдийн хадгалагдсан.", ephemeral=True)
+            return False
+        return True
 
     @discord.ui.button(label="🔘 Товчлуур нэмэх", style=discord.ButtonStyle.primary)
     async def add_button(self, interaction: discord.Interaction, button: Button):
@@ -237,23 +287,51 @@ class ButtonAddView(View):
         await interaction.response.send_modal(modal)
 
     async def add_button_callback(self, interaction, label, url):
+        if not await self.interaction_check(interaction):
+            return
+        if len(self.template["buttons"]) >= 25:
+            return await interaction.response.send_message("❌ Дээд тал нь 25 товчлуур нэмнэ.", ephemeral=True)
+        if not valid_button_url(url):
+            return await interaction.response.send_message("❌ http:// эсвэл https:// URL оруулна уу.", ephemeral=True)
         self.template["buttons"].append({"label": label, "url": url, "style": 5})
         await interaction.response.send_message(f"✅ '{label}' товчлуур нэмэгдлээ!", ephemeral=True, view=self)
 
     @discord.ui.button(label="💾 Хадгалах", style=discord.ButtonStyle.success)
     async def save_template(self, interaction: discord.Interaction, button: Button):
-        await self.cog.save_template(interaction.guild.id, interaction.user.id, self.template)
-        await interaction.response.send_message("✅ Загвар амжилттай хадгалагдлаа!", ephemeral=True)
+        if not await self.interaction_check(interaction):
+            return
+        # Mark before the first await to prevent overlapping save button clicks.
+        self.saved = True
+        await interaction.response.defer(ephemeral=True)
+        try:
+            saved = await self.cog.save_template(
+                self.guild_id, self.owner_id, self.template, template_id=self.template_id,
+            )
+        except Exception:
+            self.saved = False
+            logger.exception("Failed to save greeting template in guild %s", self.guild_id)
+            await interaction.followup.send("❌ Загвар хадгалахад алдаа гарлаа.", ephemeral=True)
+            return
+        if not saved:
+            self.saved = False
+            await interaction.followup.send("❌ Загвар олдсонгүй эсвэл таны загвар биш байна.", ephemeral=True)
+            return
+        await interaction.followup.send("✅ Загвар амжилттай хадгалагдлаа!", ephemeral=True)
         self.stop()
 
 class TemplateCreateView(View):
-    def __init__(self, cog):
+    def __init__(self, cog, guild_id: int, owner_id: int):
         super().__init__(timeout=300)
         self.cog = cog
+        self.guild_id = guild_id
+        self.owner_id = owner_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return await authorize_template_editor(interaction, self.guild_id, self.owner_id)
 
     @discord.ui.button(label="📝 Шинэ загвар бүтээх", style=discord.ButtonStyle.primary)
     async def create_new(self, interaction: discord.Interaction, button: Button):
-        modal = TemplateCreateModal(cog=self.cog)
+        modal = TemplateCreateModal(self.cog, self.guild_id, self.owner_id)
         await interaction.response.send_modal(modal)
 
 # ===== MAIN COG =====
@@ -266,7 +344,7 @@ class Greetings(commands.Cog):
         # Tables are pre-configured in Supabase via SQL migrations
         pass
 
-    async def get_config(self, guild_id: int) -> Optional[GuildConfig]:
+    async def get_config(self, guild_id: int) -> GuildConfig | None:
         async def _load():
             row = await self.bot.db_manager.fetch_safe(
                 "greeting_config", {"guild_id": str(guild_id)}, single=True
@@ -296,7 +374,7 @@ class Greetings(commands.Cog):
     def resolve_placeholders(self, text: str, member: discord.Member) -> str:
         if not text:
             return text
-        now = datetime.now()
+        now = discord.utils.utcnow()
         guild = member.guild
         replacements = {
             "{user:mention}": member.mention,
@@ -324,7 +402,7 @@ class Greetings(commands.Cog):
             text = text.replace(k, v)
         return text
 
-    def build_embed(self, template: Dict, member: discord.Member) -> discord.Embed:
+    def build_embed(self, template: dict, member: discord.Member) -> discord.Embed:
         embed = discord.Embed(
             title=self.resolve_placeholders(template.get("title", ""), member) or None,
             description=self.resolve_placeholders(template.get("description", ""), member),
@@ -351,67 +429,109 @@ class Greetings(commands.Cog):
             embed.set_footer(text="𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 • Anime Chronicle")
         return embed
 
-    def build_buttons(self, template: Dict) -> Optional[View]:
+    def build_buttons(self, template: dict) -> View | None:
         buttons = template.get("buttons", [])
-        if not buttons:
+        if not isinstance(buttons, list) or not buttons:
             return None
         view = View(timeout=None)
-        for btn_data in buttons:
+        for btn_data in buttons[:25]:
+            if not isinstance(btn_data, dict):
+                logger.warning("Skipping malformed greeting button")
+                continue
+            url = btn_data.get("url", "")
+            label = btn_data.get("label", "Товч")
+            if not valid_button_url(url) or not isinstance(label, str) or not label:
+                logger.warning("Skipping greeting button with an invalid link")
+                continue
             btn = Button(
-                label=btn_data.get("label", "Товч"),
-                url=btn_data.get("url", "https://discord.com"),
-                style=discord.ButtonStyle(btn_data.get("style", 5))
+                label=label[:80],
+                url=url,
+                style=discord.ButtonStyle.link,
             )
             view.add_item(btn)
-        return view
+        return view if view.children else None
 
-    async def save_template(self, guild_id: int, creator_id: int, template: Dict):
-        await self.bot.db_manager.insert("greeting_templates", {
-            "guild_id": str(guild_id),
-            "creator_id": str(creator_id),
-            "name": template["name"],
-            "data": json.dumps(template),
-        })
+    async def save_template(
+        self, guild_id: int, creator_id: int, template: dict,
+        *, template_id: int | None = None,
+    ) -> bool:
+        data = {"name": template["name"], "data": json.dumps(template)}
+        owner = {"guild_id": str(guild_id), "creator_id": str(creator_id)}
+        if template_id is None:
+            rows = await self.bot.db_manager.insert("greeting_templates", {**owner, **data})
+        else:
+            # Scope the write itself, including if the template changes after lookup.
+            rows = await self.bot.db_manager.update(
+                "greeting_templates", {"id": template_id, **owner}, data,
+            )
+        return bool(rows)
 
-    async def get_template(self, template_id: int) -> Optional[Dict]:
-        row = await self.bot.db_manager.fetch_one("greeting_templates", {"id": template_id})
-        return json.loads(row["data"]) if row else None
+    async def get_template(
+        self, template_id: int, guild_id: int, creator_id: int | None = None,
+    ) -> dict | None:
+        filters = {"id": template_id, "guild_id": str(guild_id)}
+        if creator_id is not None:
+            filters["creator_id"] = str(creator_id)
+        row = await self.bot.db_manager.fetch_one("greeting_templates", filters)
+        if not row:
+            return None
+        return self._decode_template(row, guild_id)
 
-    async def get_all_templates(self, guild_id: int, user_id: Optional[int] = None) -> List[Dict]:
+    @staticmethod
+    def _decode_template(row: dict, guild_id: int) -> dict | None:
+        try:
+            template = json.loads(row["data"])
+        except (KeyError, TypeError, ValueError):
+            logger.warning("Malformed greeting template %s in guild %s", row.get("id"), guild_id, exc_info=True)
+            return None
+        return template if isinstance(template, dict) else None
+
+    async def get_all_templates(self, guild_id: int, user_id: int | None = None) -> list[dict]:
         filters = {"guild_id": str(guild_id)}
-        if user_id:
+        if user_id is not None:
             filters["creator_id"] = str(user_id)
         rows = await self.bot.db_manager.fetch_all("greeting_templates", filters)
-        return [{"id": r["id"], "name": r["name"], "data": json.loads(r["data"]), "creator_id": r["creator_id"]} for r in rows]
+        templates = []
+        for row in rows:
+            data = self._decode_template(row, guild_id)
+            if data is not None:
+                templates.append({
+                    "id": row["id"], "name": row["name"], "data": data,
+                    "creator_id": row["creator_id"],
+                })
+        return templates
 
-    async def send_greeting(self, channel_id: int, template_id: Optional[int], member: discord.Member, 
-                            default_template: Dict, send_dm: bool = False, log_channel_id: Optional[int] = None):
+    async def send_greeting(self, channel_id: int, template_id: int | None, member: discord.Member,
+                            default_template: dict, send_dm: bool = False, log_channel_id: int | None = None):
         channel = member.guild.get_channel(channel_id)
         if not channel:
             return
-        template = await self.get_template(template_id) if template_id else default_template
+        template = await self.get_template(template_id, member.guild.id) if template_id else None
+        # Deleted templates and stale/cross-guild configuration use the default.
+        template = template or default_template
         embed = self.build_embed(template, member)
         view = self.build_buttons(template)
         try:
             await channel.send(embed=embed, view=view)
-        except Exception as e:
+        except discord.HTTPException as e:
             await self.log_error(member.guild, f"Мэндчилгээ илгээхэд алдаа гарлаа: {e}", log_channel_id)
 
         if send_dm:
             try:
                 await member.send(embed=embed, view=view)
-            except Exception:
-                pass
+            except discord.HTTPException:
+                logger.debug("Cannot send greeting DM to member %s in guild %s", member.id, member.guild.id, exc_info=True)
 
-    async def log_error(self, guild: discord.Guild, message: str, log_channel_id: Optional[int] = None):
+    async def log_error(self, guild: discord.Guild, message: str, log_channel_id: int | None = None):
+        logger.warning("Greeting error in guild %s: %s", guild.id, message)
         if not log_channel_id:
             return
         log_channel = guild.get_channel(log_channel_id)
         if log_channel:
             try:
                 await log_channel.send(embed=discord.Embed(description=message, color=ERROR_COLOR))
-            except Exception:
-                pass
+            except discord.HTTPException:
+                logger.warning("Cannot send greeting error log in guild %s", guild.id, exc_info=True)
 
     # ================= SLASH COMMANDS =================
     @app_commands.command(name="greeting_set", description="Welcome/Goodbye/Boost сувгийг тохируулах")
@@ -426,9 +546,19 @@ class Greetings(commands.Cog):
         app_commands.Choice(name="Goodbye", value="goodbye"),
         app_commands.Choice(name="Boost", value="boost")
     ])
+    @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def greeting_set(self, interaction: discord.Interaction, event: str, channel: discord.TextChannel,
-                           template_id: Optional[int] = None, dm: Optional[bool] = None):
+                           template_id: int | None = None, dm: bool | None = None):
+        if event not in {"welcome", "goodbye", "boost"}:
+            return await interaction.response.send_message("❌ Үйл явдал буруу байна.", ephemeral=True)
+        if channel.guild.id != interaction.guild_id:
+            return await interaction.response.send_message("❌ Энэ серверийн суваг сонгоно уу.", ephemeral=True)
+        if template_id is not None and not await self.get_template(
+            template_id, interaction.guild_id, interaction.user.id,
+        ):
+            return await interaction.response.send_message("❌ Таны загвар энэ серверт олдсонгүй.", ephemeral=True)
         col_channel = f"{event}_channel"
         col_template = f"{event}_template_id"
         data = {col_channel: channel.id, col_template: template_id}
@@ -456,8 +586,12 @@ class Greetings(commands.Cog):
         app_commands.Choice(name="Boost", value="boost"),
         app_commands.Choice(name="DM Welcome", value="dm")
     ])
+    @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def greeting_toggle(self, interaction: discord.Interaction, event: str):
+        if event not in {"welcome", "goodbye", "boost", "dm"}:
+            return await interaction.response.send_message("❌ Үйл явдал буруу байна.", ephemeral=True)
         config = await self.get_config(interaction.guild.id)
         if not config:
             return await interaction.response.send_message("❌ Тохиргоо байхгүй. `/greeting_set` ашиглана уу.", ephemeral=True)
@@ -487,7 +621,9 @@ class Greetings(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="template_create", description="Шинэ embed загвар үүсгэх")
+    @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def template_create(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="📝 Шинэ Embed Загвар бүтээх",
@@ -496,28 +632,50 @@ class Greetings(commands.Cog):
             color=GOLD_COLOR
         )
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-        view = TemplateCreateView(self)
+        view = TemplateCreateView(self, interaction.guild_id, interaction.user.id)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @app_commands.command(name="template_edit", description="Загварыг засварлах")
     @app_commands.describe(template_id="Загварын ID")
+    @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def template_edit(self, interaction: discord.Interaction, template_id: int):
-        template = await self.get_template(template_id)
+        template = await self.get_template(template_id, interaction.guild_id, interaction.user.id)
         if not template:
             return await interaction.response.send_message("❌ Загвар олдсонгүй.", ephemeral=True)
-        modal = TemplateCreateModal(template, cog=self)
+        modal = TemplateCreateModal(
+            self, interaction.guild_id, interaction.user.id,
+            existing=template, template_id=template_id,
+        )
         await interaction.response.send_modal(modal)
 
     @app_commands.command(name="template_delete", description="Загвар устгах")
     @app_commands.describe(template_id="Загварын ID")
+    @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def template_delete(self, interaction: discord.Interaction, template_id: int):
-        await self.bot.db_manager.delete("greeting_templates", {"id": template_id})
-        await interaction.response.send_message(f"✅ Загвар {template_id} устгагдлаа.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        deleted = await self.bot.db_manager.delete("greeting_templates", {
+            "id": template_id, "guild_id": str(interaction.guild_id),
+            "creator_id": str(interaction.user.id),
+        })
+        if not deleted:
+            return await interaction.followup.send("❌ Таны загвар энэ серверт олдсонгүй.", ephemeral=True)
+        for event in ("welcome", "goodbye", "boost"):
+            column = f"{event}_template_id"
+            await self.bot.db_manager.update(
+                "greeting_config", {"guild_id": str(interaction.guild_id), column: template_id},
+                {column: None},
+            )
+        self.invalidate_cache(interaction.guild_id)
+        await interaction.followup.send(f"✅ Загвар {template_id} устгагдлаа.", ephemeral=True)
 
     @app_commands.command(name="template_list", description="Бүх загваруудыг харах")
+    @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def template_list(self, interaction: discord.Interaction):
         templates = await self.get_all_templates(interaction.guild.id, interaction.user.id)
         if not templates:
@@ -533,12 +691,16 @@ class Greetings(commands.Cog):
 
     @app_commands.command(name="template_preview", description="Загварыг урьдчилан харах")
     @app_commands.describe(template_id="Загварын ID", member="Гишүүний нэр дээр харуулах")
+    @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
-    async def template_preview(self, interaction: discord.Interaction, template_id: int, member: Optional[discord.Member] = None):
-        template = await self.get_template(template_id)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def template_preview(self, interaction: discord.Interaction, template_id: int, member: discord.Member | None = None):
+        template = await self.get_template(template_id, interaction.guild_id, interaction.user.id)
         if not template:
             return await interaction.response.send_message("❌ Загвар олдсонгүй.", ephemeral=True)
         target = member or interaction.user
+        if not isinstance(target, discord.Member) or target.guild.id != interaction.guild_id:
+            return await interaction.response.send_message("❌ Энэ серверийн гишүүн сонгоно уу.", ephemeral=True)
         embed = self.build_embed(template, target)
         view = self.build_buttons(template)
         await interaction.response.send_message(
@@ -560,7 +722,9 @@ class Greetings(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="greeting_status", description="Одоогийн тохиргоог харах")
+    @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def greeting_status(self, interaction: discord.Interaction):
         config = await self.get_config(interaction.guild.id)
         if not config:
@@ -581,7 +745,9 @@ class Greetings(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="greeting_reset", description="Бүх тохиргоог устгах (болгоомжтой!)")
+    @app_commands.guild_only()
     @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     async def greeting_reset(self, interaction: discord.Interaction):
         await self.bot.db_manager.delete("greeting_config", {"guild_id": str(interaction.guild.id)})
         self.invalidate_cache(interaction.guild.id)
@@ -589,8 +755,12 @@ class Greetings(commands.Cog):
 
     @app_commands.command(name="set_log_channel", description="Алдааны лог сувгийг тохируулах")
     @app_commands.describe(channel="Лог суваг")
+    @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def set_log_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        if channel.guild.id != interaction.guild_id:
+            return await interaction.response.send_message("❌ Энэ серверийн суваг сонгоно уу.", ephemeral=True)
         await self.bot.db_manager.upsert(
             "greeting_config",
             {"guild_id": str(interaction.guild.id), "log_channel": channel.id},
@@ -611,8 +781,8 @@ class Greetings(commands.Cog):
                     send_dm=config.dm_on_welcome,
                     log_channel_id=config.log_channel
                 )
-        except Exception as exc:
-            self._log_event_error("on_member_join", member.guild.id, exc)
+        except Exception:
+            logger.exception("Greetings on_member_join failed in guild %s", member.guild.id)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
@@ -624,8 +794,8 @@ class Greetings(commands.Cog):
                     DEFAULT_TEMPLATES["goodbye"],
                     log_channel_id=config.log_channel
                 )
-        except Exception as exc:
-            self._log_event_error("on_member_remove", member.guild.id, exc)
+        except Exception:
+            logger.exception("Greetings on_member_remove failed in guild %s", member.guild.id)
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
@@ -638,15 +808,8 @@ class Greetings(commands.Cog):
                         DEFAULT_TEMPLATES["boost"],
                         log_channel_id=config.log_channel
                     )
-            except Exception as exc:
-                self._log_event_error("on_member_update", after.guild.id, exc)
-
-    @staticmethod
-    def _log_event_error(event: str, guild_id: int, exc: Exception):
-        if getattr(exc, "code", None) in ("42501", "PGRST205"):
-            logger.debug("greetings %s DB unavailable in guild %s: %s", event, guild_id, exc)
-        else:
-            logger.warning("greetings %s error in guild %s: %s", event, guild_id, exc, exc_info=True)
+            except Exception:
+                logger.exception("Greetings on_member_update failed in guild %s", after.guild.id)
 
 async def setup(bot):
     await bot.add_cog(Greetings(bot))

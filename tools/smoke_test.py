@@ -1,9 +1,12 @@
 """Mock smoke test: games.py-г импортлоод бүх View класс, TRIVIA_QUESTIONS,
 командууд зөв бүртгэгдсэн эсэхийг Discord gateway-гүйгээр баталгаажуулна."""
-import sys
-import os
 import importlib.util
+import logging
+import os
+import sys
 import types
+
+logger = logging.getLogger(__name__)
 
 # environment хуурамч утгаар тохируулна
 os.environ.setdefault("DISCORD_TOKEN", "mock-token")
@@ -71,13 +74,14 @@ for util_name, filename in [("fonts", "src/utils/fonts.py"), ("supabase_cog", "s
             mod = load_module(path, f"src.utils.{util_name}")
             sys.modules[f"src.utils.{util_name}"] = mod
         except Exception as e:
+            logger.exception("Could not load optional smoke-test utility %s", util_name)
             print(f"⚠ src.utils.{util_name} load skipped: {e}")
 
 # Үндсэн тест
 games_spec = importlib.util.spec_from_file_location("games", os.path.join(base, "src", "cogs", "games.py"))
 games = importlib.util.module_from_spec(games_spec)
 sys.modules["games"] = games
-games_spec.loader.exec_module(games)  # noqa: E402
+games_spec.loader.exec_module(games)
 
 errors = []
 
@@ -107,8 +111,7 @@ for cmd in expected_cmds:
         print(f"  ✅ /{cmd}")
 
 # 4. Games Cog үүсэх боломжтой эсэх (mock bot-оор)
-import discord  # noqa: E402
-from unittest.mock import MagicMock  # noqa: E402
+from unittest.mock import MagicMock
 
 mock_bot = MagicMock()
 mock_bot.config = {"bonus_percent": 10}
@@ -116,14 +119,16 @@ try:
     cog = games.Games(mock_bot)
     print("  ✅ Games Cog instance үүсгэгдлээ")
 except Exception as e:
+    logger.exception("Games cog construction failed")
     errors.append(f"Cog init failed: {e}")
 
 # 5. View-үүд Discord UI-тай нийцэж байгаа эсэх (mock ctx-ээр бүтээх)
 # discord.py >= 2.4: View.__init__ нь asyncio.get_running_loop() шаарддаг тул
 # View үүсгэх заавал ажиллаж буй event loop дотор хийгдэнэ (бот дээр async
 # команд дотор үүсдэгтэй ижил нөхцөл).
-import asyncio  # noqa: E402
-from discord.ext import commands  # noqa: E402
+import asyncio
+
+from discord.ext import commands
 
 mock_ctx = MagicMock(spec=commands.Context)
 mock_ctx.author.id = 12345
@@ -143,6 +148,7 @@ async def _build_views():
             v = cls(*args)
             print(f"  ✅ {cls.__name__} бүтээгдлээ, {len(v.children)} товчлууртай")
         except Exception as e:
+            logger.exception("Games view %s construction failed", cls.__name__)
             errors.append(f"{cls.__name__} init failed: {e}")
 
 

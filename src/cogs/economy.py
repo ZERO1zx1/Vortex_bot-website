@@ -1,25 +1,25 @@
-from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-from src.utils.branding import footer_text, BOT_NAME
-from src.utils.embed_style import style_embed, success_embed, error_embed, warning_embed, info_embed, gold_embed, add_box_field, format_command
-import discord
-from discord.ext import commands
-from discord import app_commands
-from discord.ui import View, Button, Modal, TextInput
-from src.utils.supabase_cog import SupabaseCog
+import asyncio
+import logging
 import random
 import time
-import asyncio
-import io
-import os
-import aiohttp
-import logging
 from datetime import datetime, timezone
-from PIL import Image, ImageDraw, ImageFont
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+from discord.ui import Button, Modal, TextInput, View
+
+from src.utils.branding import BOT_NAME
+from src.utils.embed_style import (
+    add_box_field,
+    info_embed,
+    style_embed,
+)
+from src.utils.supabase_cog import SupabaseCog
 
 logger = logging.getLogger(__name__)
 
 # ---------- Centralized Unicode-aware font management ----------
-from src.utils.fonts import load_font as _load_font
 
 # ---------- Өнгөний палитр ----------
 EMBED_COLOR   = 0x1e1e2f
@@ -160,23 +160,73 @@ class Economy(SupabaseCog):
         row = await self.get_data("economy", {"user_id": str(uid), "guild_id": str(gid)})
         return row.get("balance", 0) if row else 0
 
-    async def update_balance(self, uid, gid, delta, apply_tax: bool = None):
+    async def update_balance(
+        self, uid, gid, delta, apply_tax: bool | None = None, *, reference: str | None = None
+    ):
         """Гар дээрх үлдэгдэл өөрчлөх. Эерэг орлогод татвар автан
         (Government system идэвхтэй бол түүний хүлээн авагчдад, эс бөгөөс
         Ерөнхийлөгч/Захирал ролттой хэрэглэгчид) автоматаар хуваарилагдана.
-        Татварын өөрөө хуваарилах үедээ apply_tax=False дамжуулна."""
+        Татварын өөрөө хуваарилах үедээ apply_tax=False дамжуулна.
+
+        ``reference`` өгсөн үед Supabase RPC нь balance update, reference
+        claim, татварын бүх balance/treasury шилжүүлгийг нэг transaction-д
+        хийж, retry/давхар дуудлагыг нэг л удаа хэрэгжүүлнэ. Ижил reference
+        өөр дүн/татвартай дахин ашиглагдвал DB алдаа өгнө.
+        """
+        if reference is not None:
+            reference = str(reference).strip()
+            if not reference or len(reference) > 200:
+                raise ValueError("reference must contain 1-200 characters")
+
         lock = await self._get_user_lock(self._balance_locks, f"{uid}:{gid}")
         async with lock:
-            await self.ensure_user(uid, gid)
+            if reference is None:
+                await self.ensure_user(uid, gid)
             if delta > 0 and (apply_tax if apply_tax is not None else True):
                 rate = await self.get_effective_rate(gid)
                 tax = int(delta * rate / 100)
                 credited = delta - tax
-                if tax > 0:
+                if tax > 0 and reference is None:
                     await self.distribute_tax(gid, tax)
             else:
                 tax = 0
                 credited = delta
+
+            if reference is not None:
+                plan = await self._prepare_reference_tax_plan(gid, tax)
+                response = await self.bot.db_manager.rpc(
+                    "apply_economy_balance_with_tax_once",
+                    {
+                        "p_reference": reference,
+                        "p_user_id": str(uid),
+                        "p_guild_id": str(gid),
+                        "p_delta": int(credited),
+                        "p_max_balance": int(self.max_balance),
+                        "p_tax": tax,
+                        "p_credits": plan["credits"],
+                        "p_treasury": plan["treasury"],
+                        "p_discarded": plan["discarded"],
+                    },
+                )
+                data = getattr(response, "data", response)
+                if isinstance(data, list):
+                    row = data[0] if data else None
+                elif isinstance(data, dict):
+                    row = data
+                else:
+                    row = None
+                if not row or "balance" not in row or type(row.get("applied")) is not bool:
+                    raise RuntimeError("apply_economy_balance_with_tax_once returned an invalid response")
+                balance = int(row["balance"])
+                if row["applied"] and tax > 0:
+                    self._tax_collected[gid] = self._tax_collected.get(gid, 0) + tax
+                    shipped = sum(credit["amount"] for credit in plan["credits"])
+                    self._tax_distributed[gid] = self._tax_distributed.get(gid, 0) + shipped
+                    gov = self.bot.get_cog("Government")
+                    if gov is not None:
+                        gov._settings_cache.pop(str(gid), None)
+                return balance
+
             cur = await self.get_balance(uid, gid)
             new = cur + credited
             if new < 0:
@@ -184,10 +234,48 @@ class Economy(SupabaseCog):
                     f"Insufficient balance for user {uid} in guild {gid}: "
                     f"current {cur} + delta {credited} would go below 0"
                 )
-            if new > self.max_balance:
-                new = self.max_balance
+            new = min(new, self.max_balance)
             await self.update_data("economy", {"user_id": str(uid), "guild_id": str(gid), "balance": new})
             return new
+
+    async def _prepare_reference_tax_plan(self, gid, tax: int) -> dict:
+        """Snapshot live recipients before the atomic RPC; never mutate money."""
+        plan = None
+        if tax > 0:
+            gov = self.bot.get_cog("Government")
+            if gov is not None:
+                plan = await gov.prepare_tax_plan(gid, tax)
+        if plan is None:
+            collectors = await self.get_tax_collectors(gid) if tax > 0 else []
+            share = tax // len(collectors) if collectors else 0
+            remainder = tax - share * len(collectors)
+            plan = {
+                "credits": [(member.id, share + (remainder if index == 0 else 0), "")
+                            for index, member in enumerate(collectors)],
+                "treasury": 0, "tax": tax, "discarded": 0 if collectors else tax,
+            }
+        treasury, discarded = plan.get("treasury"), plan.get("discarded", 0)
+        if (
+            plan.get("tax") != tax or type(treasury) is not int or treasury < 0
+            or type(discarded) is not int or discarded < 0
+        ):
+            raise ValueError("Invalid tax distribution plan")
+        credits = []
+        seen = set()
+        for uid, amount, _label in plan.get("credits", []):
+            user_id = str(uid)
+            if (
+                not user_id.isascii() or not user_id.isdigit() or int(user_id) <= 0
+                or type(amount) is not int or amount < 0 or user_id in seen
+            ):
+                raise ValueError("Invalid tax recipient")
+            seen.add(user_id)
+            if amount:
+                credits.append({"user_id": user_id, "amount": amount})
+        if sum(credit["amount"] for credit in credits) + treasury + discarded != tax:
+            raise ValueError("Tax distribution total does not match collected tax")
+        return {"credits": sorted(credits, key=lambda credit: credit["user_id"]),
+                "treasury": treasury, "discarded": discarded}
 
     async def get_tax_collectors(self, gid):
         """Ерөнхийлөгч / Захирал рольтой гишүүдийг олох."""
@@ -197,7 +285,8 @@ class Economy(SupabaseCog):
         collectors = []
         for role_name in self._collector_role_names:
             role = discord.utils.find(
-                lambda r: r.name.lower() == role_name.lower(), guild.roles
+                lambda r, expected=role_name: r.name.lower() == expected.lower(),
+                guild.roles,
             )
             if role:
                 collectors.extend(m for m in role.members if not m.bot)
@@ -234,7 +323,7 @@ class Economy(SupabaseCog):
                 if res is not None:
                     mode = (int(res[0]), True, bool(res[1]))
             except Exception as e:
-                logger.warning("government_tax failed gid=%s: %s", gid, e)
+                logger.warning("government_tax failed gid=%s: %s", gid, e, exc_info=True)
         if mode is None:
             mode = (self.transfer_tax_percent, False, True)
         self._tax_mode_cache[key] = (now, mode)
@@ -260,7 +349,10 @@ class Economy(SupabaseCog):
                     self._tax_distributed[gid] = self._tax_distributed.get(gid, 0) + shipped
                     return shipped
             except Exception as e:
-                logger.warning("government distribute_tax failed gid=%s: %s", gid, e)
+                logger.warning("government distribute_tax failed gid=%s: %s", gid, e, exc_info=True)
+                # A failed distribution may already have credited recipients.
+                # Switching to legacy collectors here would distribute twice.
+                raise
         collectors = await self.get_tax_collectors(gid)
         if not collectors or tax <= 0:
             return 0
@@ -322,7 +414,7 @@ class Economy(SupabaseCog):
                 "reason": reason, "metadata": metadata, "created_at": int(time.time()),
             })
         except Exception as exc:
-            logger.warning("economy ledger write failed: %s", exc)
+            logger.warning("economy ledger write failed: %s", exc, exc_info=True)
 
     @commands.command(name="transactions", aliases=["tx", "history"])
     async def transactions(self, ctx, member: discord.Member = None):
@@ -500,7 +592,7 @@ class Economy(SupabaseCog):
         await ctx.send(embed=embed)
 
     @commands.command(name='work')
-    async def work(self, ctx, *, custom_text: str = None):
+    async def work(self, ctx, *, custom_text: str | None = None):
         if not await self.check_registration(ctx): return
         if await self.is_in_prison(ctx.author.id, ctx.guild.id):
             return await ctx.send(embed=discord.Embed(title="🚔 Шорон", description="Та шоронгоос ажиллах боломжгүй.", color=ERROR_COLOR))
@@ -530,12 +622,12 @@ class Economy(SupabaseCog):
                     if await gov.is_government_active(ctx.guild.id):
                         custom = await gov.resolve_user_job(ctx.guild.id, disc_level, member=ctx.author)
                 except Exception:
+                    logger.exception("Operation failed in work")
                     custom = None
             if custom:
                 job = {"min": custom["min"], "max": custom["max"], "emoji": custom["emoji"], "name": custom["name"]}
-                job_level = custom["required_level"]
             else:
-                job_level, job = self.get_job_for_level(disc_level)
+                _job_level, job = self.get_job_for_level(disc_level)
             pay = random.randint(job["min"], job["max"])
             bonus = min(50, disc_level * 2)
             if bonus: pay = int(pay * (1 + bonus/100))
@@ -566,14 +658,15 @@ class Economy(SupabaseCog):
             if leveling:
                 try:
                     await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(10, 20), member=ctx.author, check_mute=True, channel=ctx.channel)
-                except Exception: pass
+                except Exception:
+                    logger.exception("Operation failed in work")
 
             quests_cog = self.bot.get_cog("Quests")
             try:
                 if quests_cog:
                     await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "economy_work", 1)
             except Exception as exc:
-                logger.warning("work quest trigger failed: %s", exc)
+                logger.warning("work quest trigger failed: %s", exc, exc_info=True)
 
         tax_line = f"\n🏛️ Татвар ({rate}%): -{tax:,} ₮ (Татвар-д)" if tax > 0 else ""
         embed = discord.Embed(
@@ -616,7 +709,8 @@ class Economy(SupabaseCog):
             leveling = self.bot.get_cog("Leveling")
             if leveling:
                 try: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(5, 10), member=ctx.author, check_mute=True, channel=ctx.channel)
-                except Exception: pass
+                except Exception:
+                    logger.exception("Operation failed in daily")
             embed = discord.Embed(
                 title="🎉 Daily Reward",
                 description=f"Өдрийн шагнал: **{reward:,} ₮**",
@@ -667,7 +761,8 @@ class Economy(SupabaseCog):
             amount = await self.get_balance(ctx.author.id, ctx.guild.id)
         else:
             try: amount = int(amount_str)
-            except Exception: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
+            except ValueError:
+                return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
         if amount <= 0: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн эерэг байх ёстой.", color=ERROR_COLOR))
         if member.id == ctx.author.id: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Өөртөө мөнгө шилжүүлэх боломжгүй.", color=ERROR_COLOR))
         rate = await self.get_effective_rate(ctx.guild.id)
@@ -680,7 +775,7 @@ class Economy(SupabaseCog):
                               description=f"{ctx.author.mention} → {member.mention}\nДүн: **{amount:,}** ₮\nТатвар ({rate}%): **{tax:,}** ₮\nХүлээн авах дүн: **{final_amount:,}** ₮",
                               color=GOLD_COLOR)
         view = ConfirmView()
-        msg = await ctx.send(embed=embed, view=view)
+        await ctx.send(embed=embed, view=view)
         await view.wait()
         if view.value is not True:
             return await ctx.send("❌ Шилжүүлэг цуцлагдлаа.")
@@ -709,7 +804,8 @@ class Economy(SupabaseCog):
                                       color=SUCCESS_COLOR)
         await ctx.send(embed=success_embed)
         try: await member.send(f"📨 {ctx.author.display_name} танд **{final_amount:,}** ₮ шилжүүллээ!")
-        except Exception: pass
+        except discord.HTTPException:
+            logger.debug("Transfer receipt could not be delivered", exc_info=True)
 
     @commands.command(name='deposit', aliases=['dep'])
     async def deposit(self, ctx, amount_str: str):
@@ -718,7 +814,8 @@ class Economy(SupabaseCog):
         if amount_str.lower() == 'all': amt = cash
         else:
             try: amt = int(amount_str)
-            except Exception: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
+            except ValueError:
+                return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
         if amt <= 0 or cash < amt:
             return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн буруу эсвэл мөнгө хүрэлцэхгүй.", color=ERROR_COLOR))
         bank = await self.get_bank(ctx.author.id, ctx.guild.id)
@@ -746,7 +843,8 @@ class Economy(SupabaseCog):
         if amount_str.lower() == 'all': amt = bank
         else:
             try: amt = int(amount_str)
-            except Exception: return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
+            except ValueError:
+                return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн нь тоо эсвэл 'all' байх ёстой.", color=ERROR_COLOR))
         if amt <= 0 or bank < amt:
             return await ctx.send(embed=discord.Embed(title="❌ Алдаа", description="Дүн буруу эсвэл банканд мөнгө хүрэлцэхгүй.", color=ERROR_COLOR))
         cash = await self.get_balance(ctx.author.id, ctx.guild.id)
@@ -890,11 +988,11 @@ class Economy(SupabaseCog):
                     try:
                         await self._update_wealth_roles(guild)
                     except Exception:
-                        pass
+                        logger.exception("Operation failed in _wealth_role_loop")
             except asyncio.CancelledError:
                 raise
             except Exception:
-                pass
+                logger.exception("Operation failed in _wealth_role_loop")
             await asyncio.sleep(300)
 
     async def _update_wealth_roles(self, guild: discord.Guild):
@@ -973,8 +1071,8 @@ class Economy(SupabaseCog):
                             paid = True
                     if interval > 0 and paid:
                         self._role_income_last[f"{guild_id}:{role_id}"] = now
-            except Exception as e:
-                logger.error("Role income loop error (table may be missing): %s", e)
+            except Exception:
+                logger.exception("Role income loop error (table may be missing)")
             await asyncio.sleep(60)
 
 # ---------- VIEWS & MODALS ----------

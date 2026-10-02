@@ -1,5 +1,7 @@
 import os
-import sys, types, importlib
+import sys
+import types
+
 
 # Tools/ хявтасаас ажиллахэд ч project root-г sys.path-д нэмэх (src/cogs импортлогдоно).
 def _root():
@@ -19,15 +21,16 @@ for mod in mocks:
     if mod not in sys.modules:
         sys.modules[mod] = types.ModuleType(mod)
 
+# Verify adapter presence in both staff cogs
+import inspect
+
 import discord  # real
 import discord.ext  # noqa
 from discord.ext import commands as real_commands  # noqa
 
-# Verify adapter presence in both staff cogs
-import inspect
 from src.cogs import admin as admin_cog
-from src.cogs import moderation as mod_cog
 from src.cogs import games as games_cog
+from src.cogs import moderation as mod_cog
 
 src_a = inspect.getsource(admin_cog.Admin)
 src_m = inspect.getsource(mod_cog.Moderation)
@@ -38,6 +41,7 @@ print("MOD_SLASH_CONTEXT_OK")
 
 # Verify apps_command decorators on all admin/moderation callbacks
 import re
+
 a_apps = re.findall(r"@app_commands\.command\(name\s*=\s*['\"]([^'\"]+)['\"]", src_a)
 m_apps = re.findall(r"@app_commands\.command\(name\s*=\s*['\"]([^'\"]+)['\"]", src_m)
 a_legacy = re.findall(r"@commands\.(hybrid_command|command)\(", src_a)

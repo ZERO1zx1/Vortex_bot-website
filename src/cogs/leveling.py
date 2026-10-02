@@ -3,31 +3,32 @@ import io
 import json
 import logging
 import os
-from pathlib import Path
-import time
 import random
+import time
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from pathlib import Path
+from typing import Any
 
 import aiohttp
 import discord
-from discord.ext import commands, tasks
 from discord import ui
-
-from src.utils.supabase_cog import SupabaseCog
+from discord.ext import commands, tasks
 from PIL import Image, ImageDraw, ImageFont
 from PIL.Image import Resampling
 
-from src.utils.fonts import load_font as _load_font, draw_text_with_fallback
-from src.utils.branding import BOT_NAME
 from src.utils import journal_style as journal
+from src.utils.branding import BOT_NAME
+from src.utils.fonts import draw_text_with_fallback
+from src.utils.fonts import load_font as _load_font
+from src.utils.http_images import download_public_image
+from src.utils.supabase_cog import SupabaseCog
 
 # ── Logger ──
 log = logging.getLogger(__name__)
 
 # ── Asset paths ──
 ASSETS_DIR = str(Path(__file__).resolve().parents[2] / "assets")
-DEFAULT_ASSET_FONT = os.path.join(ASSETS_DIR, "images", "levelfont.otf")
+DEFAULT_ASSET_FONT = os.path.join(ASSETS_DIR, "fonts", "levelfont.otf")
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
 # ── Color constants (single source) ──
@@ -52,18 +53,20 @@ DEFAULT_PROG_STEP = 150
 VOICE_INTERVAL_SECS = 180
 
 # ── In-memory TTL caches (perf) ──
-_CFG_CACHE: Dict[int, tuple] = {}      # guild_id -> (expires_at, cfg)
-_EXC_CACHE: Dict[int, tuple] = {}      # guild_id -> (expires_at, {"channels":[],"users":[]})
+_CFG_CACHE: dict[int, tuple] = {}      # guild_id -> (expires_at, cfg)
+_EXC_CACHE: dict[int, tuple] = {}      # guild_id -> (expires_at, {"channels":[],"users":[]})
 _CACHE_TTL = 20.0
 
 # ── Safe converters ──
 def _safe_int(value, default=0):
     try: return int(value)
-    except Exception: return default
+    except (TypeError, ValueError, OverflowError):
+        return default
 
 def _safe_float(value, default=0.0):
     try: return float(value)
-    except Exception: return default
+    except (TypeError, ValueError):
+        return default
 
 def _safe_bool(value, default=False):
     if isinstance(value, bool): return value
@@ -84,18 +87,19 @@ def _parse_xp_tiers(raw):
     return DEFAULT_XP_TIERS
 
 # ── XP progression math ──
-def xp_for_level(level: int, cfg: Dict[str, Any]) -> int:
+def xp_for_level(level: int, cfg: dict[str, Any]) -> int:
     if cfg.get("prog_type") == "geometric":
         mult = float(cfg.get("prog_step", 1.5))
         return max(1, int(cfg.get("prog_base", 100) * (mult ** level)))
     return max(1, cfg.get("prog_base", 100) + level * int(cfg.get("prog_step", 150)))
 
-def xp_for_message(content: str, cfg: Dict[str, Any]) -> int:
+def xp_for_message(content: str, cfg: dict[str, Any]) -> int:
     words = len(content.split()) if content else 0
     tiers = cfg.get("xp_tiers", DEFAULT_XP_TIERS)
     if isinstance(tiers, str):
         try: tiers = json.loads(tiers)
-        except Exception: tiers = DEFAULT_XP_TIERS
+        except json.JSONDecodeError:
+            tiers = DEFAULT_XP_TIERS
     for tier in sorted(tiers, key=lambda t: int(t["max_words"])):
         if words <= int(tier["max_words"]): return int(tier["xp"])
     return int(tiers[-1]["xp"]) if tiers else 5
@@ -103,45 +107,38 @@ def xp_for_message(content: str, cfg: Dict[str, Any]) -> int:
 # ── Avatar / image helpers (used by DLC card) ──
 async def fetch_avatar(url, size=128):
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=10) as resp:
-                data = await resp.read()
-        img = Image.open(io.BytesIO(data)).convert("RGBA").resize((size,size), resample=Resampling.LANCZOS)
-    except Exception:
-        img = Image.new("RGBA",(size,size),(88,101,242,255))
-    mask = Image.new("L",(size,size),0)
-    ImageDraw.Draw(mask).ellipse((0,0,size,size),fill=255)
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=10),
+            trust_env=False,
+            auto_decompress=False,
+            headers={"Accept-Encoding": "identity"},
+        ) as session, session.get(url, allow_redirects=False) as resp:
+            # Reject non-identity content encoding
+            content_encoding = resp.headers.get("Content-Encoding", "").lower()
+            if content_encoding and content_encoding != "identity":
+                raise ValueError(f"Content-Encoding '{content_encoding}' not allowed")
+            resp.raise_for_status()
+            data = await resp.read()
+        img = Image.open(io.BytesIO(data)).convert("RGBA").resize((size, size), resample=Resampling.LANCZOS)
+    except (aiohttp.ClientError, TimeoutError, OSError, ValueError):
+        log.debug("Avatar download failed; using fallback", exc_info=True)
+        img = Image.new("RGBA", (size, size), (88, 101, 242, 255))
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, size, size), fill=255)
     img.putalpha(mask)
     return img
 
-async def _load_background_image(url: Optional[str]):
+async def _load_background_image(url: str | None):
     if not url:
         return None
-    if isinstance(url, str) and url.startswith(("http://", "https://")):
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=10) as resp:
-                    if resp.status == 200:
-                        data = await resp.read()
-                        return Image.open(io.BytesIO(data)).convert("RGBA")
-        except Exception:
-            return None
-    if isinstance(url, str):
-        candidate_paths = []
-        if os.path.isabs(url):
-            candidate_paths.append(url)
-        else:
-            candidate_paths.extend([
-                os.path.join(ASSETS_DIR, url),
-                os.path.join(os.path.dirname(__file__), url),
-                os.path.join(os.getcwd(), url),
-            ])
-        for path in candidate_paths:
-            if path and os.path.exists(path):
-                try:
-                    return Image.open(path).convert("RGBA")
-                except Exception:
-                    pass
+    try:
+        data = await download_public_image(url)
+        with Image.open(io.BytesIO(data)) as image:
+            if image.width * image.height > 16_000_000:
+                raise ValueError("Background image exceeds the pixel limit")
+            return image.convert("RGBA")
+    except (aiohttp.ClientError, TimeoutError, OSError, ValueError, Image.DecompressionBombError):
+        log.warning("Background image unavailable; using the default card", exc_info=True)
     return None
 
 async def _load_overlay(overlay_name: str, width: int, height: int):
@@ -157,18 +154,19 @@ async def _load_overlay(overlay_name: str, width: int, height: int):
             try:
                 overlay = Image.open(path).convert("RGBA")
                 return overlay.resize((width, height), resample=Resampling.LANCZOS)
-            except Exception:
-                pass
+            except (OSError, ValueError):
+                log.exception("Operation failed in _load_overlay")
     return None
 
 def _load_asset_font(size: int, bold: bool = True):
     try:
         return _load_font(size, bold)
-    except Exception:
+    except (OSError, ValueError):
+        log.exception("Operation failed in _load_asset_font")
         return ImageFont.load_default()
 
 # ── Config load/save (with TTL cache) ──
-async def get_config(db_manager, guild_id: int) -> Dict[str, Any]:
+async def get_config(db_manager, guild_id: int) -> dict[str, Any]:
     gid = int(guild_id)
     now = time.monotonic()
     hit = _CFG_CACHE.get(gid)
@@ -177,6 +175,7 @@ async def get_config(db_manager, guild_id: int) -> Dict[str, Any]:
     try:
         row = await db_manager.fetchone("leveling_config", {"guild_id": str(guild_id)})
     except Exception as e:
+        log.exception("Operation failed in get_config")
         if "PGRST205" not in str(e) and getattr(e, "status_code", None) != 404:
             raise
         row = None
@@ -221,7 +220,7 @@ async def get_config(db_manager, guild_id: int) -> Dict[str, Any]:
     _CFG_CACHE[gid] = (now + _CACHE_TTL, cfg)
     return cfg
 
-async def set_config(db_manager, guild_id: int, cfg: Dict[str, Any]):
+async def set_config(db_manager, guild_id: int, cfg: dict[str, Any]):
     data = {
         "guild_id": str(guild_id),
         "enabled": bool(cfg.get("enabled", True)),
@@ -263,8 +262,8 @@ async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, backgr
                 if background:
                     background = background.resize((width, height), resample=Resampling.LANCZOS)
                     base = Image.blend(background.convert("RGBA"), base, 0.6)
-            except Exception as e:
-                log.debug("rank card background skipped: %s", e)
+            except (OSError, ValueError, TypeError) as e:
+                log.debug("rank card background skipped: %s", e, exc_info=True)
 
         draw = ImageDraw.Draw(base)
 
@@ -325,8 +324,8 @@ async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, backgr
         base.save(buffer, "PNG")
         buffer.seek(0)
         return buffer
-    except Exception as e:
-        log.error(f"Rank card render failed: {e}")
+    except Exception:
+        log.exception("Rank card render failed")
         return None
 
 # ── UI Views (shared by level_admin cog) ──
@@ -348,7 +347,7 @@ class Leveling(SupabaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         self.bot = bot
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session: aiohttp.ClientSession | None = None
         self._msg_cooldown = {}
         self._react_cooldown = {}
         self._voice_join = {}
@@ -387,14 +386,16 @@ class Leveling(SupabaseCog):
                     buff = cafe.get_buff(user_id, guild_id)
                     if asyncio.iscoroutine(buff): buff = await buff
                     if buff and buff.get('type') == 'xp_boost': mult *= buff.get('xp_mult', 1.0)
-        except Exception: pass
+        except Exception:
+            log.exception("Operation failed in get_active_buff")
         try:
             marriage = self.bot.get_cog("Marriage")
             if marriage and hasattr(marriage, 'get_married_bonus'):
                 bonus = marriage.get_married_bonus(user_id, guild_id)
                 if asyncio.iscoroutine(bonus): bonus = await bonus
                 if bonus: mult *= (1 + bonus)
-        except Exception: pass
+        except Exception:
+            log.exception("Operation failed in get_active_buff")
         return mult
 
     async def _add_xp(self, user_id, guild_id, amount, member=None, check_mute=True, channel=None):
@@ -403,12 +404,14 @@ class Leveling(SupabaseCog):
             try:
                 if member.timed_out_until and member.timed_out_until > datetime.now(timezone.utc): return
                 if hasattr(member,'voice') and member.voice and (member.voice.mute or member.voice.self_mute): return
-            except Exception: pass
+            except Exception:
+                log.exception("Operation failed in _add_xp")
         if amount > 0:
             try:
                 multiplier = await self.get_active_buff(user_id, guild_id)
                 amount = int(amount * multiplier)
-            except Exception: pass
+            except Exception:
+                log.exception("Operation failed in _add_xp")
         row = await self.bot.db_manager.fetch_one(
             "levels", {"user_id": str(user_id), "guild_id": str(guild_id)}
         )
@@ -420,8 +423,7 @@ class Leveling(SupabaseCog):
         while new_xp < 0 and level > 1:
             level -= 1
             new_xp += xp_for_level(level, cfg)
-        if new_xp < 0:
-            new_xp = 0
+        new_xp = max(new_xp, 0)
         while True:
             needed = xp_for_level(level, cfg)
             if new_xp >= needed:
@@ -437,7 +439,8 @@ class Leveling(SupabaseCog):
             try:
                 quests = self.bot.get_cog("Quests")
                 if quests and hasattr(quests,'trigger_event'): await quests.trigger_event(member.id, guild_id, "level_up", 1)
-            except Exception: pass
+            except Exception:
+                log.exception("Operation failed in _add_xp")
 
     async def _announce_level_up(self, member, old, new, current_xp, source_channel):
         guild = member.guild
@@ -455,8 +458,10 @@ class Leveling(SupabaseCog):
                     ch = guild.get_channel(cfg.get("announce_channel")) if cfg.get("announce_channel") else source_channel
                     if ch:
                         try: await ch.send(embed=embed)
-                        except Exception: pass
-        except Exception: pass
+                        except discord.HTTPException:
+                            log.exception("Operation failed in _announce_level_up")
+        except Exception:
+            log.exception("Level reward failed")
         # Level role (Supabase may return IDs as str — coerce to int)
         try:
             role_row = await self.bot.db_manager.fetch_one(
@@ -469,7 +474,7 @@ class Leveling(SupabaseCog):
                     role = None
                 if role and role not in member.roles: await member.add_roles(role, reason=f"Level {new}")
         except Exception as e:
-            log.debug("level role grant skipped: %s", e)
+            log.debug("level role grant skipped: %s", e, exc_info=True)
         channel = guild.get_channel(cfg.get("announce_channel")) if cfg.get("announce_channel") else source_channel
         if not channel: return
         needed = xp_for_level(new, cfg)
@@ -479,12 +484,15 @@ class Leveling(SupabaseCog):
             if buf:
                 file = discord.File(buf, filename="levelup.png")
                 try: await channel.send(content=member.mention, file=file)
-                except Exception: pass
+                except discord.HTTPException:
+                    log.exception("Operation failed in _announce_level_up")
             else:
                 embed = discord.Embed(title="🎉 Түвшин ахисан!", description=f"{member.mention} Lv.{new} хүрлээ!", color=GOLD_COLOR)
                 try: await channel.send(embed=embed)
-                except Exception: pass
-        except Exception as e: log.error(f"Level up announcement: {e}")
+                except discord.HTTPException:
+                    log.exception("Operation failed in _announce_level_up")
+        except Exception:
+            log.exception("Level up announcement failed")
 
     # ========== PUBLIC API ==========
     async def add_xp(self, user_id, guild_id, amount, member=None, check_mute=True, channel=None):
@@ -643,7 +651,8 @@ class Leveling(SupabaseCog):
                 await self.bot.db_manager.insert("levels", {
                     "user_id": str(message.author.id), "guild_id": str(message.guild.id), "message_count": 1,
                 })
-        except Exception: pass
+        except Exception:
+            log.exception("Operation failed in on_message")
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -672,7 +681,8 @@ class Leveling(SupabaseCog):
                 await self.bot.db_manager.insert("levels", {
                     "user_id": str(payload.user_id), "guild_id": str(payload.guild_id), "reaction_count": 1,
                 })
-        except Exception: pass
+        except Exception:
+            log.exception("Operation failed in on_raw_reaction_add")
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -691,7 +701,7 @@ class Leveling(SupabaseCog):
                     except Exception as e:
                         # Нэг guild-ийн DB алдаа (504/timeout г.м.) бусад guild-ыг
                         # зогсоохгүйгээр тухайн guild-г алгасаж үргэлжлүүлнэ.
-                        log.warning(f"Voice XP: guild {guild.id} config уншигдсангүй: {e}")
+                        log.warning(f"Voice XP: guild {guild.id} config уншигдсангүй: {e}", exc_info=True)
                         continue
                     if not cfg["enabled"] or not cfg.get("voice_xp_enabled",True): continue
                     exc = await self.get_exceptions(guild.id)
@@ -722,8 +732,10 @@ class Leveling(SupabaseCog):
                                         await self.bot.db_manager.insert("levels", {
                                             "user_id": str(member.id), "guild_id": str(guild.id), "voice_seconds": VOICE_INTERVAL_SECS,
                                         })
-                                except Exception: pass
-            except Exception as e: log.error(f"Voice XP loop: {e}")
+                                except Exception:
+                                    log.exception("Operation failed in _voice_xp_loop")
+            except Exception:
+                log.exception("Voice XP loop failed")
             await asyncio.sleep(30)
 
     @tasks.loop(minutes=1)
@@ -739,14 +751,15 @@ class Leveling(SupabaseCog):
                     embed = discord.Embed(title="🌟 XP DROP!", description=f"Түргэн! Дараагийн товчийг дарж **{xp} XP** аваарай!", color=GOLD_COLOR)
                     view = XPDropView(xp, self)
                     await channel.send(embed=embed, view=view)
-            except Exception as e: log.error(f"XP drop: {e}")
+            except Exception:
+                log.exception("XP drop failed")
 
     @xp_drop_loop.before_loop
     async def before_xp_drop_loop(self): await self.bot.wait_until_ready()
 
     # ========== USER COMMANDS (hybrid) ==========
     @commands.hybrid_command(name="rank", description="Хэрэглэгчийн түвшин, XP болон эрэмбийг харах")
-    async def rank(self, ctx, user: Optional[discord.Member] = None):
+    async def rank(self, ctx, user: discord.Member | None = None):
         target = user or ctx.author
         if ctx.interaction:
             await ctx.defer()
@@ -768,7 +781,9 @@ class Leveling(SupabaseCog):
                 embed = discord.Embed(title=f"📊 {target.display_name}", description=f"**Level:** {level}\n**XP:** {xp_in_level}/{needed}\n**Rank:** #{rank}", color=0x7289da)
                 embed.set_footer(text=f"Aether Guild • Total XP: {total_xp:,}")
                 await ctx.send(embed=embed)
-        except Exception as e: await ctx.send(f"❌ Rank карт үүсгэхэд алдаа гарлаа: {e}", ephemeral=True)
+        except Exception:
+            log.exception("Operation failed in rank")
+            await ctx.send("❌ Rank карт үүсгэхэд алдаа гарлаа. Дахин оролдоно уу.", ephemeral=True)
 
     @commands.hybrid_command(name="serveractivity", aliases=["activity"], description="Серверийн идэвхтэй байдлын статистик")
     async def server_activity(self, ctx):
@@ -786,7 +801,8 @@ class Leveling(SupabaseCog):
                 "levels", {"guild_id": str(guild.id)}
             )
             active_chatters = sum(1 for r in lvl_rows if (r.get("message_count", 0) or 0) > 0)
-        except Exception: pass
+        except Exception:
+            log.exception("Operation failed in server_activity")
 
         embed = discord.Embed(title=f"📈 {guild.name} - Server Activity", color=SUCCESS_COLOR)
         embed.add_field(name="👥 Members", value=f"Total: {guild.member_count}\nOnline: {online}\nOffline: {offline}")

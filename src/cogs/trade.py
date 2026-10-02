@@ -1,9 +1,9 @@
-﻿from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-import discord
-from discord.ext import commands
-from discord import app_commands, ui
+﻿import logging
 import time
-import logging
+
+import discord
+from discord import app_commands, ui
+from discord.ext import commands
 
 logger = logging.getLogger(__name__)
 
@@ -302,9 +302,7 @@ class Marketplace(commands.Cog):
                     price = row.get("price_per_item", 0)
                 else:
                     # Tuple - handle variable length
-                    if len(row) >= 6:
-                        lid, seller_id, item_id, qty, price = row[0], row[1], row[2], row[3], row[4]
-                    elif len(row) == 5:
+                    if len(row) >= 6 or len(row) == 5:
                         lid, seller_id, item_id, qty, price = row[0], row[1], row[2], row[3], row[4]
                     elif len(row) == 4:
                         lid, seller_id, item_id, qty = row[0], row[1], row[2], row[3]
@@ -332,18 +330,15 @@ class Marketplace(commands.Cog):
                 # rows can be dict or tuple - handle both
                 if isinstance(row, dict):
                     lid = row.get("id", 0)
-                    seller_id = row.get("seller_id", "0")
                     item_id = row.get("item_id", 0)
                     qty = row.get("quantity", 1)
                     price = row.get("price_per_item", 0)
                 else:
                     # Tuple - handle variable length
-                    if len(row) >= 6:
-                        lid, seller_id, item_id, qty, price = row[0], row[1], row[2], row[3], row[4]
-                    elif len(row) == 5:
-                        lid, seller_id, item_id, qty, price = row[0], row[1], row[2], row[3], row[4]
+                    if len(row) >= 6 or len(row) == 5:
+                        lid, _seller_id, item_id, qty, price = row[0], row[1], row[2], row[3], row[4]
                     elif len(row) == 4:
-                        lid, seller_id, item_id, qty = row[0], row[1], row[2], row[3]
+                        lid, _seller_id, item_id, qty = row[0], row[1], row[2], row[3]
                         price = 0
                     else:
                         continue
@@ -439,7 +434,8 @@ class Marketplace(commands.Cog):
             seller_member = interaction.guild.get_member(int(seller_id))
             if seller_member:
                 try: await seller_member.send(f"✅ Таны {item_str} x{quantity} зарагдлаа! +{total_price:,}₮")
-                except Exception: pass
+                except discord.HTTPException:
+                    logger.exception("Operation failed in buy_selected")
 
             quests_cog = await self.cog.get_quests_cog()
             if quests_cog:

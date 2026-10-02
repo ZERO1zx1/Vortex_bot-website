@@ -6,7 +6,6 @@ accept flow with fake ctx/interaction objects. No network, no login.
 import asyncio
 import os
 import sys
-from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -125,9 +124,7 @@ async def main():
     recip = FakeInteraction(2)
     ctx = FakeCtx(1)
 
-    builder = shop.TradeBuilderView if hasattr(shop, "TradeBuilderView") else None
-    root = __import__("src.cogs.shop", fromlist=["TradeBuilderView"])
-    from src.cogs.shop import TradeBuilderView, TradeQuantityModal
+    from src.cogs.shop import TradeBuilderView
 
     view = TradeBuilderView(shop, ctx, ctx.author, recip.user, {5: 2, 7: 10})
     assert view.send_btn.disabled is True, "send must start disabled"

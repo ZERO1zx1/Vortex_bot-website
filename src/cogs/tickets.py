@@ -1,16 +1,14 @@
 """Private support tickets: panel, claim, close, and staff KPI integration."""
 from __future__ import annotations
 
-import time
 import io
-from typing import Optional
+import time
 
 import discord
 from discord import app_commands, ui
 from discord.ext import commands
 
-from src.utils.embeds import accent_embed, error_embed, success_embed
-
+from src.utils.embeds import accent_embed, success_embed
 
 TICKET_TYPES = {
     "discord": ("🔗", "Discord холболт", "Discord account, link, role асуудал"),
@@ -88,9 +86,9 @@ class Tickets(commands.Cog):
     @app_commands.command(name="ticket_setup", description="Ticket panel болон staff тохируулах")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def setup_ticket(self, interaction: discord.Interaction, channel: discord.TextChannel,
-                           staff_role: Optional[discord.Role] = None,
-                           category: Optional[discord.CategoryChannel] = None,
-                           log_channel: Optional[discord.TextChannel] = None):
+                           staff_role: discord.Role | None = None,
+                           category: discord.CategoryChannel | None = None,
+                           log_channel: discord.TextChannel | None = None):
         config = {"guild_id": str(interaction.guild_id), "category_id": category.id if category else None,
                   "staff_role_id": staff_role.id if staff_role else None, "panel_channel_id": channel.id,
                   "log_channel_id": log_channel.id if log_channel else None,

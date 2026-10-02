@@ -28,7 +28,8 @@ DB_METHODS = {
 def collect_from_file(path: Path, found: dict[str, set[str]]):
     try:
         src = path.read_text(encoding="utf-8", errors="ignore")
-    except Exception:
+    except OSError as exc:
+        print(f"Cannot read {path}: {exc}", file=sys.stderr)
         return
     try:
         tree = ast.parse(src)
@@ -48,7 +49,7 @@ def collect_from_file(path: Path, found: dict[str, set[str]]):
                     if KNOWN.match(v):
                         found.setdefault(v, set()).add(str(path.name))
                 for kw in node.keywords:
-                    if kw.arg == "table" and isinstance(kw.value, ast.Constant) and isinstance(kw.value, str):
+                    if kw.arg == "table" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
                         v = kw.value.value
                         if KNOWN.match(v):
                             found.setdefault(v, set()).add(str(path.name))

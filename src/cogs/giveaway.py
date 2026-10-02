@@ -1,12 +1,11 @@
-﻿from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-import discord
-from discord.ext import commands, tasks
-from discord import app_commands, ui
-import datetime
+﻿import datetime
 import logging
 import random
 import re
-from typing import Optional
+
+import discord
+from discord import app_commands, ui
+from discord.ext import commands, tasks
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +34,8 @@ class PrizeModal(ui.Modal, title="🎁 Шагнал оруулах"):
         super().__init__()
         self.view = view
     async def on_submit(self, interaction: discord.Interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         self.view.prize = self.prize.value
         await interaction.response.send_message(f"✅ Шагнал: **{self.prize.value}**", ephemeral=True)
         await self.view.refresh(interaction)
@@ -45,6 +46,8 @@ class DurationModal(ui.Modal, title="⏱️ Хугацаа оруулах"):
         super().__init__()
         self.view = view
     async def on_submit(self, interaction: discord.Interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         self.view.duration_str = self.duration.value
         await interaction.response.send_message(f"✅ Хугацаа: **{self.duration.value}**", ephemeral=True)
         await self.view.refresh(interaction)
@@ -55,6 +58,8 @@ class WinnersModal(ui.Modal, title="👑 Ялагчдын тоо"):
         super().__init__()
         self.view = view
     async def on_submit(self, interaction: discord.Interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         try:
             w = int(self.winners.value)
             if w < 1:
@@ -72,6 +77,8 @@ class RoleModal(ui.Modal, title="🔒 Шаардлагатай роль (ID)"):
         super().__init__()
         self.view = view
     async def on_submit(self, interaction: discord.Interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         rid = self.role_id.value.strip()
         if rid:
             try:
@@ -93,13 +100,15 @@ class ColorModal(ui.Modal, title="🎨 Embed өнгө сонгох"):
         super().__init__()
         self.view = view
     async def on_submit(self, interaction: discord.Interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         color = self.color_choice.value.strip().lower()
         if color in COLOR_MAP:
             self.view.embed_color = COLOR_MAP[color]
             await interaction.response.send_message(f"✅ Өнгө: **{color}**", ephemeral=True)
         else:
             self.view.embed_color = GOLD_COLOR
-            await interaction.response.send_message(f"⚠️ Тодорхойгүй өнгө, анхдагч алтанг ашиглалаа.", ephemeral=True)
+            await interaction.response.send_message("⚠️ Тодорхойгүй өнгө, анхдагч алтанг ашиглалаа.", ephemeral=True)
         await self.view.refresh(interaction)
 
 class GiveawayEnterView(discord.ui.View):
@@ -108,16 +117,18 @@ class GiveawayEnterView(discord.ui.View):
 
     @discord.ui.button(label="🎉 Оролцох", style=discord.ButtonStyle.success, custom_id="giveaway_enter")
     async def enter_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.guild is None or interaction.message is None or not isinstance(interaction.user, discord.Member):
+            return await interaction.response.send_message("❌ Энэ товчийг серверт ашиглана уу.", ephemeral=True)
         gw = await interaction.client.db_manager.fetch_one(
-            "giveaways", {"message_id": str(interaction.message.id)}
+            "giveaways", {"message_id": str(interaction.message.id), "guild_id": str(interaction.guild.id)}
         )
 
         if not gw:
             await interaction.response.send_message("❌ Энэ giveaway олдсонгүй.", ephemeral=True)
             return
 
-        gid, prize, end_time, req_role_id, ended = (
-            gw.get("id"), gw.get("prize"), gw.get("end_time"),
+        gid, end_time, req_role_id, ended = (
+            gw.get("id"), gw.get("end_time"),
             gw.get("required_role_id"), gw.get("ended", False)
         )
 
@@ -130,9 +141,9 @@ class GiveawayEnterView(discord.ui.View):
             return
 
         if req_role_id:
-            role = interaction.guild.get_role(req_role_id)
-            if role and role not in interaction.user.roles:
-                await interaction.response.send_message(f"❌ Танд {role.mention} роль байхгүй.", ephemeral=True)
+            role = interaction.guild.get_role(int(req_role_id))
+            if role is None or role not in interaction.user.roles:
+                await interaction.response.send_message("❌ Giveaway-д шаардлагатай роль танд байхгүй.", ephemeral=True)
                 return
 
         existing = await interaction.client.db_manager.fetch_one(
@@ -167,34 +178,44 @@ class GiveawaySetupView(ui.View):
         # Interaction-д .author байхгүй (.user байдаг) тул эзэмшигчийн ID-г
         # урьдчилан задарч хадгална.
         owner = getattr(ctx, "author", None) or getattr(ctx, "user", None)
-        self.owner_id: Optional[int] = owner.id if owner is not None else None
+        self.owner_id: int | None = owner.id if owner is not None else None
+        self.guild_id = ctx.guild.id if ctx.guild is not None else None
 
         # Тохиргооны утгууд
-        self.channel: Optional[discord.TextChannel] = None
-        self.prize: Optional[str] = None
-        self.duration_str: Optional[str] = None
+        self.channel: discord.TextChannel | None = None
+        self.prize: str | None = None
+        self.duration_str: str | None = None
         self.winners: int = 1
-        self.required_role: Optional[discord.Role] = None
+        self.required_role: discord.Role | None = None
         self.embed_color: int = GOLD_COLOR
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None or interaction.guild.id != self.guild_id:
+            await interaction.response.send_message("❌ Энэ самбар өөр серверийнх байна.", ephemeral=True)
+            return False
         if self.owner_id is not None and interaction.user.id != self.owner_id:
             await interaction.response.send_message("❌ Энэ самбар таных биш.", ephemeral=True)
             return False
+        if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_guild:
+            await interaction.response.send_message("❌ Manage Server эрх шаардлагатай.", ephemeral=True)
+            return False
         return True
 
-    def parse_duration(self, duration: str) -> int:
-        match = re.match(r"(\d+)\s*([smhdw])", duration.lower())
+    def parse_duration(self, duration: str) -> int | None:
+        match = re.fullmatch(r"(\d+)\s*([smhdw])", duration.strip().lower())
         if not match:
             return None
         value = int(match.group(1))
         unit = match.group(2)
         multipliers = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
-        return value * multipliers.get(unit, 1)
+        return value * multipliers[unit] if value > 0 else None
 
     async def refresh(self, interaction: discord.Interaction):
         embed = self.build_embed()
-        await interaction.edit_original_response(embed=embed, view=self)
+        if self.message is not None:
+            await self.message.edit(embed=embed, view=self)
+        else:
+            log.warning("Giveaway setup panel has no bound message for guild %s", self.guild_id)
 
     def build_embed(self):
         desc = "Доорх товчлууруудаар тохиргоог хийж, **Үүсгэх** товчоор giveaway-г эхлүүлнэ үү."
@@ -203,7 +224,7 @@ class GiveawaySetupView(ui.View):
         duration_text = self.duration_str or "❌ Оруулаагүй"
         winners_text = f"{self.winners} хүн"
         role_text = self.required_role.mention if self.required_role else "Байхгүй"
-        color_name = [k for k, v in COLOR_MAP.items() if v == self.embed_color][0] if self.embed_color in COLOR_MAP.values() else "unknown"
+        color_name = next((k for k, v in COLOR_MAP.items() if v == self.embed_color), "unknown")
 
         embed = discord.Embed(
             title="🎁 GIVEAWAY ТОХИРГОО",
@@ -221,7 +242,9 @@ class GiveawaySetupView(ui.View):
     # ---------- СУВАГ СОНГОХ ----------
     @ui.select(cls=ui.ChannelSelect, channel_types=[discord.ChannelType.text], placeholder="📢 Giveaway илгээх суваг сонго...", min_values=1, max_values=1, row=0)
     async def select_channel(self, interaction: discord.Interaction, select: ui.ChannelSelect):
-        self.channel = select.values[0]
+        self.channel = interaction.guild.get_channel(select.values[0].id)
+        if not isinstance(self.channel, discord.TextChannel):
+            return await interaction.response.send_message("❌ Суваг олдсонгүй.", ephemeral=True)
         await interaction.response.defer()
         await self.refresh(interaction)
 
@@ -249,7 +272,7 @@ class GiveawaySetupView(ui.View):
     @ui.button(label="✅ ҮҮСГЭХ", style=discord.ButtonStyle.success, row=3)
     async def create_button(self, interaction: discord.Interaction, button: ui.Button):
         # Валидац
-        if not self.channel:
+        if not self.channel or self.channel.guild.id != self.guild_id:
             await interaction.response.send_message("❌ Сувгаа сонгоно уу.", ephemeral=True)
             return
         if not self.prize:
@@ -311,8 +334,8 @@ class GiveawaySetupView(ui.View):
                 for child in self.children:
                     child.disabled = True
                 await self.message.edit(view=self)
-            except Exception:
-                pass
+            except discord.HTTPException:
+                log.warning("Could not disable expired giveaway setup panel in guild %s", self.guild_id, exc_info=True)
 
 
 # ==================== ҮНДСЭН COG ====================
@@ -320,6 +343,11 @@ class Giveaway(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.giveaway_check.start()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None:
+            raise app_commands.NoPrivateMessage
+        return True
 
     def cog_unload(self):
         self.giveaway_check.cancel()
@@ -332,12 +360,13 @@ class Giveaway(commands.Cog):
         rows = await self.bot.db_manager.fetch_all(
             "giveaway_entries", {"giveaway_id": giveaway_id}
         )
-        entries = [r["user_id"] for r in rows]
+        entries = [r["user_id"] for r in rows if guild.get_member(int(r["user_id"])) is not None]
         if required_role_id:
-            role = guild.get_role(required_role_id)
-            if role:
-                entries = [uid for uid in entries if (member := guild.get_member(int(uid))) and role in member.roles]
-        return entries
+            role = guild.get_role(int(required_role_id))
+            if role is None:
+                return []
+            entries = [uid for uid in entries if (member := guild.get_member(int(uid))) and role in member.roles]
+        return list(dict.fromkeys(entries))
 
     async def finish_giveaway(self, message: discord.Message, giveaway_id: int, winners: list, prize: str, host: discord.Member):
         winner_mentions = " ".join(f"<@{uid}>" for uid in winners)
@@ -356,14 +385,14 @@ class Giveaway(commands.Cog):
                 await quests_cog.trigger_event(int(uid), message.guild.id, "giveaway_win", 1)
 
         await self.bot.db_manager.update(
-            "giveaways", {"id": giveaway_id}, {"ended": True}
+            "giveaways", {"id": giveaway_id, "guild_id": str(message.guild.id)}, {"ended": True}
         )
 
-    async def _get_giveaway_by_message(self, message_id: int):
+    async def _get_giveaway_by_message(self, message_id: int, guild_id: int):
         gw = await self.bot.db_manager.fetch_one(
-            "giveaways", {"message_id": str(message_id)}
+            "giveaways", {"message_id": str(message_id), "guild_id": str(guild_id)}
         )
-        if not gw:
+        if not gw or str(gw.get("guild_id")) != str(guild_id):
             return None
         return (
             gw.get("id"), gw.get("channel_id"), gw.get("message_id"), gw.get("prize"),
@@ -371,36 +400,52 @@ class Giveaway(commands.Cog):
             gw.get("ended", False), gw.get("end_time"), gw.get("guild_id")
         )
 
+    async def _parse_message_id(self, interaction: discord.Interaction, raw: str) -> int | None:
+        # Discord snowflakes exceed slash INTEGER's 53-bit limit; accept text
+        # and validate before converting, without losing precision.
+        value = raw.strip()
+        if value.isascii() and value.isdecimal() and len(value) <= 20:
+            message_id = int(value)
+            if 0 < message_id <= 2**64 - 1:
+                return message_id
+        await interaction.response.send_message("❌ Мессежийн ID-г зөвхөн хүчинтэй эерэг бүхэл тоогоор оруулна уу.", ephemeral=True)
+        return None
+
     # ==================== АДМИН КОМАНДУУД ====================
-    giveaway_group = app_commands.Group(name="giveaway", description="Giveaway удирдлага")
+    giveaway_group = app_commands.Group(name="giveaway", description="Giveaway удирдлага", guild_only=True, default_permissions=discord.Permissions(manage_guild=True))
 
     @giveaway_group.command(name="setup", description="Giveaway тохиргооны самбар нээх")
     @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def giveaway_setup(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         view = GiveawaySetupView(self, interaction)
         embed = view.build_embed()
-        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        view.message = await interaction.followup.send(embed=embed, view=view, ephemeral=True, wait=True)
 
     @giveaway_group.command(name="end", description="Giveaway дуусгах")
     @app_commands.describe(message_id="Дуусгах giveaway мессежийн ID")
     @app_commands.default_permissions(manage_guild=True)
-    async def end_giveaway(self, interaction: discord.Interaction, message_id: int):
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def end_giveaway(self, interaction: discord.Interaction, message_id: str):
+        parsed_id = await self._parse_message_id(interaction, message_id)
+        if parsed_id is None:
+            return
         await interaction.response.defer()
-        giveaway = await self._get_giveaway_by_message(message_id)
+        giveaway = await self._get_giveaway_by_message(parsed_id, interaction.guild.id)
         if not giveaway:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Giveaway олдсонгүй.", color=ERROR_COLOR))
         if giveaway[7]:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Giveaway аль хэдийн дууссан.", color=ERROR_COLOR))
 
-        gid, channel_id, msg_id, prize, winner_count, host_id, req_role_id, ended, end_time, guild_id = giveaway
+        gid, channel_id, msg_id, prize, winner_count, _host_id, req_role_id, _ended, _end_time, _guild_id = giveaway
 
-        channel = self.bot.get_channel(channel_id)
+        channel = interaction.guild.get_channel(int(channel_id))
         if not channel:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Суваг олдсонгүй.", color=ERROR_COLOR))
         try:
-            message = await channel.fetch_message(msg_id)
-        except Exception:
+            message = await channel.fetch_message(int(msg_id))
+        except discord.HTTPException:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Мессеж олдсонгүй.", color=ERROR_COLOR))
 
         entries = await self.get_entries(gid, req_role_id, interaction.guild)
@@ -409,26 +454,31 @@ class Giveaway(commands.Cog):
 
         winners = random.sample(entries, min(winner_count, len(entries)))
         await self.finish_giveaway(message, gid, winners, prize, interaction.user)
+        await interaction.followup.send(f"✅ Giveaway (ID: {message_id}) дууслаа.")
 
     @giveaway_group.command(name="reroll", description="Giveaway дахин сонгох")
     @app_commands.describe(message_id="Дахин сонгох giveaway мессежийн ID")
     @app_commands.default_permissions(manage_guild=True)
-    async def reroll_giveaway(self, interaction: discord.Interaction, message_id: int):
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def reroll_giveaway(self, interaction: discord.Interaction, message_id: str):
+        parsed_id = await self._parse_message_id(interaction, message_id)
+        if parsed_id is None:
+            return
         await interaction.response.defer()
-        giveaway = await self._get_giveaway_by_message(message_id)
+        giveaway = await self._get_giveaway_by_message(parsed_id, interaction.guild.id)
         if not giveaway:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Giveaway олдсонгүй.", color=ERROR_COLOR))
         if not giveaway[7]:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Giveaway дуусаагүй байна. Эхлээд дуусгах хэрэгтэй.", color=ERROR_COLOR))
 
-        gid, channel_id, msg_id, prize, winner_count, host_id, req_role_id, ended, end_time, guild_id = giveaway
+        gid, channel_id, msg_id, prize, winner_count, _host_id, req_role_id, _ended, _end_time, _guild_id = giveaway
 
-        channel = self.bot.get_channel(channel_id)
+        channel = interaction.guild.get_channel(int(channel_id))
         if not channel:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Суваг олдсонгүй.", color=ERROR_COLOR))
         try:
-            await channel.fetch_message(msg_id)
-        except Exception:
+            await channel.fetch_message(int(msg_id))
+        except discord.HTTPException:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Мессеж олдсонгүй.", color=ERROR_COLOR))
 
         entries = await self.get_entries(gid, req_role_id, interaction.guild)
@@ -455,38 +505,46 @@ class Giveaway(commands.Cog):
     @giveaway_group.command(name="cancel", description="Giveaway цуцлах")
     @app_commands.describe(message_id="Цуцлах giveaway мессежийн ID")
     @app_commands.default_permissions(manage_guild=True)
-    async def cancel_giveaway(self, interaction: discord.Interaction, message_id: int):
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def cancel_giveaway(self, interaction: discord.Interaction, message_id: str):
+        parsed_id = await self._parse_message_id(interaction, message_id)
+        if parsed_id is None:
+            return
         await interaction.response.defer()
-        giveaway = await self._get_giveaway_by_message(message_id)
+        giveaway = await self._get_giveaway_by_message(parsed_id, interaction.guild.id)
         if not giveaway:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Giveaway олдсонгүй.", color=ERROR_COLOR))
         if giveaway[7]:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Giveaway аль хэдийн дууссан эсвэл цуцлагдсан.", color=ERROR_COLOR))
 
-        gid, channel_id, msg_id, prize, winner_count, host_id, req_role_id, ended, end_time, guild_id = giveaway
+        gid, channel_id, msg_id, prize, _winner_count, host_id, _req_role_id, _ended, _end_time, _guild_id = giveaway
 
-        channel = self.bot.get_channel(channel_id)
+        channel = interaction.guild.get_channel(int(channel_id))
         if channel:
             try:
-                message = await channel.fetch_message(msg_id)
+                message = await channel.fetch_message(int(msg_id))
                 embed = discord.Embed(
                     title="❌ **GIVEAWAY ЦУЦЛАГДЛАА**",
                     description=f"**Шагнал:** {prize}\n**Зохион байгуулагч:** <@{host_id}>\n**Цуцалсан:** {interaction.user.mention}",
                     color=ERROR_COLOR
                 )
                 await message.edit(embed=embed, view=None)
-            except Exception:
-                pass
+            except discord.HTTPException:
+                log.warning("Could not edit canceled giveaway %s in guild %s", gid, interaction.guild.id, exc_info=True)
 
-        await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": True})
+        await self.bot.db_manager.update("giveaways", {"id": gid, "guild_id": str(interaction.guild.id)}, {"ended": True})
         await interaction.followup.send(f"✅ Giveaway (ID: {message_id}) цуцлагдлаа.")
 
     @giveaway_group.command(name="entries", description="Оролцогчдын тоог харах")
     @app_commands.describe(message_id="Оролцогчдын тоог харах giveaway мессежийн ID")
     @app_commands.default_permissions(manage_guild=True)
-    async def entries_giveaway(self, interaction: discord.Interaction, message_id: int):
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def entries_giveaway(self, interaction: discord.Interaction, message_id: str):
+        parsed_id = await self._parse_message_id(interaction, message_id)
+        if parsed_id is None:
+            return
         await interaction.response.defer(ephemeral=True)
-        giveaway = await self._get_giveaway_by_message(message_id)
+        giveaway = await self._get_giveaway_by_message(parsed_id, interaction.guild.id)
         if not giveaway:
             return await interaction.followup.send(embed=discord.Embed(title="❌ Giveaway олдсонгүй.", color=ERROR_COLOR), ephemeral=True)
 
@@ -497,6 +555,7 @@ class Giveaway(commands.Cog):
 
     @giveaway_group.command(name="list", description="Идэвхтэй giveaway-үүдийн жагсаалт")
     @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def list_giveaways(self, interaction: discord.Interaction):
         await interaction.response.defer()
         rows = await self.bot.db_manager.fetch_all(
@@ -512,7 +571,7 @@ class Giveaway(commands.Cog):
 
         embed = discord.Embed(title="🎁 Идэвхтэй Giveaway-үүд", color=GOLD_COLOR)
         for msg_id, prize, end_time, ch_id in rows:
-            channel = self.bot.get_channel(ch_id)
+            channel = interaction.guild.get_channel(int(ch_id))
             ch_mention = channel.mention if channel else f"<#{ch_id}>"
             embed.add_field(
                 name=f"ID: {msg_id}",
@@ -528,10 +587,10 @@ class Giveaway(commands.Cog):
         now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
         try:
             giveaway_rows = await self.bot.db_manager.fetch_safe("giveaways", {"ended": False})
-        except Exception as e:
+        except Exception:
             # Түр зуурын сүлжээний/DB алдаа (timeout г.м.) — дараагийн
             # эргэлтэд дахин оролдоно, loop-г унагаахгүй.
-            log.warning(f"giveaway_check: DB уншиж чадсангүй, дараа дахин оролдоно: {e}")
+            log.exception("giveaway_check: DB уншиж чадсангүй, дараа дахин оролдоно")
             return
         expired = [
             r for r in (giveaway_rows or [])
@@ -541,8 +600,8 @@ class Giveaway(commands.Cog):
         for gw in expired:
             try:
                 await self._process_expired_giveaway(gw)
-            except Exception as e:
-                log.error(f"giveaway_check: giveaway id={gw.get('id')} боловсруулахад алдаа: {e}")
+            except Exception:
+                log.exception("giveaway_check: giveaway id=%s боловсруулахад алдаа", gw.get("id"))
 
     async def _process_expired_giveaway(self, gw: dict):
             gid = gw.get("id")
@@ -553,13 +612,14 @@ class Giveaway(commands.Cog):
             host_id = gw.get("host_id")
             req_role_id = gw.get("required_role_id")
 
-            channel = self.bot.get_channel(channel_id)
+            guild = self.bot.get_guild(int(gw["guild_id"]))
+            channel = guild.get_channel(int(channel_id)) if guild else None
             if not channel:
                 await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": True})
                 return
             try:
-                message = await channel.fetch_message(msg_id)
-            except Exception:
+                message = await channel.fetch_message(int(msg_id))
+            except discord.NotFound:
                 await self.bot.db_manager.update("giveaways", {"id": gid}, {"ended": True})
                 return
 
@@ -567,7 +627,7 @@ class Giveaway(commands.Cog):
             entries = await self.get_entries(gid, req_role_id, guild)
             if entries:
                 winners = random.sample(entries, min(winner_count, len(entries)))
-                host_user = guild.get_member(host_id) or await self.bot.fetch_user(host_id)
+                host_user = guild.get_member(int(host_id)) or await self.bot.fetch_user(int(host_id))
                 await self.finish_giveaway(message, gid, winners, prize, host_user)
             else:
                 embed = discord.Embed(
@@ -583,7 +643,7 @@ class Giveaway(commands.Cog):
     async def giveaway_check_error(self, error):
         # tasks loop-ын ямар ч баригдаагүй алдааг энд барьж, loop-г
         # зогсоохгүйгээр дараагийн эргэлтэд үргэлжлүүлэнэ.
-        log.error(f"giveaway_check loop алдаа: {error}", exc_info=error)
+        log.error("giveaway_check loop алдаа: %s", error, exc_info=error)
 
     @giveaway_check.before_loop
     async def before_giveaway_check(self):

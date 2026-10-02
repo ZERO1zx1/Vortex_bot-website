@@ -3,7 +3,6 @@
 Change the bot's public identity here instead of searching through cogs.
 """
 
-from typing import Optional
 from datetime import datetime, timezone
 
 BOT_NAME = "𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹"
@@ -31,7 +30,7 @@ ACCENT_COLOR = 0xC77DFF
 MUTED_COLOR = 0x737B9C
 
 
-def footer_text(user: Optional[str] = None) -> str:
+def footer_text(user: str | None = None) -> str:
     """Build a consistent footer string, optionally attributing a user."""
     if user:
         return f"{user} • {BOT_FOOTER}"

@@ -1,11 +1,12 @@
+import asyncio
+import logging
+import random
+import time
+from datetime import datetime, timezone
+
 import discord
 from discord.ext import commands
 from discord.ui import Button, View
-import random
-import time
-import asyncio
-import logging
-from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +52,8 @@ class BlackjackView(View):
         async def _safe_init():
             try:
                 await self._init_buttons()
-            except Exception as e:
-                logger.error("BlackjackView _init_buttons failed: %s", e)
+            except Exception:
+                logger.exception("BlackjackView _init_buttons failed")
 
         asyncio.create_task(_safe_init())
 
@@ -370,7 +371,8 @@ class HighLowView(View):
         for child in self.children: child.disabled = True
         if self.message:
             try: await self.message.edit(view=self)
-            except discord.HTTPException: pass
+            except discord.HTTPException:
+                logger.debug("High-low interaction update failed", exc_info=True)
         await self.cog.highlow_game(self.ctx, self.amount, choice)
 
     @discord.ui.button(label="📈 HIGHER", style=discord.ButtonStyle.success)
@@ -658,38 +660,8 @@ class Casino(commands.Cog):
         embed.set_footer(text="⏱️ Дараагийн хакер 2 цагийн дараа")
         await ctx.send(embed=embed)
 
-    @commands.command(name='cgive', aliases=['cgift'])
-    async def cgive(self, ctx, target: discord.Member, amount: int):
-        if ctx.guild is None: return await ctx.send("❌ Серверт ашиглана уу.")
-        if not await self.check_hunger_mood(ctx): return
-        economy = self.bot.get_cog("Economy")
-        if not economy: return await ctx.send("❌ Эдийн засаг ажиллахгүй!")
-        if await economy.is_in_prison(ctx.author.id, ctx.guild.id):
-            return await ctx.send("🚔 Шоронд бэлэг өгөх боломжгүй.")
-        if target.id == ctx.author.id or amount <= 0: return await ctx.send("❌ Алдаа.")
-        cd = await self.get_cooldown(give_cooldowns, ctx.author.id, GIVE_COOLDOWN)
-        if cd:
-            h, m = divmod(cd, 3600)[0], (cd % 3600)//60
-            return await ctx.send(f"⏳ {h}ц {m}м хүлээх хэрэгтэй")
-        bal = await economy.get_balance(ctx.author.id, ctx.guild.id)
-        if bal < amount: return await ctx.send(f"❌ Мөнгө хүрэлцэхгүй!")
-        await self.set_cooldown(give_cooldowns, ctx.author.id)
-        await economy.update_balance(ctx.author.id, ctx.guild.id, -amount)
-        await economy.update_balance(target.id, ctx.guild.id, amount)
-        await self.add_hunger_mood(ctx, 5, 3)
-        embed = discord.Embed(
-            title="🎁 БЭЛЭГ ИЛГЭЭГДЛЭЭ!",
-            description=f"{ctx.author.mention} → {target.mention}\n**{amount:,}** ₮ бэлэглэлээ!",
-            color=SUCCESS_COLOR,
-            timestamp=datetime.now(timezone.utc)
-        )
-        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
-        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-        embed.set_footer(text="⏱️ Дараагийн бэлэг 24 цагийн дараа")
-        await ctx.send(embed=embed)
-
     @commands.command(name='highlow', aliases=['hl'])
-    async def highlow(self, ctx, amount_str: str, choice: str = None):
+    async def highlow(self, ctx, amount_str: str, choice: str | None = None):
         if ctx.guild is None: return await ctx.send("❌ Серверт ашиглана уу.")
         if not await self.check_hunger_mood(ctx): return
         economy = self.bot.get_cog("Economy")
@@ -701,7 +673,8 @@ class Casino(commands.Cog):
             if amount <= 0: return await ctx.send("❌ Мөнгөгүй.")
         else:
             try: amount = int(amount_str)
-            except Exception: return await ctx.send("❌ Дүн тоо эсвэл 'all'")
+            except ValueError:
+                return await ctx.send("❌ Дүн тоо эсвэл 'all'")
         if amount <= 0: return await ctx.send("❌ Дүн эерэг байх ёстой!")
         if choice is None:
             view = HighLowView(self, ctx, amount)
@@ -732,12 +705,6 @@ class Casino(commands.Cog):
             await ctx.send(f"❌ Зөв хэлбэр: `{ctx.prefix}hack @хэрэглэгч`")
         elif isinstance(error, commands.BadArgument):
             await ctx.send("❌ Хэрэглэгч олдсонгүй.")
-        else: raise error
-
-    @cgive.error
-    async def cgive_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(f"❌ Зөв хэлбэр: `{ctx.prefix}cgive @хэрэглэгч <дүн>`")
         else: raise error
 
 async def setup(bot):

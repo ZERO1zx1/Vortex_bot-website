@@ -4,6 +4,7 @@ Run with:  python -m pytest tests/test_fonts.py -v
 """
 
 import io
+import logging
 import os
 import sys
 import unittest
@@ -13,16 +14,15 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from PIL import Image, ImageDraw, ImageFont
 
+from src.utils.branding import BOT_NAME
 from src.utils.fonts import (
     FontManager,
     get_font_manager,
-    load_font,
-    get_branding_font,
-    get_emoji_font,
-    draw_text_with_fallback,
     is_emoji,
+    load_font,
 )
-from src.utils.branding import BOT_NAME
+
+logger = logging.getLogger(__name__)
 
 
 class TestFontDiscovery(unittest.TestCase):
@@ -90,7 +90,8 @@ class TestGlyphDetection(unittest.TestCase):
                 if self.fm._font_has_glyph(font, "蒼"):
                     found_cjk = True
                     break
-            except Exception:
+            except (OSError, ValueError):
+                logger.debug("Skipping unreadable CJK font candidate %s", path, exc_info=True)
                 continue
         # CJK support may not be available on all systems, but we should
         # at least not crash
@@ -316,10 +317,7 @@ class TestSecurity(unittest.TestCase):
         draw = ImageDraw.Draw(img)
         font = self.fm.get_font(20, bold=True)
         # Should not raise
-        try:
-            self.fm.draw_text_with_fallback(draw, (10, 10), text, font, size=20, bold=True)
-        except Exception:
-            self.fail("draw_text_with_fallback should not crash on null bytes")
+        self.fm.draw_text_with_fallback(draw, (10, 10), text, font, size=20, bold=True)
 
 
 class TestBackwardCompatibility(unittest.TestCase):

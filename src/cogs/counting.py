@@ -1,11 +1,11 @@
-from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-import discord
-from discord.ext import commands
-from discord import app_commands, ui
-from typing import Optional, Dict, Any, Union
 import ast
-import operator
 import logging
+import operator
+from typing import Any
+
+import discord
+from discord import app_commands, ui
+from discord.ext import commands
 
 from src.utils.config_cache import ConfigCache
 
@@ -32,13 +32,15 @@ SAFE_OPERATORS = {
     ast.Mod: operator.mod,
 }
 
-def evaluate_expression(expr: str) -> Union[int, float, None]:
+def evaluate_expression(expr: str) -> int | float | None:
     try:
         tree = ast.parse(expr.strip(), mode='eval')
     except SyntaxError:
         return None
     for node in ast.walk(tree):
         if type(node) not in ALLOWED_NODES:
+            return None
+        if isinstance(node, ast.Constant) and type(node.value) not in (int, float):
             return None
     if any(isinstance(n, ast.Name) for n in ast.walk(tree)):
         return None
@@ -61,7 +63,7 @@ def evaluate_expression(expr: str) -> Union[int, float, None]:
         if isinstance(result, (int, float)):
             return result
         return None
-    except (ValueError, ZeroDivisionError):
+    except (ValueError, ZeroDivisionError, TypeError, OverflowError):
         return None
 
 # ==================== МОДАЛ: РОЛЬ ID ОРУУЛАХ ====================
@@ -77,6 +79,8 @@ class RoleIDModal(ui.Modal, title="Роль ID оруулах"):
         self.role_type = role_type  # 'failed', 'reliable', 'save'
 
     async def on_submit(self, interaction: discord.Interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         role_id_str = self.role_id_input.value.strip()
         try:
             role_id = int(role_id_str)
@@ -97,6 +101,7 @@ class RoleIDModal(ui.Modal, title="Роль ID оруулах"):
             {"guild_id": str(interaction.guild.id)},
             {column: role.id},
         )
+        self.view.cog._cfg_cache.invalidate(self.view.guild_id)
         await interaction.response.send_message(f"✅ {role.mention} роль тохируулагдлаа.", ephemeral=True)
         await self.view.refresh(interaction)
 
@@ -112,6 +117,8 @@ class ForceCountModal(ui.Modal, title="Тооллын утга тогтоох"):
         self.view = view
 
     async def on_submit(self, interaction: discord.Interaction):
+        if not await self.view.interaction_check(interaction):
+            return
         try:
             num = int(self.number_input.value)
             if num < 0:
@@ -133,15 +140,25 @@ class CountingSetupView(ui.View):
         self.message = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None or interaction.guild.id != self.guild_id:
+            await interaction.response.send_message("❌ Энэ самбар өөр серверийнх байна.", ephemeral=True)
+            return False
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("❌ Энэ самбар таных биш.", ephemeral=True)
+            return False
+        if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ Administrator эрх шаардлагатай.", ephemeral=True)
             return False
         return True
 
     async def refresh(self, interaction: discord.Interaction):
+        self.cog._cfg_cache.invalidate(self.guild_id)
         cfg = await self.cog.get_config(self.guild_id)
         embed = self.build_embed(cfg, interaction.guild)
-        await interaction.edit_original_response(embed=embed, view=self)
+        if self.message is not None:
+            await self.message.edit(embed=embed, view=self)
+        else:
+            logger.warning("Counting setup panel has no bound message in guild %s", self.guild_id)
 
     def build_embed(self, cfg, guild):
         if cfg is None:
@@ -273,6 +290,7 @@ class CountingSetupView(ui.View):
     async def reset_config(self, interaction: discord.Interaction, button: ui.Button):
         await self.cog.bot.db_manager.delete("counting_config", {"guild_id": str(interaction.guild.id)})
         await self.cog.bot.db_manager.delete("counting_progress", {"guild_id": str(interaction.guild.id)})
+        self.cog._prog_cache.invalidate(self.guild_id)
         await interaction.response.send_message("✅ Бүх тохиргоо устлаа.", ephemeral=True)
         await self.refresh(interaction)
 
@@ -282,8 +300,8 @@ class CountingSetupView(ui.View):
                 for child in self.children:
                     child.disabled = True
                 await self.message.edit(view=self)
-            except Exception:
-                pass
+            except discord.HTTPException:
+                logger.warning("Could not disable counting panel in guild %s", self.guild_id, exc_info=True)
 
 # ==================== ҮНДСЭН COG ====================
 class Counting(commands.Cog):
@@ -292,12 +310,17 @@ class Counting(commands.Cog):
         self._cfg_cache = ConfigCache(ttl=15.0, name="counting_config")
         self._prog_cache = ConfigCache(ttl=10.0, name="counting_progress")
 
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None:
+            raise app_commands.NoPrivateMessage
+        return True
+
     async def cog_load(self):
         # Tables are pre-configured in Supabase via SQL migrations
         pass
 
     # ---------- DB туслахууд ----------
-    async def get_config(self, guild_id: int) -> Dict[str, Any]:
+    async def get_config(self, guild_id: int) -> dict[str, Any]:
         cached = self._cfg_cache.get_cached(guild_id)
         if cached is not None:
             return cached
@@ -322,7 +345,7 @@ class Counting(commands.Cog):
 
         return await self._cfg_cache.get(guild_id, _load)
 
-    async def get_progress(self, guild_id: int) -> Dict[str, Any]:
+    async def get_progress(self, guild_id: int) -> dict[str, Any]:
         cached = self._prog_cache.get_cached(guild_id)
         if cached is not None:
             return cached
@@ -341,7 +364,7 @@ class Counting(commands.Cog):
 
         return await self._prog_cache.get(guild_id, _load)
 
-    async def update_progress(self, guild_id: int, current: int, last_user: Optional[int], streak: int):
+    async def update_progress(self, guild_id: int, current: int, last_user: int | None, streak: int):
         await self.bot.db_manager.upsert(
             "counting_progress",
             {
@@ -448,12 +471,14 @@ class Counting(commands.Cog):
                 await message.channel.send(embed=embed)
                 if cfg["delete_messages"]:
                     try: await message.delete()
-                    except Exception: pass
+                    except discord.HTTPException:
+                        logger.warning("Could not delete failed count in guild %s", message.guild.id, exc_info=True)
                 if cfg["failed_role_id"]:
                     role = message.guild.get_role(cfg["failed_role_id"])
                     if role:
                         try: await message.author.add_roles(role, reason="Тооллогын алдаа")
-                        except Exception: pass
+                        except discord.HTTPException:
+                            logger.warning("Could not grant failed-count role in guild %s", message.guild.id, exc_info=True)
                 return
 
             new_streak = prog["streak"] + 1 if prog["last_user"] == message.author.id else 1
@@ -466,7 +491,8 @@ class Counting(commands.Cog):
                 await quests_cog.trigger_event(message.author.id, message.guild.id, "counting_participate", 1)
             
             try: await message.add_reaction("✅")
-            except Exception: pass
+            except discord.HTTPException:
+                logger.warning("Could not react to count in guild %s", message.guild.id, exc_info=True)
 
             if expected > cfg["high_score"]:
                 await self.update_high_score(message.guild.id, expected)
@@ -488,7 +514,8 @@ class Counting(commands.Cog):
                     try:
                         await message.author.add_roles(role, reason="50 дараалсан зөв тоололт")
                         await message.channel.send(f"🌟 {message.author.mention} та найдвартай тоологч боллоо!", delete_after=5)
-                    except Exception: pass
+                    except discord.HTTPException:
+                        logger.warning("Could not grant reliable-count role in guild %s", message.guild.id, exc_info=True)
 
         except Exception as exc:
             # Protect on_message from transient DB failures per event.
@@ -499,7 +526,8 @@ class Counting(commands.Cog):
 
     # ==================== ХЭРЭГЛЭГЧИЙН КОМАНДУУД ====================
     @app_commands.command(name="count_stats_user", description="Хэрэглэгчийн тооллогын статистик")
-    async def count_stats_user(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+    @app_commands.guild_only()
+    async def count_stats_user(self, interaction: discord.Interaction, member: discord.Member | None = None):
         target = member or interaction.user
         row = await self.bot.db_manager.fetch_one(
             "counting_stats",
@@ -527,6 +555,7 @@ class Counting(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="count_stats_server", description="Серверийн тооллогын статистик")
+    @app_commands.guild_only()
     async def count_stats_server(self, interaction: discord.Interaction):
         cfg = await self.get_config(interaction.guild.id)
         if not cfg:
@@ -543,6 +572,7 @@ class Counting(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="count_save", description="Тооллыг аврах (алдаа гарахаас хамгаалах)")
+    @app_commands.guild_only()
     async def count_save(self, interaction: discord.Interaction):
         cfg = await self.get_config(interaction.guild.id)
         if not cfg or not cfg["enabled"]:
@@ -566,12 +596,14 @@ class Counting(commands.Cog):
     # ==================== АДМИН ТОХИРГОО (ГАНЦ КОМАНД) ====================
     @app_commands.command(name="counting_setup", description="Тооллогын бүх тохиргоог удирдах самбар")
     @app_commands.default_permissions(administrator=True)
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(administrator=True)
     async def counting_setup(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         cfg = await self.get_config(interaction.guild.id)
         view = CountingSetupView(self, interaction.guild.id, interaction.user.id)
         embed = view.build_embed(cfg, interaction.guild)
-        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        view.message = await interaction.followup.send(embed=embed, view=view, ephemeral=True, wait=True)
 
 async def setup(bot):
     await bot.add_cog(Counting(bot))

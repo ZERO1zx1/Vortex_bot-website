@@ -9,17 +9,20 @@ v2.5 засварууд:
 - asyncio.get_running_loop() хэрэглэнэ (deprecated loop засагдсан)
 - Severity нэмэлт мөрийн цэвэрлэгээ
 """
-import re
-import time
 import asyncio
 import datetime
 import logging
+import re
+import time
 from collections import defaultdict, deque
-from src.utils.constants import SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR, INFO_COLOR
-from src.utils.supabase_cog import SupabaseCog
+from urllib.parse import urlparse
+
 import discord
-from discord.ext import commands, tasks
 from discord import app_commands
+from discord.ext import commands, tasks
+
+from src.utils.constants import ERROR_COLOR, INFO_COLOR, SUCCESS_COLOR, WARNING_COLOR
+from src.utils.supabase_cog import SupabaseCog
 
 TABLE = "automod_config"
 FEATURES = ("antispam", "antilink", "antiraid")
@@ -30,7 +33,7 @@ URL_RE = re.compile(r"https?://[^\s]+")
 INVITE_RE = re.compile(r"discord(?:\.gg|app\.com/invite|com/invite)/[A-Za-z0-9]+")
 
 # Зөвшөөрөгдсөн domain жагсаалт (antilink-д хасагдахгүй)
-ALLOWED_DOMAINS = {"github.com", "zero1zx1.github.io", "discord.gg", "discord.com"}
+ALLOWED_DOMAINS = {"github.com", "zero1zx1.github.io"}
 
 # Link зөвшөөрсөн category-ийн нэрний хэсгүүд (жишээ нь "💬┊линк-зона", "link-zone")
 ALLOWED_LINK_CATS = {"линк-зона", "линк", "link", "link-zone", "links"}
@@ -124,8 +127,8 @@ class AutoModeration(SupabaseCog):
             # via migrations (src/database/migrations/20260813_002_missing_tables.sql).
             # Ensure the table exists at least once by checking read access.
             await self.get_all_data(TABLE, {"guild_id": "__probe__"})
-        except Exception as exc:
-            logger.warning("automod_config хүснэгт олдсонгүй: %s — migration ажиллуул: 20260813_002_missing_tables.sql", exc)
+        except Exception:
+            logger.exception("automod_config could not be read; apply 000_aether_complete.sql if the table is missing")
         await self._load_all()
         self._periodic_cleanup.start()
 
@@ -140,10 +143,28 @@ class AutoModeration(SupabaseCog):
     async def _load_all(self):
         for guild in self.bot.guilds:
             data = await self.get_all_data(TABLE, {"guild_id": str(guild.id)})
-            enabled = {row["feature"] for row in data if row["enabled"]}
-            if not enabled:
-                enabled = set(DEFAULT_ON)
+            saved = {
+                row["feature"]: bool(row["enabled"])
+                for row in data
+                if row.get("feature") in FEATURES
+            }
+            enabled = {
+                feature for feature in FEATURES
+                if saved.get(feature, feature in DEFAULT_ON)
+            }
             self.enabled[guild.id] = enabled
+
+    async def _save_feature(self, guild_id: int, feature: str, enabled: bool):
+        """Persist a toggle without rewriting the row's creation timestamp."""
+        key = {"guild_id": str(guild_id), "feature": feature}
+        existing = await self.get_data(TABLE, key)
+        if existing:
+            return await self.db.update(TABLE, key, {"enabled": enabled})
+        return await self.db.insert(TABLE, {
+            **key,
+            "enabled": enabled,
+            "created_at": discord.utils.utcnow().isoformat(),
+        })
 
     def is_on(self, guild_id: int, feature: str) -> bool:
         return feature in self.enabled.get(guild_id, set())
@@ -170,15 +191,11 @@ class AutoModeration(SupabaseCog):
         if action.value == "toggle":
             if feature.value in feats:
                 feats.discard(feature.value)
-                await self.db.execute(TABLE, {
-                    "guild_id": str(guild_id), "feature": feature.value, "enabled": False,
-                    "created_at": discord.utils.utcnow().isoformat()})
+                await self._save_feature(guild_id, feature.value, False)
                 desc = f"❌ {feature.name} унтарлаа."
             else:
                 feats.add(feature.value)
-                await self.db.execute(TABLE, {
-                    "guild_id": str(guild_id), "feature": feature.value, "enabled": True,
-                    "created_at": discord.utils.utcnow().isoformat()})
+                await self._save_feature(guild_id, feature.value, True)
                 desc = f"✅ {feature.name} аслаа."
             return await interaction.response.send_message(embed=discord.Embed(
                 title="🛡️ Auto-moderation", description=desc, color=SUCCESS_COLOR))
@@ -202,10 +219,12 @@ class AutoModeration(SupabaseCog):
         if self.is_on(guild_id, "antispam") and self.spam.check(message.author.id):
             await self._handle_spam(message)
             return
-        if self.is_on(guild_id, "antilink"):
-            if URL_RE.search(message.content) or INVITE_RE.search(message.content):
-                if not self._is_link_allowed(message):
-                    await self._handle_link(message)
+        if (
+            self.is_on(guild_id, "antilink")
+            and (URL_RE.search(message.content) or INVITE_RE.search(message.content))
+            and not self._is_link_allowed(message)
+        ):
+            await self._handle_link(message)
 
     def _is_link_allowed(self, message: discord.Message) -> bool:
         """Category нэр эсвэл URL domain allowlist-ээр зөвшөөрөх."""
@@ -213,14 +232,8 @@ class AutoModeration(SupabaseCog):
         if cat and any(k in cat.name.lower() for k in ALLOWED_LINK_CATS):
             return True
         for url in URL_RE.finditer(message.content):
-            domain = url.group(0)[8:].lower()  # http(s):// хасах
-            # query string-ийг хасах
-            domain = domain.split("/", 1)[0].split("?", 1)[0]
-            # subdomain-ийг шалгах: x.github.com → github.com
-            parts = domain.split(".")
-            if len(parts) >= 3:
-                domain = ".".join(parts[-2:])
-            if domain in ALLOWED_DOMAINS:
+            host = (urlparse(url.group(0)).hostname or "").lower().rstrip(".")
+            if any(host == domain or host.endswith(f".{domain}") for domain in ALLOWED_DOMAINS):
                 return True
         return False
 
@@ -238,7 +251,7 @@ class AutoModeration(SupabaseCog):
                 await message.author.timeout(until, reason=reason)
             except (discord.HTTPException, TypeError):
                 pass
-        elif level > len(SPAM_SEVERITY):
+        elif level >= len(SPAM_SEVERITY):
             try:
                 await message.author.kick(reason=reason + " (3+ зөрчил)")
             except discord.HTTPException:
@@ -297,9 +310,9 @@ class AutoModeration(SupabaseCog):
             try:
                 await target.send(embed=discord.Embed(
                     title="🚨 AntiRaid хамгаалалт идэвхжлээ",
-                    description=f"Сүүлийн 5 секундэд 10+ гишүүн нэгдлээ. "
-                                f"Бүгдийг 10 минутын timeout-д орууллаа. "
-                                f"Шалгаж баталгаажуулаарай.",
+                    description="Сүүлийн 5 секундэд 10+ гишүүн нэгдлээ. "
+                                "Бүгдийг 10 минутын timeout-д орууллаа. "
+                                "Шалгаж баталгаажуулаарай.",
                     color=ERROR_COLOR))
             except discord.HTTPException:
                 pass

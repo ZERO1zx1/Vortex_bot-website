@@ -5,6 +5,23 @@
    ============================================================ */
 'use strict';
 
+/* Runtime алдааг бусад module эхлэхээс өмнө барина. Footer logger бэлэн
+   болмогц queued алдаануудыг localStorage руу шилжүүлнэ. */
+window.__aetherEarlyErrors = [];
+const captureRuntimeError = (type, msg, src = '', line = 0) => {
+  if (typeof window.__aetherPushError === 'function') {
+    window.__aetherPushError(type, msg, src, line);
+    return;
+  }
+  window.__aetherEarlyErrors.push({ type, msg: String(msg), src, line });
+};
+window.addEventListener('error', (e) => {
+  captureRuntimeError('error', e.message || 'Unknown runtime error', e.filename || '', e.lineno || 0);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  captureRuntimeError('promise', e.reason?.message || String(e.reason), '', 0);
+});
+
 /* ---------------- Three.js ES Modules loader ---------------- */
 /* r158-ийн UMD three.min.js r160-аас хасагдсан (deprecated warning).
    Энд ES Module build-ийг async import()-ээр ачаалж, `window.THREE`-д тавьдаг —
@@ -18,8 +35,8 @@
       window.THREE = m;
       return m;
     })
-    .catch((err) => {
-      console.warn('[Aether] Three.js ES Module ачааллаас татгалзлаа:', err);
+    .catch(() => {
+      // CDN/WebGL unavailable үед 2D canvas fallback хэвийн үргэлжилнэ.
       window.__aetherThreeFailed = true;
     });
 })();
@@ -222,8 +239,19 @@
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile() ? 1.25 : 1.75));
     }
     resize();
-    window.addEventListener('resize', resize);
-    window.addEventListener('resize', () => cloud = makeCloud(), { once: false });
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      resize();
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (cloud) {
+          scene.remove(cloud.points);
+          cloud.geo.dispose();
+          cloud.mat.dispose();
+        }
+        cloud = makeCloud();
+      }, 180);
+    });
 
     // Theme солиход өнгийг дахин тооцно
     new MutationObserver(() => { if (cloud) recolor(); }).observe(
@@ -299,8 +327,20 @@
   const root = document.documentElement;
   const meta = document.querySelector('meta[name="theme-color"]');
   const applyTheme = (theme) => {
-    root.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark');
-    if (meta) meta.setAttribute('content', theme === 'light' ? '#F7F9FC' : '#0B0B14');
+    const light = theme === 'light';
+    root.setAttribute('data-theme', light ? 'light' : 'dark');
+    if (meta) meta.setAttribute('content', light ? '#F7F9FC' : '#0B0B14');
+    const nav = document.querySelector('.navbar');
+    if (nav) {
+      nav.style.background = window.scrollY > 40
+        ? (light ? 'rgba(247,249,252,0.94)' : 'rgba(11,11,20,0.92)')
+        : (light ? 'rgba(247,249,252,0.78)' : 'rgba(11,11,20,0.65)');
+    }
+    const themeButton = document.getElementById('theme-toggle');
+    if (themeButton) {
+      themeButton.setAttribute('aria-pressed', String(light));
+      themeButton.setAttribute('aria-label', light ? 'Dark өнгө рүү шилжих' : 'Light өнгө рүү шилжих');
+    }
     try { localStorage.setItem('aether-theme', theme); } catch { }
     window.__aetherTheme = theme;
   };
@@ -313,7 +353,6 @@
   applyTheme(theme);
   const toggle = document.getElementById('theme-toggle');
   if (toggle) {
-    toggle.setAttribute('aria-label', 'Toggle dark/light theme');
     toggle.addEventListener('click', () => applyTheme(window.__aetherTheme === 'light' ? 'dark' : 'light'));
   }
 })();
@@ -354,7 +393,7 @@ const revealIO = new IntersectionObserver((entries) => {
       revealIO.unobserve(e.target);
     }
   });
-}, { threshold: 0.15 });
+}, { threshold: 0.01, rootMargin: '0px 0px -4% 0px' });
 function observeReveal() {
   document.querySelectorAll('[data-reveal]:not(.revealed)').forEach(el => revealIO.observe(el));
 }
@@ -414,9 +453,13 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
       : (light ? 'rgba(247,249,252,0.78)' : 'rgba(11,11,20,0.65)');
   }, { passive: true });
   burger?.addEventListener('click', () => {
-    links.classList.toggle('open');
+    const open = links.classList.toggle('open');
+    burger.setAttribute('aria-expanded', String(open));
   });
-  links?.querySelectorAll('a').forEach(a => a.addEventListener('click', () => links.classList.remove('open')));
+  links?.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+    links.classList.remove('open');
+    burger?.setAttribute('aria-expanded', 'false');
+  }));
 })();
 
 /* ---------------- Commands: render + search + filter ---------------- */
@@ -538,7 +581,7 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
       const list = items.filter(c => c.cat === cat);
       if (!list.length) continue;
       parts.push(`
-      <div class="cmd-panel" style="--cat-color:${m.color}" data-reveal>
+      <div class="cmd-panel" style="--cat-color:${m.color}">
         <div class="panel-head">
           <div class="panel-badge">${m.icon} ${catLabel(m)}</div>
           <div class="panel-count">${list.length} команд · ${list.filter(c => c.type === 'slash').length} slash / ${list.filter(c => c.type === 'text').length} text</div>
@@ -549,8 +592,8 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
       </div>`);
     }
     grid.innerHTML = parts.join('') || '<div class="cmd-empty">📭 Энэ ангилалд команд алга.</div>';
-    /* Trigger reveal for the freshly rendered panels */
-    observeReveal();
+    /* Command panel-ууд маш өндөр тул viewport-ratio reveal ашиглахгүй.
+       Доторх card-уудын chipIn animation хангалттай feedback өгнө. */
   }
 
   function cmdCard(c, i) {
@@ -611,7 +654,7 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
 /* ---------------- Invite button: real Discord invite link ---------------- */
 (() => {
   // Set your actual invite URL in js/config.js or here.
-  const INVITE_URL = window.AETHER_CONFIG?.INVITE_URL || 'https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=0&scope=bot%20applications.commands';
+  const INVITE_URL = window.AETHER_CONFIG?.SERVER_INVITE_URL || window.AETHER_CONFIG?.INVITE_URL || '#community';
   const setInvite = (a) => {
     if (!a) return;
     a.href = INVITE_URL;
@@ -624,13 +667,22 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
   document.querySelectorAll('a.nav-invite, .hero-actions a.btn-primary, a.btn-ghost[href^="https://discord.com/oauth2"], #invite-btn').forEach(setInvite);
   // Нэмэлт баталгаа: invite-btn id-тэй элемент заавал ажиллана (ямар ч хэв маягтай)
   setInvite(document.getElementById('invite-btn'));
+  const inviteMeta = document.querySelector('#invite-meta code');
+  if (inviteMeta) {
+    try {
+      const url = new URL(INVITE_URL);
+      inviteMeta.textContent = `${url.host}${url.pathname}`.replace(/\/$/, '');
+    } catch {
+      inviteMeta.textContent = INVITE_URL;
+    }
+  }
 })();
 
 /* ---------------- Bot heartbeat: жинхэнэ Online / Offline ---------------- */
 (() => {
   const cfg = window.AETHER_CONFIG || {};
   const POLL_MS = cfg.HEARTBEAT_POLL_MS || 60000;
-  // FastAPI backend (Railway). Database credentials browser-т очихгүй.
+  // Optional external status API. Empty үед public bot_status fallback ашиглана.
   const API_BASE_URL = (cfg.API_BASE_URL || '').replace(/\/+$/, '');
 
   const dot = document.getElementById('status-dot');
@@ -655,14 +707,27 @@ document.querySelectorAll('[data-reveal]').forEach(el => revealIO.observe(el));
     return `${days} хоног ${hrs % 24} цаг өмнө`;
   };
 
+  const fmtDuration = (iso) => {
+    if (!iso) return '';
+    const totalMinutes = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+    if (totalMinutes < 60) return `${totalMinutes} мин`;
+    const hours = Math.floor(totalMinutes / 60);
+    if (hours < 24) return `${hours} цаг ${totalMinutes % 60} мин`;
+    return `${Math.floor(hours / 24)} хоног ${hours % 24} цаг`;
+  };
+
   const setOnline = (row) => {
+    document.body.classList.remove('offline-bot');
     dot.className = 'status-dot online';
     text.textContent = 'Online';
-    if (lastSeenEl && row?.uptime_since) {
-      lastSeenEl.textContent = `Бот ${fmtSince(row.uptime_since)} асаагдсан · сүүлд: ${fmtTime(row.uptime_since)}`;
+    if (lastSeenEl) {
+      const uptime = row?.uptime_since ? `Uptime: ${fmtDuration(row.uptime_since)}` : 'Uptime тооцоолж байна';
+      const heartbeat = row?.last_ping ? `Heartbeat: ${fmtSince(row.last_ping)}` : 'Heartbeat саяхан';
+      lastSeenEl.textContent = `${uptime} · ${heartbeat}`;
     }
   };
   const setOffline = (row) => {
+    document.body.classList.add('offline-bot');
     dot.className = 'status-dot offline';
     text.textContent = 'Offline';
     if (lastSeenEl) {
@@ -961,8 +1026,8 @@ const AETHER_I18N = {
     'stats.tag': 'СТАТИСТИК',
     'stats.title1': 'Тоогоор',
     'stats.title2': 'хэлбэл',
-    'stats.cmd': 'Команд (47 slash / 106 text)',
-    'stats.tables': 'Database таблиц',
+    'stats.cmd': 'Команд',
+    'stats.tables': 'Database',
     'status.sub': '24/7 ажилладаг, Supabase дээр суурилсан бат бөх backend',
     'premium.title1': 'Дээд түвшний',
     'premium.title2': 'эрх',
@@ -980,11 +1045,11 @@ const AETHER_I18N = {
     'faq.q4': 'Бот 24/7 ажилладаг уу?',
     'faq.a4': 'Тийм ээ — Supabase backend дээр heartbeat системээр ажилладаг. Энэ вэбсайтын “Ботын төлөв” хэсгээс жинхэнэ цаг хугацааны Online/Offline төлөвийг харж болно.',
     'faq.q5': 'Өгөгдөл хадгалагддаг уу?',
-    'faq.a5': 'Тийм — Supabase (PostgreSQL) дээр 63 таблицээр хэрэглэгч, эдийн засаг, гэрлэл, түвшин гэх мэт бүх өгөгдөл бат бөх хадгалагдана. Бот унтарч асахад ч мөнгө, түвшин устахгүй.',
+    'faq.a5': 'Тийм — Supabase (PostgreSQL) дээр хэрэглэгч, эдийн засаг, гэрлэл, түвшин гэх мэт бүх өгөгдөл хадгалагдана. Бот унтарч асахад ч мөнгө, түвшин устахгүй.',
     'faq.q6': 'Premium хэдийд нээгдэх вэ?',
     'faq.a6': 'Premium систем одоогоор боловсруулагдаж байна. Бэлэн болоход Discord дамжуулан мэдэгдэх болно. Одоогоор бүх үндсэн командууд <strong>ҮНЭГҮЙ</strong>.',
     'faq.q7': 'Алдаа гарвал хаана хэлэх вэ?',
-    'faq.a7': 'Discord дамжуулан шууд хэлэх эсвэл <a href="https://github.com/ZERO1zx1/gurtendev/issues" target="_blank" rel="noopener">GitHub Issues</a> хуудсанд бичээрэй.',
+    'faq.a7': 'Discord дамжуулан шууд хэлэх эсвэл <a href="https://github.com/ZERO1zx1/Vortex_bot-website/issues" target="_blank" rel="noopener">GitHub Issues</a> хуудсанд бичээрэй.',
     'modal.howto': '👆 Командын карт дээр дарвал дэлгэрэнгүй харна',
     'modal.args': 'Аргумент',
     'modal.example': 'Жишээ',
@@ -1044,7 +1109,7 @@ const AETHER_I18N = {
     'cmd.marriage_setup.desc': 'Гэрлэлийн тохиргоо (админ)',
     'cmd.marriagepro.desc': 'Гэрлэлийн профиль',
     'cmd.marry.desc': 'Гэрлэх',
-    'cmd.mines.desc': 'Уурхайн тоглоом',
+    'cmd.texas.desc': 'Олон тоглогчтой Texas Hold’em poker',
     'cmd.mp.desc': 'Marketplace-ийн товчлол',
     'cmd.partners.desc': 'Партнер серверүүд',
     'cmd.pay.desc': 'Нөгөө хүн рүү мөнгө шилжүүл',
@@ -1080,7 +1145,7 @@ const AETHER_I18N = {
     'cmd.work.desc': 'Ажиллаж мөнгө ол',
     'cmd.workphrase.desc': 'Ажлын үгсийн жагсаалт тохируулах',
     'about.p1': '𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Монгол хэл дээрх бүрэн эрхт Discord бот бөгөөд AETHER gaming community-ийн албан ёсны иж бүрэн хөдөлгүүр юм.',
-    'about.p2': 'Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, mafia, модерац — 36 cog, 205 команд бүгд нэг системд. Supabase (PostgreSQL) backend-ээр 24/7 бат бөх ажиллана.',
+    'about.p2': 'Эдийн засаг, түвшин, гэрлэл, дэлгүүр, казино, модерац — 27 идэвхтэй cog, 185 entry-тэй командын каталог нэг системд. Supabase (PostgreSQL) backend-ээр 24/7 бат бөх ажиллана.',
     'about.q': 'Бид бол',
     'about.tag': 'Бидний тухай',
     'community.active': 'Active Community',
@@ -1096,7 +1161,7 @@ const AETHER_I18N = {
     'community.topup_d': 'Game currency, top-up тусламж, хямдхан үнээр авна.',
     'faq.tag': 'АСУУЛТ ХАРИУЛТ',
     'feat.cas': 'Казино & Тоглоом',
-    'feat.cas_d': 'Coinflip, slots, roulette, mines, pvp, counting, cards.',
+    'feat.cas_d': 'Coinflip, slots, roulette, Texas poker, anime clash, PvP, counting.',
     'feat.econ': 'Эдийн засаг',
     'feat.econ_d': 'daily, work, gamble, мөнгөний систем. Хөдөлмөрлөөд баяжина.',
     'feat.fun': 'Fun & Бусад',
@@ -1152,7 +1217,7 @@ const AETHER_I18N = {
     'cl.v24_t': 'v2.4 — Reaction roles &amp; Auto-moderation',
     'cl.v24_d': 'Emoji дарж үүрэг авах систем (`/rr setup`), анти-спам, антиссылка, анти-райд хамгаалалт (`/automod`), хэл солиход бүрэн хариу өгөх rotating presence.',
     'cl.v25_t': 'v2.5 — Вэбсайт бүрэн шинэчлэл',
-    'cl.v25_d': 'Командын каталог бодит боттой бүрэн нийцүүлэгдсэн — 205 команд, 36 cog, 61 хүснэгт. Ангилал 7 хэсэгт тэнцүү хуваагдсан, тоо баримт болон framework хувилбарууд (Python 3.13, discord.py 2.6) шинэчлэгдлээ.',
+    'cl.v25_d': 'Командын каталог бодит боттой автоматаар нийцдэг болсон. Ангилал, статистик болон framework-ийн мэдээллийг нэг эх үүсвэрээс шинэчилдэг.',
     'cl.v23_t': 'Бүтэн dark/light горим',
     'cl.v23_d': 'Вэбсайт бүрэн dark/light горимтой болж, шинэ лого болон favicon, OG banner нэмэгдлээ. i18n 217 түлхүүр (MN = EN).',
     'cl.v22_t': 'Mobile бүрэн засвар',
@@ -1201,8 +1266,8 @@ const AETHER_I18N = {
     'stats.tag': 'STATISTICS',
     'stats.title1': 'By the',
     'stats.title2': 'numbers',
-    'stats.cmd': 'Commands (47 slash / 106 text)',
-    'stats.tables': 'Database tables',
+    'stats.cmd': 'Commands',
+    'stats.tables': 'Database',
     'status.sub': 'Runs 24/7 with a Supabase-backed heartbeat',
     'premium.title1': 'Top-tier',
     'premium.title2': 'perks',
@@ -1220,11 +1285,11 @@ const AETHER_I18N = {
     'faq.q4': 'Does the bot run 24/7?',
     'faq.a4': 'Yes — it runs on a Supabase-backed heartbeat. You can see its real-time Online/Offline status right here in the “Bot Status” section.',
     'faq.q5': 'Is my data saved?',
-    'faq.a5': 'Yes — everything (users, economy, marriage, levels) is safely stored in 63 Supabase (PostgreSQL) tables. Your coins and level never disappear, even if the bot restarts.',
+    'faq.a5': 'Yes — users, economy, marriage, levels, and other data are stored in Supabase (PostgreSQL). Your coins and level remain after a bot restart.',
     'faq.q6': 'When will Premium launch?',
     'faq.a6': 'The Premium system is under development and will be announced via Discord. Until then, all core commands are <strong>FREE</strong>.',
     'faq.q7': 'Where can I report a bug?',
-    'faq.a7': 'Tell us directly via Discord or open an issue on <a href="https://github.com/ZERO1zx1/gurtendev/issues" target="_blank" rel="noopener">GitHub Issues</a>.',
+    'faq.a7': 'Tell us directly via Discord or open an issue on <a href="https://github.com/ZERO1zx1/Vortex_bot-website/issues" target="_blank" rel="noopener">GitHub Issues</a>.',
     'modal.howto': '👆 Click a command card to see its details',
     'modal.args': 'Arguments',
     'modal.example': 'Example',
@@ -1273,7 +1338,7 @@ const AETHER_I18N = {
     'cmd.roulette.desc': 'Play roulette',
     'cmd.dice.desc': 'Roll dice against the bot',
     'cmd.rps.desc': 'Rock-paper-scissors vs the bot',
-    'cmd.mines.desc': 'Minesweeper-style mine game',
+    'cmd.texas.desc': 'Multiplayer Texas Hold’em poker',
     'cmd.counting.desc': 'Counting challenge (1,2,3...) with members',
     'cmd.count_stats_server.desc': 'Server counting stats',
     'cmd.pvp.desc': 'Duel another player',
@@ -1320,7 +1385,7 @@ const AETHER_I18N = {
     'cmd.autoaccept.desc': 'Toggle auto-accept flows',
     'cmd.cancel.desc': 'Cancel any active flow',
     'about.p1': '𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 is a full-featured Mongolian Discord bot and the official engine of the AETHER gaming community.',
-    'about.p2': 'Economy, leveling, marriage, shop, casino, mafia, moderation — 36 cogs and 205 commands in one system. Supabase (PostgreSQL) backend keeps it running 24/7.',
+    'about.p2': 'Economy, leveling, marriage, shop, casino, and moderation — 27 active cogs with a 185-entry command catalog. Supabase (PostgreSQL) keeps it running 24/7.',
     'about.q': 'Who we are',
     'about.tag': 'ABOUT US',
     'community.active': 'Active Community',
@@ -1336,7 +1401,7 @@ const AETHER_I18N = {
     'community.topup_d': 'Game currency and top-up help at friendly prices.',
     'faq.tag': 'FAQ',
     'feat.cas': 'Casino & Games',
-    'feat.cas_d': 'Coinflip, slots, roulette, mines, pvp, counting, cards.',
+    'feat.cas_d': 'Coinflip, slots, roulette, Texas poker, anime clash, PvP, counting.',
     'feat.econ': 'Economy',
     'feat.econ_d': 'daily, work, gamble — a full money system. Work hard, get rich.',
     'feat.fun': 'Fun & More',
@@ -1392,7 +1457,7 @@ const AETHER_I18N = {
     'cl.v24_t': 'v2.4 — Reaction roles &amp; Auto-moderation',
     'cl.v24_d': 'Emoji-reaction role system (`/rr setup`), anti-spam, anti-link, anti-raid protection (`/automod`), rotating presence with language-aware member count.',
     'cl.v25_t': 'v2.5 — Website renewal',
-    'cl.v25_d': 'Command catalog fully synced with the real bot — 205 commands, 36 cogs, 61 tables. Categories balanced across 7 groups; stats and framework versions (Python 3.13, discord.py 2.6) updated.',
+    'cl.v25_d': 'The command catalog now syncs with the real bot. Categories, statistics, and framework information update from a single source of truth.',
     'cl.v23_t': 'Full dark/light theme',
     'cl.v23_d': 'Website now has complete dark/light modes, new logo and favicon set, OG banner. i18n 217 keys (MN = EN).',
     'cl.v22_t': 'Mobile fully polished',
@@ -1543,15 +1608,7 @@ const AETHER_I18N = {
     saveErrors(arr);
     renderBadge(arr.length);
   };
-
-  window.addEventListener('error', (e) => {
-    if (e.filename && /vortex\.github\.io|localhost/.test(e.filename)) {
-      pushError('error', e.message, e.filename, e.lineno);
-    }
-  });
-  window.addEventListener('unhandledrejection', (e) => {
-    pushError('promise', String(e.reason), '', 0);
-  });
+  window.__aetherPushError = pushError;
 
   const renderBadge = (n) => {
     const badge = document.getElementById('err-badge');
@@ -1559,6 +1616,10 @@ const AETHER_I18N = {
     badge.textContent = `⚠ ${n}`;
     badge.classList.toggle('show', n > 0);
   };
+
+  for (const error of window.__aetherEarlyErrors.splice(0)) {
+    pushError(error.type, error.msg, error.src, error.line);
+  }
 
   document.addEventListener('DOMContentLoaded', () => {
     const footer = document.querySelector('.footer-links') || document.querySelector('.footer');

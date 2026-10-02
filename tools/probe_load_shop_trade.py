@@ -3,6 +3,7 @@ with a stubbed db_manager and report every load error + registered names.
 No Discord login, no network traffic.
 """
 import asyncio
+import logging
 import os
 import sys
 
@@ -10,6 +11,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import discord
 from discord.ext import commands
+
+logger = logging.getLogger(__name__)
 
 
 class StubDB:
@@ -37,11 +40,14 @@ async def main():
     bot.db_manager = StubDB()
     bot.config = {}
 
+    failed = False
     for ext in ("src.cogs.shop", "src.cogs.trade"):
         try:
             await asyncio.wait_for(bot.load_extension(ext), timeout=15)
             print(f"[OK] loaded {ext}")
         except Exception as e:
+            logger.exception("Could not load cog %s", ext)
+            failed = True
             print(f"[LOAD FAIL] {ext}: {type(e).__name__}: {e}")
 
     names = sorted(bot.all_commands.keys())
@@ -53,6 +59,8 @@ async def main():
               "| cog:", type(t.cog).__name__ if t.cog else None,
               "| hybrid:", isinstance(t, commands.HybridCommand))
     await bot.close()
+    return int(failed)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(main()))

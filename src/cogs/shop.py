@@ -1,18 +1,16 @@
-from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-import discord
-from discord.ext import commands
-from discord.ui import Select, View, Button, Modal, TextInput
+import logging
 import random
 import time
-import io
-import os
-import asyncio
-import aiohttp
 import unicodedata
-from PIL import Image, ImageDraw, ImageFont
+from typing import ClassVar
+
+import discord
+from discord.ext import commands
+from discord.ui import Button, Modal, Select, TextInput, View
+
+logger = logging.getLogger(__name__)
 
 # ---------- Centralized Unicode-aware font management ----------
-from src.utils.fonts import load_font as _load_font
 
 # ===== COLORS =====
 EMBED_COLOR = 0x2b2d31
@@ -36,9 +34,7 @@ def _select_menu_emoji(value: str) -> str:
     result = [value[0]]
     for char in value[1:]:
         codepoint = ord(char)
-        if codepoint in (0xFE0E, 0xFE0F) or 0x1F3FB <= codepoint <= 0x1F3FF:
-            result.append(char)
-        elif unicodedata.combining(char):
+        if codepoint in (0xFE0E, 0xFE0F) or 0x1F3FB <= codepoint <= 0x1F3FF or unicodedata.combining(char):
             result.append(char)
         else:
             break
@@ -193,7 +189,7 @@ for brand, data in VAPE_BRANDS.items():
 ALL_VAPE_COMBOS = {}
 for brand, data in VAPE_BRANDS.items():
     for model, mdata in data["models"].items():
-        for flavor, fdata in VAPE_FLAVORS.items():
+        for flavor in VAPE_FLAVORS:
             combo_id = 4000 + len(ALL_VAPE_COMBOS)
             ALL_VAPE_COMBOS[combo_id] = {"id": combo_id, "name": f"{brand} {model} - {flavor}", "price": mdata["price"], "emoji": data["emoji"], "desc": f"{mdata['desc']} | Амт: {flavor}", "strength": mdata["strength"], "category": "vape", "brand": brand, "model": model, "flavor": flavor, "rarity": "rare" if mdata["strength"] >= 3 else "common"}
 
@@ -231,11 +227,10 @@ class FlavorSelectView(View):
             await interaction.edit_original_response(embed=embed, view=None)
             return
         stock_cog = self.cog.bot.get_cog("Stock")
-        if stock_cog:
-            if not await stock_cog.consume_stock(guild_id, combo_id, 1):
-                embed = discord.Embed(title="❌ ДУУССАН", description=f"**{ALL_VAPE_COMBOS[combo_id]['emoji']} {ALL_VAPE_COMBOS[combo_id]['name']}** дууссан.", color=ERROR_COLOR)
-                await interaction.edit_original_response(embed=embed, view=None)
-                return
+        if stock_cog and not await stock_cog.consume_stock(guild_id, combo_id, 1):
+            embed = discord.Embed(title="❌ ДУУССАН", description=f"**{ALL_VAPE_COMBOS[combo_id]['emoji']} {ALL_VAPE_COMBOS[combo_id]['name']}** дууссан.", color=ERROR_COLOR)
+            await interaction.edit_original_response(embed=embed, view=None)
+            return
         await economy.update_balance(self.ctx.author.id, guild_id, -price)
         await self.cog.add_item(self.ctx.author.id, guild_id, combo_id, 1)
         combo = ALL_VAPE_COMBOS[combo_id]
@@ -647,7 +642,7 @@ class ShopCog(commands.Cog):
                 for base in BASE_VAPE_ITEMS:
                     label = f"{base['emoji']} {base['name']} (ID:{base['id']}) - {base['price']:,}💰"
                     desc = f"ID:{base['id']} | {base['desc'][:30]} | ⚡{base['strength']}%"
-                        item_options.append(discord.SelectOption(label=label[:100], value=f"vape_{base['id']}", description=desc, emoji=_select_menu_emoji(base['emoji'])))
+                    item_options.append(discord.SelectOption(label=label[:100], value=f"vape_{base['id']}", description=desc, emoji=_select_menu_emoji(base['emoji'])))
             else:
                 for item in SHOP_ITEMS:
                     if item["category"] == selected_cat:
@@ -686,11 +681,10 @@ class ShopCog(commands.Cog):
                     await interaction.edit_original_response(embed=embed, view=None)
                     return
                 stock_cog = self.bot.get_cog("Stock")
-                if stock_cog:
-                    if not await stock_cog.consume_stock(guild_id, item["id"], 1):
-                        embed = discord.Embed(title="❌ ДУУССАН", description=f"**{item['emoji']} {item['name']}** дууссан.", color=ERROR_COLOR)
-                        await interaction.edit_original_response(embed=embed, view=None)
-                        return
+                if stock_cog and not await stock_cog.consume_stock(guild_id, item["id"], 1):
+                    embed = discord.Embed(title="❌ ДУУССАН", description=f"**{item['emoji']} {item['name']}** дууссан.", color=ERROR_COLOR)
+                    await interaction.edit_original_response(embed=embed, view=None)
+                    return
                 await economy.update_balance(ctx.author.id, guild_id, -price)
                 await self.add_item(ctx.author.id, guild_id, item["id"], 1)
                 embed = discord.Embed(title="✅ Худалдан авалт амжилттай", description=f"{ctx.author.mention} **{item['emoji']} {item['name']}** -г `{price:,}` ₮-өөр худалдаж авлаа!", color=SUCCESS_COLOR)
@@ -734,9 +728,8 @@ class ShopCog(commands.Cog):
             embed.set_thumbnail(url=ctx.author.display_avatar.url)
             return await ctx.send(embed=embed)
         stock_cog = self.bot.get_cog("Stock")
-        if stock_cog:
-            if not await stock_cog.consume_stock(guild_id, item["id"], quantity):
-                return await ctx.send(embed=discord.Embed(title="❌ ДУУССАН", description=f"Уучлаарай, **{item['emoji']} {item['name']}** дууссан.", color=ERROR_COLOR))
+        if stock_cog and not await stock_cog.consume_stock(guild_id, item["id"], quantity):
+            return await ctx.send(embed=discord.Embed(title="❌ ДУУССАН", description=f"Уучлаарай, **{item['emoji']} {item['name']}** дууссан.", color=ERROR_COLOR))
         await economy.update_balance(ctx.author.id, guild_id, -total_price)
         await self.add_item(ctx.author.id, guild_id, item["id"], quantity)
         embed = discord.Embed(title="✅ ХУДАЛДАН АВАЛТ", description=f"{ctx.author.mention} **{item['emoji']} {item['name']}** x{quantity} -г `{total_price:,}` ₮-өөр худалдаж авлаа!", color=SUCCESS_COLOR)
@@ -787,7 +780,7 @@ class ShopCog(commands.Cog):
             return await ctx.send("🚔 Шоронд байхдаа хэрэглэх боломжгүй.")
         inv = await self.get_user_inventory(ctx.author.id, guild_id)
         if inv.get(item_id, 0) == 0:
-            return await ctx.send(embed=discord.Embed(title="❌ ТАНД ЭНЭ БАРАА БАЙХГҮЙ", description=f"`gshop`-с худалдаж авна уу.", color=ERROR_COLOR))
+            return await ctx.send(embed=discord.Embed(title="❌ ТАНД ЭНЭ БАРАА БАЙХГҮЙ", description="`gshop`-с худалдаж авна уу.", color=ERROR_COLOR))
         await self.remove_item(ctx.author.id, guild_id, item_id, 1)
         # ЗАСВАР: Барааны жинхэнэ хүчийг ашиглах
         intox = item["strength"]
@@ -893,7 +886,7 @@ class ShopCog(commands.Cog):
                     }
                     buff_msg = f"\n✨ Buff: **{food.get('buff', 'xp_boost')}** ({food.get('duration', 600)}с)"
         except Exception:
-            pass
+            logger.exception("Operation failed in _use_food_item")
         quests_cog = self.bot.get_cog("Quests")
         if quests_cog:
             await quests_cog.trigger_event(ctx.author.id, guild_id, "inventory_use", 1)
@@ -990,7 +983,7 @@ class ShopCog(commands.Cog):
         await ctx.send(embed=embed)
 
     # ==================== ЗҮҮХ СИСТЕМ (EQUIP) ====================
-    EQUIP_SLOTS = {
+    EQUIP_SLOTS: ClassVar[dict[str, str]] = {
         "ring": "💍 Бөгж",
         "necklace": "📿 Гинж/зүүлт",
         "bracelet": "⛓️ Бугуйвч",
@@ -1034,7 +1027,7 @@ class ShopCog(commands.Cog):
         guild_id = ctx.guild.id
         inv = await self.get_user_inventory(ctx.author.id, guild_id)
         if inv.get(item["id"], 0) == 0:
-            return await ctx.send(embed=discord.Embed(title="❌ ТАНД ЭНЭ БАРАА БАЙХГҮЙ", description=f"`shop`-с худалдаж авна уу.", color=ERROR_COLOR))
+            return await ctx.send(embed=discord.Embed(title="❌ ТАНД ЭНЭ БАРАА БАЙХГҮЙ", description="`shop`-с худалдаж авна уу.", color=ERROR_COLOR))
         try:
             await self.bot.db_manager.upsert(
                 "user_equips",
@@ -1047,7 +1040,8 @@ class ShopCog(commands.Cog):
                 },
                 on_conflict="guild_id,user_id,slot",
             )
-        except Exception as e:
+        except Exception:
+            logger.exception("Operation failed in equip")
             return await ctx.send(embed=discord.Embed(
                 title="❌ ДАТАБАЗЫН АЛДАА",
                 description="`user_equips` хүснэгт байхгүй байна. Админд: `src/database/migrations/20260824_equip_system.sql` ажиллуулна уу.",
@@ -1070,7 +1064,7 @@ class ShopCog(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='unequip', aliases=['тайлах'])
-    async def unequip(self, ctx, *, slot_input: str = None):
+    async def unequip(self, ctx, *, slot_input: str | None = None):
         guild_id = ctx.guild.id
         equips = await self.get_equips(ctx.author.id, guild_id)
         if not equips:
@@ -1100,6 +1094,7 @@ class ShopCog(commands.Cog):
                 {"guild_id": str(guild_id), "user_id": str(ctx.author.id), "slot": slot},
             )
         except Exception:
+            logger.exception("Operation failed in unequip")
             return await ctx.send("❌ Датабазын алдаа гарлаа.")
         item = equips[slot]
         embed = discord.Embed(

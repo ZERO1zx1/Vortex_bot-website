@@ -6,8 +6,9 @@ Checks:
 Runs entirely offline (no Discord traffic, no Supabase connection).
 """
 import importlib.util
-import sys
+import logging
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -15,9 +16,11 @@ os.environ.setdefault("DISCORD_TOKEN", "0")
 os.environ.setdefault("SUPABASE_URL", "https://fake.supabase.co")
 os.environ.setdefault("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiJ9.0.0")
 
-import discord  # noqa: E402
-from discord import ui  # noqa: E402
 from unittest.mock import MagicMock
+
+import discord
+
+logger = logging.getLogger(__name__)
 
 spec = importlib.util.spec_from_file_location(
     "help_cog",
@@ -57,6 +60,7 @@ for category in mod.CATEGORY_EMOJIS:
             raise ValueError(f"embed total too long in {category}: {total}")
         BUILD_EMBED_OK += 1
     except Exception as exc:
+        logger.exception("Help category %s exceeds limits or could not render", category)
         BUILD_EMBED_FAIL += 1
         FAILURES.append(f"build_category_embed({category}): {exc}")
 
@@ -83,6 +87,7 @@ for cmd, info in mod.COMMAND_INFO.items():
             raise ValueError(f"total too long for {cmd}: {total}")
         DETAIL_EMBED_OK += 1
     except Exception as exc:
+        logger.exception("Help command %s exceeds limits or could not render", cmd)
         DETAIL_EMBED_FAIL += 1
         FAILURES.append(f"detail({cmd}): {exc}")
 

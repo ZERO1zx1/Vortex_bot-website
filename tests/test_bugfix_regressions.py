@@ -19,7 +19,7 @@ Each test targets one confirmed finding:
   H7  /daily concurrent claims grant the reward once
   H8  counting expression evaluation must reject `**` (DoS vector)
 
-Naming convention mirrors tests/test_mines_logic.py (pytest-asyncio + fakes).
+Naming convention uses pytest-asyncio with lightweight fakes.
 """
 import asyncio
 import datetime
@@ -40,7 +40,6 @@ from src.cogs.games import Games
 from src.cogs.pvp import PVP, PVPView
 from src.cogs.trade import Marketplace
 
-
 # ══════════════ FAKES ══════════════
 
 class FakeDB:
@@ -48,6 +47,7 @@ class FakeDB:
 
     def __init__(self):
         self.tables = {}
+        self._confession_id_locks = {}
 
     def _rows(self, table):
         return self.tables.setdefault(table, [])
@@ -114,6 +114,25 @@ class FakeDB:
                 row.update(dict(data))
                 return
         self._rows(table).append(dict(data))
+
+    async def rpc(self, name, params):
+        if name != "allocate_confession_id":
+            raise AssertionError(f"unexpected RPC: {name}")
+        guild_id = str(params["p_guild_id"])
+        lock = self._confession_id_locks.setdefault(guild_id, asyncio.Lock())
+        async with lock:
+            row = await self.fetch_one(
+                "confession_config", {"guild_id": guild_id}
+            )
+            if row is None:
+                raise RuntimeError("confession config not found")
+            allocated = int(row["next_id"])
+            await self.update(
+                "confession_config",
+                {"guild_id": guild_id},
+                {"next_id": allocated + 1},
+            )
+            return allocated
 
 
 class FakeBot:
@@ -439,6 +458,45 @@ async def test_confession_increment_id_never_repeats():
     assert await cog.increment_id(5) == 3
 
 
+@pytest.mark.asyncio
+async def test_confession_increment_id_is_unique_under_concurrency():
+    db = FakeDB()
+    db.tables["confession_config"] = [{"guild_id": "5", "next_id": 1}]
+    cog_a = Confessions(FakeBot(db=db))
+    cog_b = Confessions(FakeBot(db=db))
+
+    allocated = await asyncio.gather(
+        *(cog.increment_id(5) for cog in (cog_a, cog_b) for _ in range(20))
+    )
+
+    assert sorted(allocated) == list(range(1, 41))
+    assert db.tables["confession_config"][0]["next_id"] == 41
+
+
+@pytest.mark.asyncio
+async def test_confession_blacklist_is_cached_and_normalized():
+    class CountingDB(FakeDB):
+        def __init__(self):
+            super().__init__()
+            self.blacklist_reads = 0
+
+        async def fetch_all(self, table, query=None, **kwargs):
+            if table == "confession_blacklist":
+                self.blacklist_reads += 1
+            return await super().fetch_all(table, query, **kwargs)
+
+    db = CountingDB()
+    db.tables["confession_blacklist"] = [
+        {"guild_id": "5", "word": "  BAD  "},
+        {"guild_id": "5", "word": ""},
+    ]
+    cog = Confessions(FakeBot(db=db))
+
+    assert await cog.get_blacklist(5) == ("bad",)
+    assert await cog.get_blacklist(5) == ("bad",)
+    assert db.blacklist_reads == 1
+
+
 # ══════════════ H8 — counting pow DoS ══════════════
 
 def test_counting_rejects_pow_expressions():
@@ -493,12 +551,11 @@ async def test_transfer_aborts_when_balance_drops_during_confirm(monkeypatch):
         async def wait(self):
             row = next(r for r in db.tables["economy"] if r["user_id"] == "7")
             row["balance"] = 30
-            return None
 
     monkeypatch.setattr("src.cogs.economy.ConfirmView", FakeConfirmView)
 
     member = SimpleNamespace(id=8, mention="<@8>", display_name="r")
-    ctx, sent = make_context(eco.bot)
+    ctx, _sent = make_context(eco.bot)
 
     await Economy.transfer(eco, ctx, member, "80")
 
@@ -552,7 +609,7 @@ def _run_app_command_checks(cmd, permission):
             if inspect.isawaitable(res):
                 asyncio.get_event_loop().run_until_complete(res)
             results.append(True)
-        except Exception:
+        except discord.app_commands.CheckFailure:
             results.append(False)
     return results
 

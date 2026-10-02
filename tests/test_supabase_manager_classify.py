@@ -1,15 +1,24 @@
-import time
-from types import SimpleNamespace
 
 import pytest
 
 from src.database.db_manager import (
-    _TableErrorTracker,
-    classify_supabase_error,
     DatabasePermissionError,
     DatabaseSchemaError,
     DatabaseUnavailableError,
+    SupabaseManager,
+    _TableErrorTracker,
+    classify_supabase_error,
 )
+
+
+def test_raise_with_hint_preserves_unclassified_exception():
+    manager = object.__new__(SupabaseManager)
+    original = RuntimeError("unexpected database failure")
+
+    with pytest.raises(RuntimeError, match="unexpected database failure") as caught:
+        manager._raise_with_hint("economy", original)
+
+    assert caught.value is original
 
 
 class _FakeErr:

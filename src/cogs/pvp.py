@@ -1,11 +1,13 @@
-﻿from src.utils.constants import EMBED_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, GOLD_COLOR, INFO_COLOR
-import discord
-from discord.ext import commands
-from discord import app_commands
-from discord.ui import Button, View
+﻿import asyncio
+import logging
 import time
-import asyncio
-import random
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+from discord.ui import Button, View
+
+logger = logging.getLogger(__name__)
 
 EMBED_COLOR = 0x1e1e2f
 ERROR_COLOR = 0xf38ba8
@@ -49,8 +51,8 @@ class PVPView(View):
         if self.message:
             try:
                 await self.message.edit(view=self)
-            except Exception:
-                pass
+            except discord.HTTPException:
+                logger.exception("Operation failed in disable_all_buttons")
 
     async def send_round_embed(self):
         embed = discord.Embed(
@@ -115,7 +117,7 @@ class PVPView(View):
 
         embed = discord.Embed(
             title="⏰ **ТОГЛООМ ЦУЦЛАГДЛАА**",
-            description=f"Тоглоомын 2 минутын хязгаар хэтэрсэн тул бооцоо буцаагдлаа.",
+            description="Тоглоомын 2 минутын хязгаар хэтэрсэн тул бооцоо буцаагдлаа.",
             color=WARNING_COLOR
         )
         await self.channel.send(embed=embed)
@@ -177,7 +179,7 @@ class PVPView(View):
             try:
                 await leveling.add_xp(user_id, guild_id, amount, check_mute=False)
             except Exception:
-                pass
+                logger.exception("Operation failed in _give_xp")
 
     async def process_round(self):
         if not self.game_active:
@@ -205,7 +207,7 @@ class PVPView(View):
             self.player2_score += 1
             color = PURPLE_COLOR
         elif (p1 == "stealth" and p2 == "attack") or (p1 == "attack" and p2 == "stealth"):
-            result_text = f"⚔️ **СЭРҮҮЛЭГ ДОВТОЛГООНУУД!** Хоёул довтолсон тул тэнцээ!"
+            result_text = "⚔️ **СЭРҮҮЛЭГ ДОВТОЛГООНУУД!** Хоёул довтолсон тул тэнцээ!"
             color = WARNING_COLOR
         else:
             result_text = "⚠️ Алдаа гарлаа"
@@ -255,7 +257,7 @@ class PVPView(View):
             try:
                 await self.message.edit(embed=embed, view=self)
             except Exception:
-                pass
+                logger.exception("Operation failed in start_next_round")
         self.round_active = True
         await self.start_round_timer()   # 30 секундын таймер эхлүүлэх
 
@@ -321,7 +323,7 @@ class PVPView(View):
                 await games_cog.update_stats(winner.id, guild_id, True, self.bet_amount, total_win)
                 await games_cog.update_stats(loser.id, guild_id, False, self.bet_amount, 0)
             except Exception:
-                pass
+                logger.exception("Operation failed in end_game")
 
         await self.channel.send(embed=embed)
 
@@ -358,7 +360,7 @@ class PVPView(View):
             try:
                 await self.message.edit(embed=await self.send_round_embed())
             except Exception:
-                pass
+                logger.exception("Operation failed in _handle_choice")
         await self.check_round_complete()
 
 
@@ -411,7 +413,7 @@ class PVP(commands.Cog):
         opponent="Тулалдах хэрэглэгч",
         amount="Бооцооны дүн (тоо эсвэл 'all')"
     )
-    async def pvp(self, ctx, opponent: discord.Member, amount: str = None):
+    async def pvp(self, ctx, opponent: discord.Member, amount: str | None = None):
         if amount is None:
             embed = discord.Embed(
                 title="❌ АЛДАА!",
@@ -475,8 +477,8 @@ class PVP(commands.Cog):
                 if self.message:
                     try:
                         await self.message.edit(view=self)
-                    except Exception:
-                        pass
+                    except discord.HTTPException:
+                        logger.exception("Operation failed in disable_all_buttons")
 
             @discord.ui.button(label="✅ ЗӨВШӨӨРӨХ", style=discord.ButtonStyle.success)
             async def accept_button(self, interaction: discord.Interaction, button: Button):
@@ -534,8 +536,8 @@ class PVP(commands.Cog):
                     if self.message:
                         try:
                             await self.message.edit(embed=embed, view=None)
-                        except Exception:
-                            pass
+                        except discord.HTTPException:
+                            logger.exception("Operation failed in on_timeout")
 
         embed = discord.Embed(
             title="⚔️ ТУЛААНЫ УРИЛГА ⚔️",

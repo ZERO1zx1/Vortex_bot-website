@@ -11,7 +11,6 @@ import logging
 from typing import TYPE_CHECKING
 
 import discord
-
 from discord.ext import commands
 
 if TYPE_CHECKING:
@@ -38,7 +37,7 @@ _MEMBER_WATCH = 6  # index in ACTIVITIES ("... members" entry)
 class PresenceCog(commands.Cog):
     """Rotates the bot's status every 2 minutes; updates member count watch."""
 
-    def __init__(self, bot: "MyBot") -> None:
+    def __init__(self, bot: MyBot) -> None:
         self.bot = bot
         self._current = 0
         self._cycle_started = False
@@ -103,7 +102,7 @@ class PresenceCog(commands.Cog):
             self._current = (self._current + 1) % len(ACTIVITIES)
             try:
                 await self._set(self._current)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.debug("Presence rotation skipped (ws closing)", exc_info=True)
                 continue
 
@@ -117,5 +116,5 @@ class PresenceCog(commands.Cog):
                 pass
 
 
-async def setup(bot: "MyBot") -> None:
+async def setup(bot: MyBot) -> None:
     await bot.add_cog(PresenceCog(bot))

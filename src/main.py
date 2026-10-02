@@ -1,12 +1,13 @@
-import discord
-from discord.ext import commands
+import asyncio
+import logging
 import os
 import sys
 import time
-import asyncio
-import logging
-from pathlib import Path
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+import discord
+from discord.ext import commands
 from dotenv import load_dotenv
 
 # Ensure the project root is importable regardless of how main.py is launched
@@ -16,12 +17,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.core.config import load_config
-from src.core.logger import setup_logging, get_logger
 from src.core.exceptions import DatabasePermissionError, DatabaseSchemaError
+from src.core.logger import get_logger, setup_logging
 from src.database.db_manager import SupabaseManager as DatabaseManager
-from src.utils.branding import BOT_NAME, BOT_FOOTER
-from src.utils.constants import DEFAULT_PREFIX
 from src.utils.cog_loader import ACTIVE_COGS, discover_cogs
+from src.utils.constants import DEFAULT_PREFIX
 from src.utils.log_filter import RateLimitFilter
 
 load_dotenv()
@@ -138,6 +138,8 @@ class MyBot(commands.Bot):
         self.config = config
         self.loaded_cogs = []
         self.failed_cogs = []
+        self._mirrored_guild_ids: set[int] = set()
+        self._guild_sync_lock = asyncio.Lock()
 
         # Wire slash-command errors to our handler.
         # NOTE: discord.py's CommandTree.on_error only logs by default and
@@ -168,8 +170,8 @@ class MyBot(commands.Bot):
                     logger.warning(
                         "⚠️ Supabase key switch to '%s' failed; continuing with current key", best,
                     )
-        except Exception as e:
-            logger.warning("⚙️ Supabase key probe skipped: %s", e)
+        except Exception:
+            logger.exception("⚙️ Supabase key probe skipped")
 
         await self.db_manager.init_tables()
 
@@ -210,8 +212,8 @@ class MyBot(commands.Bot):
                 "Database schema error during health check: %s "
                 "(apply src/database/migrations/000_aether_complete.sql)", e
             )
-        except Exception as e:
-            logger.error("Database health check failed (Supabase may be unreachable): %s", e)
+        except Exception:
+            logger.exception("Database health check failed (Supabase may be unreachable)")
 
         # Load Cogs
         logger.info("📂 Loading Cogs...")
@@ -233,7 +235,7 @@ class MyBot(commands.Bot):
             except asyncio.TimeoutError:
                 self.failed_cogs.append(cog)
                 logger.error("  ❌ %s.py load timed out after 15s", cog)
-            except Exception as e:
+            except Exception:
                 self.failed_cogs.append(cog)
                 logger.exception("  ❌ Error loading %s.py", cog)
 
@@ -246,19 +248,13 @@ class MyBot(commands.Bot):
             synced = await self.tree.sync()
             logger.info("✅ %d slash commands synced.", len(synced))
 
-            # Global application commands can take up to an hour to appear in
-            # a guild.  Mirror the same tree into every guild on startup so
-            # setup/leveling commands are available immediately after a
-            # deploy or a cog update.  This is also useful for diagnosing an
-            # invite that was created without the applications.commands scope.
-            guild_synced = 0
-            for guild in self.guilds:
-                self.tree.copy_global_to(guild=guild)
-                guild_commands = await self.tree.sync(guild=guild)
-                guild_synced += len(guild_commands)
-            logger.info("✅ Guild command sync complete: %d guild(s), %d commands.", len(self.guilds), guild_synced)
-        except Exception as e:
-            logger.warning("⚠️ Slash command sync error: %s", e)
+            # setup_hook precedes gateway READY: the guild cache is empty.
+            # Explicit IDs can still be synced through lightweight objects;
+            # Discord's HTTP endpoint enforces actual guild access.
+            configured_guild_ids = self.config.get("guild_ids") or []
+            await self._sync_guild_commands(configured_guild_ids)
+        except Exception:
+            logger.exception("⚠️ Slash command sync error")
 
     async def on_command_error(self, ctx, error):
         """Text command алдааг ./logs/cogs.log руу бүртгэнэ."""
@@ -382,6 +378,19 @@ class MyBot(commands.Bot):
 
         logger.error("Slash error [%s] %s: %s", cmd, interaction.user, error, exc_info=error)
 
+    async def _sync_guild_commands(self, guild_ids):
+        async with self._guild_sync_lock:
+            for guild_id in sorted(set(guild_ids) - self._mirrored_guild_ids):
+                guild = discord.Object(id=guild_id)
+                try:
+                    self.tree.copy_global_to(guild=guild)
+                    guild_commands = await self.tree.sync(guild=guild)
+                except discord.HTTPException:
+                    logger.warning("Guild command sync failed for %s", guild_id, exc_info=True)
+                    continue
+                self._mirrored_guild_ids.add(guild_id)
+                logger.info("✅ Guild %s: %d commands synced.", guild_id, len(guild_commands))
+
     async def on_ready(self):
         logger.info("✅ %s is online!", self.user)
         logger.info("📊 Guilds: %d", len(self.guilds))
@@ -391,6 +400,8 @@ class MyBot(commands.Bot):
         # За давхар давтагдахаас сэргийлж task handle-г хадгална (reconnect-д дахин үүсгэхгүй)
         if getattr(self, "_heartbeat_task", None) is None:
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        configured = self.config.get("guild_ids") or []
+        await self._sync_guild_commands(configured or [guild.id for guild in self.guilds])
 
     async def _heartbeat_loop(self):
         """Send a heartbeat to bot_status so the website shows the real Online/Offline state."""
@@ -399,16 +410,23 @@ class MyBot(commands.Bot):
                 try:
                     ok = await self.db_manager.ping_bot("online")
                     if ok:
-                        logger.info("💓 Heartbeat sent (website status: Online)")
+                        logger.debug("💓 Heartbeat sent (website status: Online)")
                     else:
                         logger.warning("⚠️ Heartbeat failed — website will show Offline")
-                except Exception:  # noqa: BLE001
-                    logger.warning("⚠️ Failed to send heartbeat")
+                except Exception:
+                    logger.exception("⚠️ Failed to send heartbeat")
                 await asyncio.sleep(60)
         except asyncio.CancelledError:
             pass
 
     async def close(self):
+        heartbeat = getattr(self, "_heartbeat_task", None)
+        if heartbeat is not None:
+            heartbeat.cancel()
+            try:
+                await heartbeat
+            except asyncio.CancelledError:
+                pass
         await self.db_manager.close()
         await super().close()
 
@@ -417,6 +435,6 @@ if __name__ == "__main__":
     bot = MyBot()
     try:
         bot.run(TOKEN, reconnect=True)
-    except Exception as e:
-        logger.exception("❌ Fatal error: %s", e)
+    except Exception:
+        logger.exception("❌ Fatal error")
         sys.exit(1)
