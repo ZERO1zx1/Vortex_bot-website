@@ -2553,6 +2553,29 @@ BEGIN
     IF p_credits IS NOT NULL AND jsonb_typeof(p_credits) <> 'array' THEN
         RAISE EXCEPTION 'credits must be a JSON array';
     END IF;
+    IF p_credits IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(p_credits) AS elem
+        WHERE jsonb_typeof(elem) <> 'object'
+           OR COALESCE(elem->>'user_id', '') !~ '^[0-9]+$'
+           OR COALESCE(elem->>'amount', '') !~ '^[0-9]+$'
+    ) THEN
+        RAISE EXCEPTION 'credits entries must contain numeric user_id and amount';
+    END IF;
+    IF p_credits IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(p_credits) AS elem
+        GROUP BY elem->>'user_id'
+        HAVING COUNT(*) > 1
+    ) THEN
+        RAISE EXCEPTION 'credits user_id values must be unique';
+    END IF;
+    IF COALESCE((
+        SELECT SUM((elem->>'amount')::BIGINT)
+        FROM jsonb_array_elements(COALESCE(p_credits, '[]'::JSONB)) AS elem
+    ), 0) + p_treasury + p_discarded <> p_tax THEN
+        RAISE EXCEPTION 'tax distribution must equal tax amount';
+    END IF;
 
     -- Claim the reference (idempotency key)
     INSERT INTO economy_balance_references (reference, user_id, guild_id, delta, tax)
@@ -2739,8 +2762,19 @@ BEGIN
     IF v_recipient_count > 50 THEN
         RAISE EXCEPTION 'maximum 50 recipients per payment';
     END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM unnest(p_recipient_ids) AS recipient_id
+        GROUP BY recipient_id
+        HAVING COUNT(*) > 1
+    ) THEN
+        RAISE EXCEPTION 'recipient_ids must be unique';
+    END IF;
     IF p_amount > 100000000000 THEN
         RAISE EXCEPTION 'amount exceeds maximum (100B)';
+    END IF;
+    IF char_length(COALESCE(p_reason, '')) > 200 THEN
+        RAISE EXCEPTION 'reason exceeds maximum length (200)';
     END IF;
 
     -- Claim the reference (idempotency key)
@@ -2758,7 +2792,8 @@ BEGIN
         IF v_existing.guild_id IS DISTINCT FROM p_guild_id
            OR v_existing.actor_id IS DISTINCT FROM p_actor_id
            OR v_existing.amount IS DISTINCT FROM p_amount
-           OR v_existing.recipient_ids IS DISTINCT FROM p_recipient_ids THEN
+           OR v_existing.recipient_ids IS DISTINCT FROM p_recipient_ids
+           OR v_existing.reason IS DISTINCT FROM p_reason THEN
             RAISE EXCEPTION 'reference % was already used with a different payload', p_reference;
         END IF;
         IF v_existing.treasury_after IS NULL THEN

@@ -144,6 +144,7 @@ class GovFakeDB(FakeDB):
     def __init__(self):
         super().__init__()
         self._seq = {}
+        self._treasury_payments = {}
 
     def _next_id(self, table):
         self._seq[table] = self._seq.get(table, 0) + 1
@@ -172,6 +173,92 @@ class GovFakeDB(FakeDB):
 
     def preload(self, table, rows):
         self.tables.setdefault(table, []).extend(list(rows))
+
+    async def rpc(self, name, params):
+        if name == "treasury_pay_once":
+            return await self._treasury_pay_once_rpc(params)
+        raise NotImplementedError(f"RPC {name} not mocked")
+
+    async def _treasury_pay_once_rpc(self, params):
+        reference = params["p_reference"]
+        guild_id = params["p_guild_id"]
+        actor_id = params["p_actor_id"]
+        amount = params["p_amount"]
+        recipient_ids = params["p_recipient_ids"]
+        reason = params.get("p_reason", "")
+
+        existing = self._treasury_payments.get(reference)
+        if existing is not None:
+            if (existing["guild_id"] != guild_id or
+                existing["actor_id"] != actor_id or
+                existing["amount"] != amount or
+                existing["recipient_ids"] != recipient_ids):
+                raise RuntimeError(f"reference {reference} was already used with a different payload")
+            if existing.get("treasury_after") is None:
+                raise RuntimeError(f"reference {reference} has no completed treasury result")
+            return SimpleNamespace(data=[{"applied": False, "treasury_after": existing["treasury_after"]}])
+
+        # Check treasury balance - ensure settings table exists
+        settings = self.tables.setdefault("economy_guild_settings", [])
+        setting = next((s for s in settings if str(s.get("guild_id")) == str(guild_id)), None)
+        if not setting:
+            # Create default setting if not exists
+            setting = {"guild_id": str(guild_id), "treasury_balance": 0}
+            settings.append(setting)
+        if setting.get("treasury_balance", 0) < amount:
+            raise RuntimeError(f"Тэтгэвэрт хүрэлцэхүйц мөнгө байхгүй (одоо {setting.get('treasury_balance', 0):,}₮).")
+
+        # Debit treasury
+        setting["treasury_balance"] -= amount
+        treasury_after = setting["treasury_balance"]
+
+        # Credit recipients
+        recipient_count = len(recipient_ids)
+        share = amount // recipient_count
+        remainder = amount % recipient_count
+        credits = []
+        for i, uid in enumerate(recipient_ids):
+            amt = share + (remainder if i == 0 else 0)
+            if amt <= 0:
+                continue
+            # Find or create economy row
+            econ_rows = self.tables.setdefault("economy", [])
+            econ_row = next((r for r in econ_rows if str(r.get("user_id")) == str(uid) and str(r.get("guild_id")) == str(guild_id)), None)
+            if econ_row:
+                econ_row["balance"] = econ_row.get("balance", 0) + amt
+            else:
+                econ_rows.append({"user_id": str(uid), "guild_id": str(guild_id), "balance": amt})
+            credits.append({"user_id": uid, "amount": amt})
+
+        # Add ledger entries
+        ledger_rows = self.tables.setdefault("economy_ledger", [])
+        import time
+        ts = int(time.time())
+        # Treasury payment (debit)
+        ledger_rows.append({
+            "guild_id": str(guild_id), "user_id": None, "actor_id": str(actor_id),
+            "transaction_type": "treasury_payment", "amount": -amount,
+            "reason": reason, "created_at": ts,
+        })
+        # Individual payouts
+        for i, uid in enumerate(recipient_ids):
+            amt = share + (remainder if i == 0 else 0)
+            if amt <= 0:
+                continue
+            ledger_rows.append({
+                "guild_id": str(guild_id), "user_id": str(uid), "actor_id": str(actor_id),
+                "transaction_type": "treasury_payout", "amount": amt,
+                "reason": reason, "created_at": ts,
+            })
+
+        # Record completion
+        self._treasury_payments[reference] = {
+            "guild_id": guild_id, "actor_id": actor_id, "amount": amount,
+            "recipient_ids": recipient_ids, "reason": reason,
+            "treasury_after": treasury_after, "credits": credits,
+        }
+
+        return SimpleNamespace(data=[{"applied": True, "treasury_after": treasury_after, "credits": credits}])
 
 
 class GovFakeBot:
@@ -497,7 +584,8 @@ async def test_treasury_pay_split_and_ledger():
         {"user_id": "11", "guild_id": "5", "balance": 0},
         {"user_id": "12", "guild_id": "5", "balance": 0},
     ])
-    await gov.credit_treasury(5, 300, reason="seed")
+    db.preload("economy_guild_settings", [{"guild_id": "5", "treasury_balance": 300}])
+    # Don't call credit_treasury - preloaded balance is already 300
     ok, _msg = await gov.treasury_pay(5, [10, 11, 12], 100, reason="bonus", actor_id="1")
     assert ok
     assert await gov.get_treasury_balance(5) == 200
@@ -513,8 +601,9 @@ async def test_treasury_pay_split_and_ledger():
 @pytest.mark.asyncio
 async def test_treasury_pay_rejects_insufficient_funds():
     db = GovFakeDB()
+    db.preload("economy_guild_settings", [{"guild_id": "5", "treasury_balance": 50}])
     _bot, gov = make_gov(db, FakeGuild(5, 1))
-    await gov.credit_treasury(5, 50, reason="seed")
+    # Don't call credit_treasury - preloaded balance is already 50
     ok, msg = await gov.treasury_pay(5, [10, 11], 100, reason="too big", actor_id="1")
     assert not ok and "хүрэлцэхүйц" in msg
     assert await gov.get_treasury_balance(5) == 50  # untouched

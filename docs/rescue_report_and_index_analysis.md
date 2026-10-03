@@ -40,7 +40,7 @@
 +        giveaway_rows = await self.bot.db_manager.fetch_safe("giveaways", {"ended": False})
 ```
 
-**`cogs/leveling.py`** — тохиргоо уншихдаа PGRST205-ийг зөөлөн боловсруулж, voice XP loop-д `fetch_one`-ийг `fetch_safe(single=True)` болгосон:
+**`cogs/leveling.py`** — тохиргоо уншихдаа PGRST202/PGRST205-ийг зөөлөн боловсруулж, voice XP loop-д `fetch_one`-ийг `fetch_safe(single=True)` болгосон:
 
 ```diff
  async def get_config(db_manager, guild_id: int) -> Dict[str, Any]:

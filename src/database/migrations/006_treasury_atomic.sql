@@ -78,8 +78,19 @@ BEGIN
     IF v_recipient_count > 50 THEN
         RAISE EXCEPTION 'maximum 50 recipients per payment';
     END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM unnest(p_recipient_ids) AS recipient_id
+        GROUP BY recipient_id
+        HAVING COUNT(*) > 1
+    ) THEN
+        RAISE EXCEPTION 'recipient_ids must be unique';
+    END IF;
     IF p_amount > 100000000000 THEN
         RAISE EXCEPTION 'amount exceeds maximum (100B)';
+    END IF;
+    IF char_length(COALESCE(p_reason, '')) > 200 THEN
+        RAISE EXCEPTION 'reason exceeds maximum length (200)';
     END IF;
 
     -- Claim the reference (idempotency key)
@@ -97,7 +108,8 @@ BEGIN
         IF v_existing.guild_id IS DISTINCT FROM p_guild_id
            OR v_existing.actor_id IS DISTINCT FROM p_actor_id
            OR v_existing.amount IS DISTINCT FROM p_amount
-           OR v_existing.recipient_ids IS DISTINCT FROM p_recipient_ids THEN
+           OR v_existing.recipient_ids IS DISTINCT FROM p_recipient_ids
+           OR v_existing.reason IS DISTINCT FROM p_reason THEN
             RAISE EXCEPTION 'reference % was already used with a different payload', p_reference;
         END IF;
         IF v_existing.treasury_after IS NULL THEN

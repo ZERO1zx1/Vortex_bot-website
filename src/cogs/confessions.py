@@ -195,7 +195,7 @@ class Confessions(commands.Cog):
     async def get_config(self, guild_id):
 
         async def _load():
-            # fetch_safe swallows PGRST205/404/42501 so a DB setup problem
+            # fetch_safe swallows PGRST202/PGRST205/404/42501 so a DB setup problem
             # returns None (unconfigured) instead of breaking every message.
             row = await self.bot.db_manager.fetch_safe(
                 "confession_config", {"guild_id": str(guild_id)}, single=True
@@ -482,7 +482,7 @@ class Confessions(commands.Cog):
         except Exception as exc:
             # Protect against transient DB failures mid-process without
             # leaking a full traceback for every single guild message.
-            if getattr(exc, "code", None) in ("42501", "PGRST205"):
+            if getattr(exc, "code", None) in ("42501", "PGRST202", "PGRST205"):
                 logger.debug(
                     "confession DB unavailable in guild %s: %s",
                     message.guild.id, exc, exc_info=True,

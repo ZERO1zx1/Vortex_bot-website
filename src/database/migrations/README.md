@@ -17,17 +17,23 @@ the current Confessions cog. It moves confession-number allocation into one
 atomic PostgreSQL `UPDATE ... RETURNING`, preventing duplicate IDs when
 multiple bot processes or shards submit in the same guild.
 
-`reference` makes the recipient balance mutation exactly-once. Tax routing is
-currently a post-commit, best-effort side effect because it can depend on live
-Discord roles and Government recipients. If tax distribution raises after the
-balance RPC commits, retrying the same reference will not credit the player
-again and will not automatically replay that tax. Treat this as a known safety
-tradeoff until tax delivery gets its own durable outbox/idempotency contract.
+For an existing project, run `005_economy_tax_atomic.sql` before deploying the
+current Economy cog. It installs the atomic reward, tax, treasury, and discard
+contract behind `apply_economy_balance_with_tax_once`.
+
+For an existing project, run `006_treasury_atomic.sql` before enabling
+Government treasury payments. It installs the `treasury_payments` idempotency
+table and the atomic `treasury_pay_once` RPC. Apply it after the bootstrap and
+earlier incremental migrations.
+
+`reference` makes reward and treasury mutations exactly-once. The 005 RPC
+commits the recipient balance and tax distribution in one transaction; replay
+of the same reference returns the committed result without applying tax again.
 
 `economy_balance_references` is append-only for audit and deduplication. The
 `created_at` index supports a future retention job; do not delete references
 inside the maximum retry/replay window.
 
-The other dated SQL files were historical repair steps and are archived under
-`trash/database-migrations/`. They have already been applied to the live
-project and must not be replayed there.
+The dated SQL files are incremental migrations. Apply only the migrations that
+the target project has not applied; do not blindly replay them on a live
+project without checking the schema and migration history.

@@ -12,7 +12,7 @@
 ## Илэрсэн бөгөөд зассан алдаанууд (6 файл)
 
 ### 1. `src/cogs/tempvoice.py:250` — `TypeError: 'NoneType' object is not iterable`
-`fetch_safe("tempvoice_setup_msg")` нь хүснэгт дутуу/эрхгүй (PGRST205/404/42501) үед
+`fetch_safe("tempvoice_setup_msg")` нь хүснэгт/RPC дутуу/эрхгүй (PGRST202/PGRST205/404/42501) үед
 `None` буцаадаг ч `for row in rows:` шууд давталт хийдэг байсан.
 **Үр дагавар:** cog_load дэх background task унаж, persistent view-үүд сэргэдэггүй.
 **Засвар:** `for row in rows or []:`

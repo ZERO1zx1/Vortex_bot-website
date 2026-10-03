@@ -37,7 +37,7 @@
 | `list_migrations` | Хоосон — ямар ч SQL migration ажиллаагүй |
 | `information_schema.tables` (public schema) | **0 хүснэгт** — database нь бүрэн хоосон |
 
-Өөрөөр хэлбэл, **schema migration-ийг Supabase-д огт ажиллуулаагүй** байна. Bot-ын log дээрх бүх `404 Not Found` ба `PGRST205` алдаанууд үүнээс гарч байгаа бөгөөд code-д биш.
+Өөрөөр хэлбэл, **schema migration-ийг Supabase-д огт ажиллуулаагүй** байна. Bot-ын log дээрх бүх `404 Not Found`, `PGRST202`, `PGRST205` алдаанууд үүнээс гарч байгаа бөгөөд code-д биш.
 
 ### Хийх ёстой алхмууд (таны PC дээр)
 
@@ -56,4 +56,4 @@ py -3.12 check_migration_applied.py
 
 6. Эцэст нь bot-оо дахин асаана: `py -3.12 main.py`
 
-Migration амжилттай болсны дараа startup-ын `Required Supabase table ... is missing` warning-ууд болон background task-уудын `PGRST205` алдаанууд бүгд арилах ёстой.
+Migration амжилттай болсны дараа startup-ын `Required Supabase table ... is missing` warning-ууд болон background task-уудын `PGRST202/PGRST205` алдаанууд бүгд арилах ёстой.

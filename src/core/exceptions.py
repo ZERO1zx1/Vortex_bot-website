@@ -24,7 +24,7 @@ class DatabasePermissionError(DatabaseError):
 
 class DatabaseSchemaError(DatabaseError):
     """
-    PGRST205 / 42P01 — table олдсонгүй.
+    PGRST202/PGRST205 / 42P01 — RPC эсвэл table олдсонгүй.
     Шалтгаан: Migration ажиллуулаагүй.
     """
 

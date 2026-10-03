@@ -176,7 +176,7 @@ async def get_config(db_manager, guild_id: int) -> dict[str, Any]:
         row = await db_manager.fetchone("leveling_config", {"guild_id": str(guild_id)})
     except Exception as e:
         log.exception("Operation failed in get_config")
-        if "PGRST205" not in str(e) and getattr(e, "status_code", None) != 404:
+        if all(code not in str(e) for code in ("PGRST202", "PGRST205")) and getattr(e, "status_code", None) != 404:
             raise
         row = None
     if not row:

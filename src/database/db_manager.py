@@ -48,7 +48,7 @@ def classify_supabase_error(exc: BaseException) -> BaseException:
 
     Transient failures (network, 5xx) map to :class:`DatabaseUnavailableError`,
     privilege failures (42501) to :class:`DatabasePermissionError`, and missing
-    schema (PGRST205 / HTTP 404) to :class:`DatabaseSchemaError`.  Unknown
+    schema (PGRST202/PGRST205 / HTTP 404) to :class:`DatabaseSchemaError`.  Unknown
     errors are returned unchanged so callers can still tell accidents apart
     from expected infrastructure states.
     """
@@ -62,7 +62,13 @@ def classify_supabase_error(exc: BaseException) -> BaseException:
     except (TypeError, ValueError):
         status_int = 0
 
-    if "PGRST205" in code_str or "PGRST205" in msg or status_int == 404:
+    if (
+        "PGRST202" in code_str
+        or "PGRST202" in msg
+        or "PGRST205" in code_str
+        or "PGRST205" in msg
+        or status_int == 404
+    ):
         return DatabaseSchemaError(str(exc))
     if "42501" in code_str or "42501" in msg:
         return DatabasePermissionError(str(exc))
@@ -401,7 +407,7 @@ class SupabaseManager:
                 "000_aether_complete.sql and verify the Service "
                 "Role key is active (JWT role='service_role')."
             )
-        if "PGRST205" in msg or "42P01" in msg:
+        if "PGRST202" in msg or "PGRST205" in msg or "42P01" in msg:
             raise DatabaseSchemaError(
                 f"{table}: {msg}\n"
                 "Hint: Apply src/database/migrations/000_aether_complete.sql."
@@ -610,7 +616,7 @@ class SupabaseManager:
     # ------------------------------------------------------------------
     def _is_missing_table(self, error: BaseException) -> bool:
         """True when the error means the table is not in the Supabase
-        schema cache (PGRST205), the REST endpoint returned 404, or the
+        schema cache (PGRST202/PGRST205), the REST endpoint returned 404, or the
         role lacks privileges on the table (42501 permission denied).
 
         42501 is treated here because a privilege problem on a *known*
@@ -625,7 +631,8 @@ class SupabaseManager:
             status = int(status)
         except (TypeError, ValueError):
             status = 0
-        return ("PGRST205" in code or "PGRST205" in msg
+        return ("PGRST202" in code or "PGRST202" in msg
+                or "PGRST205" in code or "PGRST205" in msg
                 or status == 404
                 or "42501" in code or "42501" in msg)
 
@@ -642,7 +649,7 @@ class SupabaseManager:
         logs once at ERROR level and returns ``[]`` (or ``None`` for
         single-row reads) so background tasks keep running instead of
         crashing.  Errors treated as "table unavailable" are:
-        PGRST205 (missing table), HTTP 404, and 42501 (permission denied).
+        PGRST202/PGRST205 (missing RPC/table), HTTP 404, and 42501 (permission denied).
         All other errors (auth, network, bad data) still propagate to
         the caller.
         """

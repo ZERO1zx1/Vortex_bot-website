@@ -519,7 +519,7 @@ class Counting(commands.Cog):
 
         except Exception as exc:
             # Protect on_message from transient DB failures per event.
-            if getattr(exc, "code", None) in ("42501", "PGRST205"):
+            if getattr(exc, "code", None) in ("42501", "PGRST202", "PGRST205"):
                 logger.debug("counting DB unavailable in guild %s: %s", message.guild.id, exc)
             else:
                 logger.warning("counting error in guild %s: %s", message.guild.id, exc, exc_info=True)

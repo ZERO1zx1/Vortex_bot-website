@@ -110,7 +110,11 @@ Also invite the bot with both the `bot` and `applications.commands` OAuth2 scope
 1. Create a Supabase project at [supabase.com](https://supabase.com)
 2. Open the **SQL Editor**
 3. Paste the contents of `src/database/migrations/000_aether_complete.sql` and run it
-4. Restart the bot and confirm the startup log reports a successful database health check. The migration is idempotent and creates the tables, indexes, grants, and RPC functions required by the bot without dropping existing data.
+4. For an existing project, also apply the unapplied incremental migrations in order:
+   `001_anime_clash_profiles.sql`, `002_poker_pending_payouts.sql`,
+   `003_economy_balance_idempotency.sql`, `004_confession_atomic_ids.sql`,
+   `005_economy_tax_atomic.sql`, and `006_treasury_atomic.sql`.
+5. Restart the bot and confirm the startup log reports a successful database health check. The migrations are designed to be applied in order without dropping existing data.
 
 ### 5. Configure the bot
 

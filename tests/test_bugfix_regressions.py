@@ -787,16 +787,26 @@ async def test_pvp_accept_double_click_starts_one_duel(monkeypatch):
     opponent = FakeMember(2, "b")
 
     sends = []
+    sent_messages = []
 
     async def fake_send(content=None, embed=None, view=None, **kwargs):
+        msg = SimpleNamespace(edit=lambda *a, **kw: None)
         sends.append((content, embed, view))
-        return SimpleNamespace()
+        sent_messages.append(msg)
+        return msg
 
     channel = SimpleNamespace(id=9, send=fake_send)
     ctx = SimpleNamespace(author=author, guild=SimpleNamespace(id=5), channel=channel, send=fake_send)
 
     await PVP.pvp(pvp, ctx, opponent, "100")
     assert sends[0][2] is not None  # the confirmation view was created
+    dview = sends[0][2]
+    dview.message = sent_messages[0]  # set message for disable_all_buttons
+    # Stub disable_all_buttons on the instance to avoid message.edit
+    async def _stub_disable(self):
+        for item in self.children:
+            item.disabled = True
+    dview.disable_all_buttons = _stub_disable.__get__(dview, type(dview))
 
     class FakeResponse:
         def __init__(self):
@@ -808,7 +818,7 @@ async def test_pvp_accept_double_click_starts_one_duel(monkeypatch):
     dview = sends[0][2]
     resp = FakeResponse()
     interaction = SimpleNamespace(user=opponent, guild_id=5, response=resp)
-    accept_cb = dview.accept_button.callback  # bound (interaction) coroutine
+    accept_cb = dview.accept_button.callback
 
     await accept_cb(interaction)   # first accept -> start_duel
     await accept_cb(interaction)   # second accept -> ignored

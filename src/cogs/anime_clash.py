@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import discord
 from discord.ext import commands
 
+from src.core.exceptions import DatabaseSchemaError
 from src.utils.constants import (
     ERROR_COLOR,
     GOLD_COLOR,
@@ -243,6 +244,11 @@ class AnimeClashView(discord.ui.View):
                 return True
             except Exception as exc:
                 last_exc = exc
+                if isinstance(exc, DatabaseSchemaError):
+                    logger.exception(
+                        "anime clash reward unavailable: required economy migration/RPC is missing"
+                    )
+                    break
                 logger.warning(
                     "anime clash reward attempt %d/3 failed for user %s in guild %s: %s",
                     attempt, self.game.user_id, self.ctx.guild.id, exc,
@@ -292,6 +298,7 @@ class AnimeClashView(discord.ui.View):
             if result["received"]:
                 details.append(f"{self.game.enemy_name} хариу довтолж **{result['received']}** damage өглөө.")
 
+            deferred = False
             if result["status"] == "win":
                 self.game.settled = True
                 if self.game.pending_reward is None:
@@ -301,12 +308,15 @@ class AnimeClashView(discord.ui.View):
                         base_reward * self.game.difficulty["reward"] * hp_bonus
                     )
                 reward = self.game.pending_reward
+                # Reward storage can exceed Discord's response window.
+                await interaction.response.defer()
+                deferred = True
                 credited = await self._credit_reward(reward)
                 if not credited:
                     self.game.settled = False
                     self.game.finished = False
                     self.game.result = None
-                    return await interaction.response.send_message(
+                    return await interaction.followup.send(
                         "⚠️ Шагнал хадгалахад алдаа гарлаа. Дахин оролдоно уу.", ephemeral=True
                     )
                 self.game.pending_reward = None
@@ -323,7 +333,10 @@ class AnimeClashView(discord.ui.View):
             else:
                 embed = self.build_embed("⚔️ ANIME CLASH", "\n".join(details), GOLD_COLOR)
 
-            await interaction.response.edit_message(embed=embed, view=self)
+            if deferred:
+                await interaction.edit_original_response(embed=embed, view=self)
+            else:
+                await interaction.response.edit_message(embed=embed, view=self)
 
     async def _record_result(self, won: bool, reward: int):
         cog = self.bot.get_cog("AnimeClash")

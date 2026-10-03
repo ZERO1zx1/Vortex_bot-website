@@ -525,7 +525,7 @@ class Moderation(SupabaseCog):
                     self.voice_times[voice_key] = now
         except Exception as exc:
             guild_id = getattr(getattr(member, "guild", None), "id", "?")
-            if str(getattr(exc, "code", None)) in ("42501", "PGRST205"):
+            if str(getattr(exc, "code", None)) in ("42501", "PGRST202", "PGRST205"):
                 logger.debug("staff voice activity skipped (DB infra) in guild %s: %s", guild_id, exc)
             else:
                 logger.warning("staff voice activity error in guild %s: %s", guild_id, exc, exc_info=True)

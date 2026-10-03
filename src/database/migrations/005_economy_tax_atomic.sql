@@ -82,6 +82,29 @@ BEGIN
     IF p_credits IS NOT NULL AND jsonb_typeof(p_credits) <> 'array' THEN
         RAISE EXCEPTION 'credits must be a JSON array';
     END IF;
+    IF p_credits IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(p_credits) AS elem
+        WHERE jsonb_typeof(elem) <> 'object'
+           OR COALESCE(elem->>'user_id', '') !~ '^[0-9]+$'
+           OR COALESCE(elem->>'amount', '') !~ '^[0-9]+$'
+    ) THEN
+        RAISE EXCEPTION 'credits entries must contain numeric user_id and amount';
+    END IF;
+    IF p_credits IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(p_credits) AS elem
+        GROUP BY elem->>'user_id'
+        HAVING COUNT(*) > 1
+    ) THEN
+        RAISE EXCEPTION 'credits user_id values must be unique';
+    END IF;
+    IF COALESCE((
+        SELECT SUM((elem->>'amount')::BIGINT)
+        FROM jsonb_array_elements(COALESCE(p_credits, '[]'::JSONB)) AS elem
+    ), 0) + p_treasury + p_discarded <> p_tax THEN
+        RAISE EXCEPTION 'tax distribution must equal tax amount';
+    END IF;
 
     -- Claim the reference (idempotency key)
     INSERT INTO economy_balance_references (reference, user_id, guild_id, delta, tax)

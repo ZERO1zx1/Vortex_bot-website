@@ -16,7 +16,7 @@ incremental migration-уудын бүрэн төлөвийг зөвхөн хүс
 
 Гарцын бүртгэлтэй 4 төлөв:
   OK               Хүснэгт байна, уншиж болно
-  MISSING          Хүснэгт байхгүй (PGRST205 / HTTP 404)         -> migration ажиллуулах
+  MISSING          Хүснэгт/RPC байхгүй (PGRST202/PGRST205 / HTTP 404) -> migration ажиллуулах
   PERMISSION       service_role/тухайн рольд GRANT байхгүй (42501) -> bootstrap GRANT-уудыг шалгах
   UNAVAILABLE      Холболт/servertail алдаа (5xx/network)          -> дахин оролдох
 """
@@ -39,7 +39,7 @@ EXPECTED_TABLES = [
     "tempvoice_setup_msg", "user_inventory", "staff_config", "staff_members",
     "staff_activity", "leveling_config", "shop_stock", "ticket_config", "tickets",
     "automation_rules", "automation_runs", "anime_clash_profiles",
-    "poker_pending_payouts", "economy_balance_references",
+    "poker_pending_payouts", "economy_balance_references", "treasury_payments",
 ]
 
 # Бүрэн schema-д байх ёстой бүх хүснэгтүүд (000_aether_complete.sql-аас).
@@ -64,7 +64,7 @@ ALL_TABLES = [
     "temprole_config", "temproles", "tempvoice_setup_msg", "user_drunk",
     "user_inventory", "user_quests", "warnings", "work_phrases", "ticket_config",
     "tickets", "automation_rules", "automation_runs", "anime_clash_profiles",
-    "poker_pending_payouts", "economy_balance_references",
+    "poker_pending_payouts", "economy_balance_references", "treasury_payments",
 ]
 
 # Хүснэгтийн дэлгэрэнгүй мэдээллийг PostgREST-ээр шалгах
@@ -93,9 +93,9 @@ def check_table(base_url: str, key: str, table: str) -> tuple[str, str]:
             logger.warning("Could not read migration-check HTTP error response", exc_info=True)
         if e.code >= 500:
             return "UNAVAILABLE", f"Supabase service unavailable (HTTP {e.code}): {body[:160]}"
-        if e.code == 404 or "PGRST205" in body:
+        if e.code == 404 or "PGRST202" in body or "PGRST205" in body:
             return "MISSING", (
-                "ХҮСНЭГТ БАЙХГҮЙ (PGRST205 / HTTP 404) — "
+                "ХҮСНЭГТ эсвэл RPC БАЙХГҮЙ (PGRST202/PGRST205 / HTTP 404) — "
                 "src/database/migrations/000_aether_complete.sql bootstrap-ийг шалга"
             )
         if e.code in (401, 403):

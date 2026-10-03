@@ -24,6 +24,7 @@ collector-role distribution remain active until ``/government`` is enabled.
 import asyncio
 import logging
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -839,7 +840,15 @@ class Government(SupabaseCog):
             )
         return True
 
-    async def treasury_pay(self, guild_id, member_ids, amount: int, reason: str, actor_id) -> tuple[bool, str]:
+    async def treasury_pay(
+        self,
+        guild_id,
+        member_ids,
+        amount: int,
+        reason: str,
+        actor_id,
+        reference: str | None = None,
+    ) -> tuple[bool, str]:
         gid = str(guild_id)
         amount = int(amount or 0)
         if amount <= 0:
@@ -852,9 +861,9 @@ class Government(SupabaseCog):
         if amount > MAX_TREASURY_PAY_AMOUNT:
             return False, f"Дүн дээд тал нь {MAX_TREASURY_PAY_AMOUNT:,} ₮ байна."
 
-        # Generate idempotency reference
-        import time
-        reference = f"treasury:{gid}:{actor_id}:{int(time.time() * 1000)}"
+        # The caller owns the operation reference so a manual retry replays the
+        # same atomic payment instead of creating a second payment.
+        reference = reference or f"treasury:{gid}:{actor_id}:{uuid.uuid4().hex}"
 
         try:
             response = await self.bot.db_manager.rpc(
@@ -886,6 +895,9 @@ class Government(SupabaseCog):
         if not row["applied"]:
             # Replay: return the previously committed result
             return True, f"✅ Тэтгэвэрээс {_fmt_money(amount)} шилжүүллээ (replay)."
+
+        # Invalidate settings cache so get_treasury_balance reads fresh value
+        self._settings_cache.pop(gid, None)
 
         return True, f"✅ Тэтгэвэрээс {_fmt_money(amount)} шилжүүллээ."
 
@@ -2413,6 +2425,7 @@ class TreasuryPayConfirm(Modal, title="Тэтгэвэрээс төлбөр"):
         self.guild_id = str(guild_id)
         self.perms = perms
         self.member_ids = member_ids
+        self.reference = f"treasury:{self.guild_id}:{uuid.uuid4().hex}"
         self.add_item(TextInput(label="Нийт дүн (₮)", placeholder="10000", required=True, max_length=14))
         self.add_item(TextInput(label="Шалтгаан (опциональ)", placeholder="Шагнал / Тэтгэвэр", required=False, max_length=80))
 
@@ -2423,7 +2436,14 @@ class TreasuryPayConfirm(Modal, title="Тэтгэвэрээс төлбөр"):
                 f"❌ Дүн эерэг бүхэл тоо, дээд тал {MAX_TREASURY_PAY_AMOUNT:,} байна.", ephemeral=True
             )
         reason = (self.children[1].value or "").strip()[:80] or None
-        _ok, msg = await self.cog.treasury_pay(self.guild_id, self.member_ids, amount, reason, interaction.user.id)
+        _ok, msg = await self.cog.treasury_pay(
+            self.guild_id,
+            self.member_ids,
+            amount,
+            reason,
+            interaction.user.id,
+            reference=self.reference,
+        )
         await interaction.response.send_message(msg, ephemeral=True)
         view = TreasuryView(self.cog, interaction, self.perms)
         embed = await view.build_embed()

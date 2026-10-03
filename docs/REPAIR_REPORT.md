@@ -10,7 +10,7 @@ spamming `cogs.log` (39,955 lines, ~2,158 ERRORs):
 | Error | Meaning | Source |
 |---|---|---|
 | PostgreSQL `42501` (permission denied) | `service_role` was not granted read/write on runtime tables | Grants created in migration `000_complete_schema.sql` were never applied |
-| PostgREST `PGRST205` (429/404-style "could not find the table") | Tables missing entirely: `staff_members`, `staff_activity`, `warnings`, `game_stats`, `temp_channels`, quest/config tables | Migration `000_complete_schema.sql` was never applied on the production project |
+| PostgREST `PGRST202/PGRST205` (missing RPC/table) | Tables and atomic RPCs missing from the production schema | Bootstrap or incremental migrations were not applied on the production project |
 
 Top noise sources (2,158 ERRORs total): `confession_config` 468x, `counting_config` 468x, `staff_members` 335 missing + 151 denied, `staff_activity`, `temp_channels`, `avatar_log_config`, `work_phrases`, etc.
 
@@ -44,7 +44,7 @@ Secondary bugs found during audit:
 
 - `database/supabase_manager.py`
   - Typed exceptions: `DatabaseUnavailableError`, `DatabasePermissionError`, `DatabaseSchemaError`.
-  - `classify_supabase_error()` maps PGRST205/404 → schema, 42501 → permission, network/5xx → unavailable; unknown errors pass through unchanged (drop-in: `fetch_one`/`fetch_all` raise semantics untouched).
+  - `classify_supabase_error()` maps PGRST202/PGRST205/404 → schema, 42501 → permission, network/5xx → unavailable; unknown errors pass through unchanged (drop-in: `fetch_one`/`fetch_all` raise semantics untouched).
   - `_TableErrorTracker` (10-min window): first failure per table logs full guidance, repeats are silently counted, then a compact `Table 'X' unavailable: N repeat error(s) …` summary — kills the per-event flooding.
   - `fetch_safe` wired to the tracker; `single=True` supported.
   - New `probe_table()` → `OK | MISSING | PERMISSION_DENIED | UNAVAILABLE | ERROR` and `health_check(tables=...)`.
