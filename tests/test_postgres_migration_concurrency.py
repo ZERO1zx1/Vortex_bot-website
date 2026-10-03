@@ -80,6 +80,66 @@ def _run_balance_once(barrier, reference, delta):
         return row
 
 
+@pytest.fixture
+def tax_database():
+    # Use the disposable test database only; roll back this fixture's schema
+    # and data so the older migration concurrency cases remain independent.
+    with psycopg.connect(DSN) as conn:
+        conn.execute("""
+            CREATE TABLE economy_guild_settings (
+                guild_id TEXT PRIMARY KEY, treasury_balance BIGINT DEFAULT 0,
+                updated_at BIGINT
+            );
+            CREATE TABLE economy_ledger (
+                guild_id TEXT, user_id TEXT, actor_id TEXT,
+                transaction_type TEXT, amount BIGINT, balance_before BIGINT,
+                balance_after BIGINT, reason TEXT, metadata JSONB, created_at BIGINT
+            );
+        """)
+        conn.execute((MIGRATIONS / "005_economy_tax_atomic.sql").read_text(encoding="utf-8"))
+        try:
+            yield conn
+        finally:
+            conn.rollback()
+
+
+def tax_reward(conn, reference, delta, max_balance=1000):
+    return conn.execute(
+        "SELECT * FROM apply_economy_balance_with_tax_once(%s, %s, %s, %s, %s, 0, '[]'::jsonb, 0, 0)",
+        (reference, "500", "500", delta, max_balance),
+    ).fetchone()
+
+
+def test_tax_reward_replay_returns_bigint_result_without_crediting_twice(tax_database):
+    assert tax_reward(tax_database, "tax:replay", 100) == (True, 100, 0, 0, 0)
+    assert tax_reward(tax_database, "tax:replay", 100) == (False, 100, 0, 0, 0)
+    assert tax_database.execute(
+        "SELECT balance FROM economy WHERE user_id='500' AND guild_id='500'"
+    ).fetchone() == (100,)
+
+
+def test_tax_reward_caps_credit_and_rejects_overdraft(tax_database):
+    assert tax_reward(tax_database, "tax:cap", 1500)[1] == 1000
+    with pytest.raises(psycopg.Error, match="insufficient balance"):
+        with tax_database.transaction():
+            tax_reward(tax_database, "tax:overdraft", -1001)
+    assert tax_database.execute(
+        "SELECT count(*) FROM economy_balance_references WHERE reference='tax:overdraft'"
+    ).fetchone() == (0,)
+    assert tax_database.execute(
+        "SELECT balance FROM economy WHERE user_id='500' AND guild_id='500'"
+    ).fetchone() == (1000,)
+
+
+def test_tax_reward_cannot_debit_missing_account(tax_database):
+    with pytest.raises(psycopg.Error, match="insufficient balance"):
+        with tax_database.transaction():
+            tax_reward(tax_database, "tax:missing", -1)
+    assert tax_database.execute(
+        "SELECT count(*) FROM economy WHERE user_id='500' AND guild_id='500'"
+    ).fetchone() == (0,)
+
+
 def test_same_reference_concurrent_calls_credit_once():
     with psycopg.connect(DSN) as conn:
         conn.execute(

@@ -174,7 +174,7 @@ await self.bot.db_manager.increment("economy", {"user_id": "123"}, "balance", 10
 
 `website/` хавтас — ботын албан ёсны статик UI. Командын каталог болон live status нь тусдаа FastAPI service шаардахгүй; status нь зөвхөн нийтэд унших эрхтэй `bot_status` мөрийг Supabase publishable key-ээр уншина.
 
-- Hero (3D orb + particles), Онцлогууд, 176 entry-тэй командын каталог, Статистик, Статус, About Us, Premium (3 төлөвлөгөө), Invite CTA
+- Hero (3D orb + particles), Онцлогууд, командын каталог, Статистик, Статус, About Us, Premium (3 төлөвлөгөө), Invite CTA
 - Hosting: Vercel / Netlify / GitHub Pages дээр `website/` хавтсыг publish directory болгох (нарийвчилсан заавар: `website/README.md`)
 - Тохиргоо: `website/js/config.js`-с invite холбоосоо тохируулна (`INVITE_URL`)
 ## Branding

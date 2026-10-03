@@ -21,6 +21,11 @@ For an existing project, run `005_economy_tax_atomic.sql` before deploying the
 current Economy cog. It installs the atomic reward, tax, treasury, and discard
 contract behind `apply_economy_balance_with_tax_once`.
 
+If 005 was applied before the 2026-10-04 repair, re-run the corrected 005
+before using PvP or reward retries. The repair rejects overdrafts, preserves
+the balance cap, and uses BIGINT values in the replay result. Updating the
+local SQL file alone does not update the deployed function.
+
 For an existing project, run `006_treasury_atomic.sql` before enabling
 Government treasury payments. It installs the `treasury_payments` idempotency
 table and the atomic `treasury_pay_once` RPC. Apply it after the bootstrap and

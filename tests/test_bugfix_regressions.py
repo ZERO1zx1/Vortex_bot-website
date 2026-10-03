@@ -158,9 +158,11 @@ class FakeEconomySink:
         self.balance = balance
         self.debits = []
         self.credits = []
+        self.payments = []
         self.bot = SimpleNamespace(db_manager=FakeDB())
 
-    async def update_balance(self, uid, gid, delta):
+    async def update_balance(self, uid, gid, delta, apply_tax=None, *, reference=None):
+        self.payments.append((uid, gid, delta, apply_tax, reference))
         if delta < 0:
             self.debits.append(delta)
         else:
@@ -442,6 +444,8 @@ async def test_pvp_idle_timeout_refunds_each_player_once():
     # Exactly one refund per player — a second round trip through end_game
     # (tie branch) used to refund a second time.
     assert eco.credits == [100, 100]
+    assert all(payment[3] is False for payment in eco.payments)
+    assert len({payment[4] for payment in eco.payments}) == 2
     assert len(sent) == 1
 
 
@@ -811,6 +815,9 @@ async def test_pvp_accept_double_click_starts_one_duel(monkeypatch):
     class FakeResponse:
         def __init__(self):
             self.messages = []
+
+        async def defer(self):
+            pass
 
         async def send_message(self, content=None, **kwargs):
             self.messages.append((content, kwargs))

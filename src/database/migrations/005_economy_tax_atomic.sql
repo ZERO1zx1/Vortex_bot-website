@@ -129,34 +129,23 @@ BEGIN
         END IF;
 
         -- Return the originally committed result (no re-distribution)
-        RETURN QUERY SELECT FALSE, v_existing.balance_after, 0, 0, 0;
+        RETURN QUERY SELECT FALSE, v_existing.balance_after, 0::BIGINT, 0::BIGINT, 0::BIGINT;
         RETURN;
     END IF;
 
-    -- 1. Update recipient balance (capped at max_balance, floor at 0)
+    -- Initialize without crediting, then lock/update the account atomically.
+    INSERT INTO economy (user_id, guild_id, balance)
+    VALUES (p_user_id, p_guild_id, 0)
+    ON CONFLICT (user_id, guild_id) DO NOTHING;
     UPDATE economy
-    SET balance = LEAST(
-        p_max_balance,
-        GREATEST(0, COALESCE(economy.balance, 0) + p_delta)
-    )
+    SET balance = LEAST(p_max_balance, COALESCE(economy.balance, 0) + p_delta)
     WHERE user_id = p_user_id
       AND guild_id = p_guild_id
-      AND GREATEST(0, COALESCE(economy.balance, 0) + p_delta) <= p_max_balance
+      AND COALESCE(economy.balance, 0) + p_delta >= 0
     RETURNING economy.balance INTO v_balance;
 
     IF v_balance IS NULL THEN
-        IF EXISTS (
-            SELECT 1 FROM economy
-            WHERE user_id = p_user_id AND guild_id = p_guild_id
-        ) THEN
-            RAISE EXCEPTION 'insufficient balance for user % in guild %', p_user_id, p_guild_id;
-        END IF;
-        -- Account doesn't exist: create it with the delta (ON CONFLICT handled by upsert below)
-        INSERT INTO economy (user_id, guild_id, balance)
-        VALUES (p_user_id, p_guild_id, GREATEST(0, LEAST(p_max_balance, p_delta)))
-        ON CONFLICT (user_id, guild_id) DO UPDATE
-            SET balance = LEAST(p_max_balance, GREATEST(0, COALESCE(economy.balance, 0) + p_delta))
-        RETURNING balance INTO v_balance;
+        RAISE EXCEPTION 'insufficient balance for user % in guild %', p_user_id, p_guild_id;
     END IF;
 
     -- 2. Credit tax recipients (ON CONFLICT DO NOTHING for account init, then add amount)

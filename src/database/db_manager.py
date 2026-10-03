@@ -318,6 +318,7 @@ class SupabaseManager:
         "economy_guild_settings", "economy_jobs", "economy_ledger",
         "government_members", "government_roles", "tax_recipients",
         "ticket_config", "tickets", "automation_rules", "automation_runs",
+        "anime_clash_profiles", "poker_pending_payouts", "treasury_payments",
     ]
 
     async def init_tables(self):

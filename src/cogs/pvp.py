@@ -1,6 +1,7 @@
 ﻿import asyncio
 import logging
 import time
+import uuid
 
 import discord
 from discord import app_commands
@@ -23,13 +24,15 @@ ROUND_TIMEOUT = 30   # раунд тутамд хүлээх хугацаа (се
 
 # ==================== PVP VIEW ====================
 class PVPView(View):
-    def __init__(self, bot, channel, player1, player2, bet_amount):
+    def __init__(self, bot, channel, player1, player2, bet_amount, *, game_id=None):
         super().__init__(timeout=None)
         self.bot = bot
         self.channel = channel
         self.player1 = player1
         self.player2 = player2
         self.bet_amount = bet_amount
+        self.game_id = game_id or uuid.uuid4().hex
+        self._settlement_started = False
         self.player1_score = 0
         self.player2_score = 0
         self.current_round = 1
@@ -77,14 +80,17 @@ class PVPView(View):
 
     def cancel_timers(self):
         if self._round_timer:
-            self._round_timer.cancel()
+            if self._round_timer is not asyncio.current_task():
+                self._round_timer.cancel()
             self._round_timer = None
         if self._global_timer:
-            self._global_timer.cancel()
+            if self._global_timer is not asyncio.current_task():
+                self._global_timer.cancel()
             self._global_timer = None
 
     async def start_round_timer(self):
-        self.cancel_timers()
+        if self._round_timer and self._round_timer is not asyncio.current_task():
+            self._round_timer.cancel()
         async def timeout():
             await asyncio.sleep(ROUND_TIMEOUT)
             if self.game_active and self.round_active and not (self.player1_ready and self.player2_ready):
@@ -103,6 +109,9 @@ class PVPView(View):
 
     async def force_end_game(self):
         """Глобал хугацаа дууссаны улмаас тоглоомыг албадан дуусгах"""
+        if self._settlement_started:
+            return
+        self._settlement_started = True
         self.game_active = False
         self.round_active = False
         self.cancel_timers()
@@ -112,8 +121,7 @@ class PVPView(View):
 
         # Мөнгө буцаах (хоёул тоглогчид)
         if economy:
-            await economy.update_balance(self.player1.id, guild_id, self.bet_amount)
-            await economy.update_balance(self.player2.id, guild_id, self.bet_amount)
+            await self._refund(economy, guild_id)
 
         embed = discord.Embed(
             title="⏰ **ТОГЛООМ ЦУЦЛАГДЛАА**",
@@ -126,13 +134,19 @@ class PVPView(View):
         if not self.round_active:
             return
         self.round_active = False
-        self.cancel_timers()
+        if self._round_timer and self._round_timer is not asyncio.current_task():
+            self._round_timer.cancel()
         await self.disable_all_buttons()
         guild_id = self.channel.guild.id
         economy = self.bot.get_cog("Economy")
 
         # Ялагдагчийг тодорхойлох
         if not self.player1_ready and not self.player2_ready:
+            if self._settlement_started:
+                return
+            self._settlement_started = True
+            self.game_active = False
+            self.cancel_timers()
             # хоёул хариулаагүй -> тэнцээ, мөнгө буцах
             embed = discord.Embed(
                 title="⏰ **ХУГАЦАА ДУУССАН!**",
@@ -140,8 +154,7 @@ class PVPView(View):
                 color=ERROR_COLOR
             )
             if economy:
-                await economy.update_balance(self.player1.id, guild_id, self.bet_amount)
-                await economy.update_balance(self.player2.id, guild_id, self.bet_amount)
+                await self._refund(economy, guild_id)
             self.game_active = False
         elif not self.player1_ready:
             # 1-р тоглогч цагаа хэтрүүлсэн -> 2-р тоглогч раунд хожив
@@ -180,6 +193,13 @@ class PVPView(View):
                 await leveling.add_xp(user_id, guild_id, amount, check_mute=False)
             except Exception:
                 logger.exception("Operation failed in _give_xp")
+
+    async def _refund(self, economy, guild_id):
+        for player in (self.player1, self.player2):
+            await economy.update_balance(
+                player.id, guild_id, self.bet_amount, apply_tax=False,
+                reference=f"pvp:{self.game_id}:refund:{player.id}",
+            )
 
     async def process_round(self):
         if not self.game_active:
@@ -241,11 +261,14 @@ class PVPView(View):
     async def check_round_complete(self):
         if self.player1_ready and self.player2_ready and self.round_active and self.game_active:
             self.round_active = False
-            self.cancel_timers()   # раунд дууссан тул раундын таймер зогсоо
+            if self._round_timer and self._round_timer is not asyncio.current_task():
+                self._round_timer.cancel()
             await self.disable_all_buttons()
             await self.process_round()
 
     async def start_next_round(self):
+        if not self.game_active:
+            return
         self.player1_choice = None
         self.player2_choice = None
         self.player1_ready = False
@@ -258,10 +281,17 @@ class PVPView(View):
                 await self.message.edit(embed=embed, view=self)
             except Exception:
                 logger.exception("Operation failed in start_next_round")
+        # A global timeout may have settled the duel while the edit awaited I/O.
+        if not self.game_active:
+            await self.disable_all_buttons()
+            return
         self.round_active = True
         await self.start_round_timer()   # 30 секундын таймер эхлүүлэх
 
     async def end_game(self):
+        if self._settlement_started:
+            return
+        self._settlement_started = True
         self.game_active = False
         self.round_active = False
         self.cancel_timers()
@@ -287,8 +317,7 @@ class PVPView(View):
                 color=EMBED_COLOR
             )
             if economy:
-                await economy.update_balance(self.player1.id, guild_id, self.bet_amount)
-                await economy.update_balance(self.player2.id, guild_id, self.bet_amount)
+                await self._refund(economy, guild_id)
             await self.channel.send(embed=embed)
             return
 
@@ -314,7 +343,10 @@ class PVPView(View):
             inline=False
         )
         if economy:
-            await economy.update_balance(winner.id, guild_id, total_win)
+            await economy.update_balance(
+                winner.id, guild_id, total_win,
+                reference=f"pvp:{self.game_id}:winner:{winner.id}",
+            )
         await self._give_xp(winner.id, guild_id, 15)
         await self._give_xp(loser.id, guild_id, 5)
 
@@ -469,6 +501,8 @@ class PVP(commands.Cog):
                 self.amount = amount
                 self.channel = channel
                 self.accepted = False
+                self.closed = False
+                self.game_id = uuid.uuid4().hex
                 self.message = None
 
             async def disable_all_buttons(self):
@@ -484,9 +518,10 @@ class PVP(commands.Cog):
             async def accept_button(self, interaction: discord.Interaction, button: Button):
                 if interaction.user != self.opponent:
                     return await interaction.response.send_message("❌ Энэ урилга танд зориулагдаагүй!", ephemeral=True)
-                if self.accepted:
+                if self.accepted or self.closed:
                     return await interaction.response.send_message("⏳ Тулааны урилга аль хэдийн зөвшөөрөгдсөн.", ephemeral=True)
                 self.accepted = True
+                await interaction.response.defer()
                 await self.disable_all_buttons()
                 await self.start_duel(interaction)
 
@@ -494,6 +529,9 @@ class PVP(commands.Cog):
             async def decline_button(self, interaction: discord.Interaction, button: Button):
                 if interaction.user != self.opponent:
                     return await interaction.response.send_message("❌ Энэ урилга танд зориулагдаагүй!", ephemeral=True)
+                if self.accepted or self.closed:
+                    return await interaction.response.send_message("❌ Урилга аль хэдийн хаагдсан.", ephemeral=True)
+                self.closed = True
                 embed = discord.Embed(
                     title="❌ ТАТГАЛЗСАН",
                     description=f"{self.opponent.mention} тулааны урилгаас татгалзлаа.",
@@ -507,20 +545,37 @@ class PVP(commands.Cog):
                 await self.pvp_cog.set_cooldown(interaction.guild_id, self.opponent.id)
 
                 economy_cog = self.pvp_cog.bot.get_cog("Economy")
+                if economy_cog is None:
+                    raise RuntimeError("Economy is unavailable; duel was not charged")
                 if economy_cog:
-                    await economy_cog.update_balance(self.challenger.id, interaction.guild_id, -self.amount)
-                    await economy_cog.update_balance(self.opponent.id, interaction.guild_id, -self.amount)
+                    await economy_cog.update_balance(self.challenger.id, interaction.guild_id, -self.amount,
+                        reference=f"pvp:{self.game_id}:entry:{self.challenger.id}")
+                    try:
+                        await economy_cog.update_balance(self.opponent.id, interaction.guild_id, -self.amount,
+                            reference=f"pvp:{self.game_id}:entry:{self.opponent.id}")
+                    except Exception:
+                        await economy_cog.update_balance(self.challenger.id, interaction.guild_id, self.amount,
+                            apply_tax=False, reference=f"pvp:{self.game_id}:entry-rollback:{self.challenger.id}")
+                        raise
 
                 embed = discord.Embed(
                     title="⚔️ ТУЛААН ЭХЭЛЛЭЭ! ⚔️",
                     description=f"{self.challenger.mention} vs {self.opponent.mention}\nБооцоо: **{self.amount:,}** мөнгө\n3 раундын тулаан эхэллээ!",
                     color=GOLD_COLOR
                 )
-                await self.channel.send(embed=embed)
-
-                view = PVPView(self.pvp_cog.bot, self.channel, self.challenger, self.opponent, self.amount)
-                round_embed = await view.send_round_embed()
-                view.message = await self.channel.send(embed=round_embed, view=view)
+                view = PVPView(self.pvp_cog.bot, self.channel, self.challenger, self.opponent, self.amount,
+                               game_id=self.game_id)
+                try:
+                    await self.channel.send(embed=embed)
+                    round_embed = await view.send_round_embed()
+                    view.message = await self.channel.send(embed=round_embed, view=view)
+                except Exception:
+                    # Both entry debits completed. Refund with stable references
+                    # if Discord cannot display the playable duel.
+                    await view._refund(economy_cog, interaction.guild_id)
+                    view.stop()
+                    self.stop()
+                    raise
                 view.round_active = True
                 await view.start_round_timer()
                 await view.start_global_timer()   # 2 минутын ерөнхий таймер
@@ -528,6 +583,7 @@ class PVP(commands.Cog):
 
             async def on_timeout(self):
                 if not self.accepted:
+                    self.closed = True
                     embed = discord.Embed(
                         title="⏰ ХУГАЦАА ДУУССАН",
                         description=f"{self.opponent.mention} тулааны урилгыг хүлээж аваагүй тул хүчингүй боллоо.",
