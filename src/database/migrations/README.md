@@ -23,7 +23,9 @@ contract behind `apply_economy_balance_with_tax_once`.
 
 If 005 was applied before the 2026-10-04 repair, re-run the corrected 005
 before using PvP or reward retries. The repair rejects overdrafts, preserves
-the balance cap, and uses BIGINT values in the replay result. Updating the
+the balance cap, uses BIGINT values in the replay result, and explicitly adds
+the tax column to reference tables created by migration 003. Existing reference
+rows are retained with tax defaulting to zero. Updating the
 local SQL file alone does not update the deployed function.
 
 For an existing project, run `006_treasury_atomic.sql` before enabling

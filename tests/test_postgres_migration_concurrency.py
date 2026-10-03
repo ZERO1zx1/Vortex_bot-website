@@ -96,7 +96,14 @@ def tax_database():
                 balance_after BIGINT, reason TEXT, metadata JSONB, created_at BIGINT
             );
         """)
-        conn.execute((MIGRATIONS / "005_economy_tax_atomic.sql").read_text(encoding="utf-8"))
+        conn.execute("""
+            INSERT INTO economy_balance_references
+                (reference, user_id, guild_id, delta, balance_after)
+            VALUES ('legacy:before-tax', '600', '500', 10, 10)
+        """)
+        migration = (MIGRATIONS / "005_economy_tax_atomic.sql").read_text(encoding="utf-8")
+        conn.execute(migration)
+        conn.execute(migration)  # Reapplying the repair must be safe.
         try:
             yield conn
         finally:
@@ -108,6 +115,13 @@ def tax_reward(conn, reference, delta, max_balance=1000):
         "SELECT * FROM apply_economy_balance_with_tax_once(%s, %s, %s, %s, %s, 0, '[]'::jsonb, 0, 0)",
         (reference, "500", "500", delta, max_balance),
     ).fetchone()
+
+
+def test_tax_upgrade_preserves_existing_reference(tax_database):
+    assert tax_database.execute("""
+        SELECT user_id, guild_id, delta, balance_after, tax
+        FROM economy_balance_references WHERE reference='legacy:before-tax'
+    """).fetchone() == ('600', '500', 10, 10, 0)
 
 
 def test_tax_reward_replay_returns_bigint_result_without_crediting_twice(tax_database):

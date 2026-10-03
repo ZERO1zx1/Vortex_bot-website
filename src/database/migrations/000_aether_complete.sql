@@ -2388,6 +2388,10 @@ CREATE TABLE IF NOT EXISTS economy_balance_references (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Also upgrade databases that previously applied migration 003.
+ALTER TABLE economy_balance_references
+    ADD COLUMN IF NOT EXISTS tax BIGINT NOT NULL DEFAULT 0;
+
 CREATE INDEX IF NOT EXISTS ix_economy_balance_references_created_at
     ON economy_balance_references (created_at);
 

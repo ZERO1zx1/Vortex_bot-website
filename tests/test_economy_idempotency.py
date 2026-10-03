@@ -195,3 +195,13 @@ def test_migration_pins_atomic_claim_and_service_role_boundary():
     assert "apply_economy_balance_with_tax_once" in migration
     assert "REVOKE ALL ON FUNCTION apply_economy_balance_with_tax_once" in migration
     assert "GRANT EXECUTE ON FUNCTION apply_economy_balance_with_tax_once" in migration
+
+
+@pytest.mark.parametrize("filename", ["005_economy_tax_atomic.sql", "000_aether_complete.sql"])
+def test_tax_migrations_explicitly_upgrade_existing_reference_table(filename):
+    migration = (Path("src/database/migrations") / filename).read_text(encoding="utf-8")
+    upgrade = "ALTER TABLE economy_balance_references\n    ADD COLUMN IF NOT EXISTS tax BIGINT NOT NULL DEFAULT 0;"
+    assert upgrade in migration
+    assert migration.index(upgrade) < migration.index(
+        "CREATE OR REPLACE FUNCTION apply_economy_balance_with_tax_once"
+    )
