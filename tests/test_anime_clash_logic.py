@@ -182,9 +182,13 @@ async def test_failed_reward_can_be_retried(monkeypatch):
         def __init__(self):
             self.messages = []
             self.edits = []
+            self.deferred = False
 
         async def send_message(self, content, **kwargs):
             self.messages.append(content)
+
+        async def defer(self, **kwargs):
+            self.deferred = True
 
         async def edit_message(self, **kwargs):
             self.edits.append(kwargs)
@@ -199,7 +203,12 @@ async def test_failed_reward_can_be_retried(monkeypatch):
     game.enemy_hp = 1
     view = AnimeClashView(bot, ctx, game)
     response = Response()
-    interaction = SimpleNamespace(user=SimpleNamespace(id=7), response=response)
+    interaction = SimpleNamespace(
+        user=SimpleNamespace(id=7),
+        response=response,
+        followup=SimpleNamespace(send=response.send_message),
+        edit_original_response=response.edit_message,
+    )
     rolls = iter((16, 200, 16))
     monkeypatch.setattr(clash_mod.random, "randint", lambda *_: next(rolls))
 
