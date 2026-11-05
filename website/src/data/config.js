@@ -7,22 +7,23 @@
    Client ID-ээ Discord Developer Portal-оос (https://discord.com/developers/applications)
    аваарай.
    ============================================================ */
-window.AETHER_CONFIG = {
+export const CONFIG = {
   BOT_NAME: '𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹',
   SERVER_INVITE_URL: 'https://discord.gg/WwnsmHrhJ',
-  BOT_INVITE_URL: 'https://discord.com/oauth2/authorize?client_id=1493212321231802408&permissions=0&scope=bot%20applications.commands',
+  BOT_INVITE_URL:
+    'https://discord.com/oauth2/authorize?client_id=1493212321231802408&permissions=0&scope=bot%20applications.commands',
   INVITE_URL: 'https://discord.gg/WwnsmHrhJ',
   GITHUB: null,
 
   /*
-   * БОТЫН ЖИНХЭНЭ STATUS (Online / Offline):
+   * БОТЫН ЖИНХЭНЕ STATUS (Online / Offline):
    * Supabase bot_status хүснэгт heartbeat эх үүсвэр.
    * Бот асаахад main.py дахь heartbeat loop 60 сек тутам
    * Supabase-д "last_ping" бичдэг → сайт эндээс уншиж харуулна.
    * Бот унтарвал last_ping хуучирч, сайт автоматаар "Offline" +
    * "сүүлд X цагын өмнө асаагдсан" гэж харуулна.
    */
-  HEARTBEAT_POLL_MS: 120000,       // мс — 2 min тутам дахин шалгана
+  HEARTBEAT_POLL_MS: 120000, // мс — 2 min тутам дахин шалгана
   /*
    * SUPABASE heartbeat (backend байхгүй үед шууд уншилт):
    * Бот 60 сек тутам bot_status(id=1) рүү "last_ping" бичдэг.
@@ -41,4 +42,9 @@ window.AETHER_CONFIG = {
    * Service role key browser bundle-д хэзээ ч байрлуулж болохгүй.
    */
   API_BASE_URL: '',
-};
+
+  /** How old a heartbeat may be and still count as "online". */
+  HEARTBEAT_STALE_MS: 120000,
+  /** Network timeout for each status request, in ms. */
+  STATUS_TIMEOUT_MS: 8000
+}

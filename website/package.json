@@ -1,0 +1,21 @@
+{
+  "name": "aether-website",
+  "private": true,
+  "version": "3.2.0",
+  "type": "module",
+  "description": "𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — AETHER Discord community website (React + Vite)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "validate:commands": "node tools/validate_commands.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.4",
+    "vite": "^7.1.14"
+  }
+}

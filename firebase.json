@@ -1,14 +1,11 @@
 {
   "hosting": {
     "target": "aether",
-    "public": "website",
+    "public": "website/dist",
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**",
-      "tools/**",
-      "**/*.py",
-      "**/*.md"
+      "**/node_modules/**"
     ],
     "headers": [
       {
@@ -27,9 +24,21 @@
         ]
       },
       {
+        "source": "/@(assets|img)/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      },
+      {
         "source": "**/*.@(js|css)",
         "headers": [
-          { "key": "Cache-Control", "value": "public, max-age=86400" }
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      },
+      {
+        "source": "/index.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
         ]
       }
     ],

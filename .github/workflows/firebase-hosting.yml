@@ -23,6 +23,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      # The website is a Vite/React app: `website/dist` is produced by the
+      # build and is gitignored, so it does not exist in a fresh checkout.
+      # The deploy action does NOT build for us — the build must run here.
+      - name: Install website dependencies
+        run: npm ci
+        working-directory: website
+
+      - name: Build website
+        run: npm run build
+        working-directory: website
+
+      - name: Verify build output
+        run: test -f dist/index.html
+        working-directory: website
+
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
