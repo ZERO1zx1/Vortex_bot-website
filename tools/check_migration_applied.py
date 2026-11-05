@@ -7,10 +7,10 @@ Supabase project-д байгаа, унших эрхтэй эсэхийг шал�
 incremental migration-уудын бүрэн төлөвийг зөвхөн хүснэгтээр батлахгүй.
 
 Хэрэглээ (PowerShell):
-    py -3.12 tools/check_migration_applied.py
+    python tools/check_migration_applied.py
 
 Хэрвээ `.env` файл байхгүй бол шууд:
-    py -3.12 tools/check_migration_applied.py --url "https://<id>.supabase.co" --key "<service_role_эсвэл_anon_ключ>"
+    python tools/check_migration_applied.py --url "https://<id>.supabase.co" --key "<service_role_эсвэл_anon_ключ>"
 
 Энэ скрипт зөвхөн УНШДАГ (read-only). Database-д ямар ч өөрчлөлт оруулахгүй.
 
@@ -23,6 +23,7 @@ incremental migration-уудын бүрэн төлөвийг зөвхөн хүс
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 import urllib.error
@@ -47,7 +48,10 @@ EXPECTED_TABLES = [
 # db_manager-ийн бүх insert/update/upsert/delete/fetch дуудлага + TABLE тогтмолууд
 # (automod_config, reaction_roles) + website heartbeat (bot_status).
 ALL_TABLES = [
-    "adoptions", "automod_config", "avatar_log_config", "bot_status",
+    "economy_guild_settings", "economy_jobs", "economy_ledger",
+    "government_members", "government_roles", "lottery", "lottery_entries",
+    "tax_recipients", "user_equips",
+    "adoptions", "family_relationships", "automod_config", "avatar_log_config", "bot_status",
     "confession_blacklist", "confession_config", "confession_cooldown",
     "confession_messages", "counting_config", "counting_progress",
     "counting_stats", "custom_replies", "daily_stats", "economy",
@@ -67,8 +71,62 @@ ALL_TABLES = [
     "poker_pending_payouts", "economy_balance_references", "treasury_payments",
 ]
 
-# Хүснэгтийн дэлгэрэнгүй мэдээллийг PostgREST-ээр шалгах
-# `limit=0` зөвхөн хүснэгт байгаа эсэхийг шалгадаг, мөр буцаахгүй.
+# RPC functions the bot calls at runtime. Checking only tables let migrations
+# 004/005/006 go unapplied while this script still reported a clean run:
+# the three functions below are what economy/confessions/government depend on.
+REQUIRED_RPCS = [
+    "allocate_confession_id",
+    "apply_economy_balance_with_tax_once",
+    "begin_poker_table",
+    "charge_poker_buyin",
+    "increment",
+    "consume_stock",
+    "prepare_poker_settlement",
+    "settle_poker_payout",
+    "treasury_pay_once",
+]
+
+
+def list_live_rpcs(base_url: str, key: str) -> set[str] | None:
+    """RPC names PostgREST currently exposes, or None when unreachable.
+
+    `GET /rest/v1/` returns the OpenAPI document for the deployed database, so
+    it lists the functions that really exist rather than the ones we believe
+    the migration files define. Read-only: nothing is executed.
+    """
+    req = urllib.request.Request(
+        f"{base_url.rstrip('/')}/rest/v1/",
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Accept": "application/openapi+json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            spec = json.load(resp)
+    except Exception:
+        logger.warning("Could not read the PostgREST schema document", exc_info=True)
+        return None
+    found = set()
+    for path in spec.get("paths", {}):
+        parts = [s for s in path.split("/") if s]
+        if len(parts) >= 2 and parts[0] == "rpc":
+            found.add("/".join(parts[1:]))
+    return found
+
+
+def check_rpc(base_url: str, key: str, rpc: str, live: set[str] | None) -> tuple[str, str]:
+    """Verify one required RPC is exposed to the bot."""
+    if live is None:
+        return "UNAVAILABLE", "PostgREST schema document авах боломжгүй"
+    if rpc in live:
+        return "OK", "OK (schema-д байна)"
+    return "MISSING", (
+        "RPC БАЙХГҮЙ — PostgREST-д алга. Холбосон migration-ыг "
+        "src/database/migrations/ дахь дарааллаар хэрэглээд "
+        "NOTIFY pgrst, 'reload schema'; гэж ажиллуул."
+    )
 
 
 def check_table(base_url: str, key: str, table: str) -> tuple[str, str]:
@@ -151,10 +209,16 @@ def main() -> int:
             pass
     if not url or not key:
         print("Алдаа: SUPABASE_URL ба server Supabase key олдсонгүй.")
-        print("Хэрэглэх: py -3.12 tools/check_migration_applied.py --url '...' --key '...'")
+        print("Хэрэглэх: python tools/check_migration_applied.py --url '...' --key '...'")
         return 2
 
     print(f"Supabase: {url}")
+    if args.key:
+        print(
+            "⚠️  Түлхүүр command line-аар дамжуулсан: shell history болон process list-д "
+            "хадгалдана. Дараагийн ажиллалтын хувьд .env (SUPABASE_URL + "
+            "SUPABASE_SECRET_KEY) эсвэл environment variable ашигла."
+        )
     print("=" * 60)
 
     def _report(tables: list[str]) -> dict[str, int]:
@@ -175,6 +239,17 @@ def main() -> int:
     print(f"\n[2] Бүрэн schema-ийн {len(ALL_TABLES)} хүснэгт шалгах:")
     counts_all = _report(ALL_TABLES)
 
+    # 3) Bot дуудах RPC функцүүд
+    print(f"\n[3] Bot-ын дуудах {len(REQUIRED_RPCS)} RPC функцийг шалгах:")
+    live_rpcs = list_live_rpcs(url, key)
+    counts_rpc = {"OK": 0, "MISSING": 0, "PERMISSION": 0, "UNAVAILABLE": 0, "ERROR": 0}
+    for rpc in REQUIRED_RPCS:
+        status, msg = check_rpc(url, key, rpc, live_rpcs)
+        counts_rpc[status] = counts_rpc.get(status, 0) + 1
+        mark = {"OK": "OK ", "MISSING": "X  "}.get(status, "!  ")
+        print(f"  {mark} {rpc:42s} {msg}")
+    print("RPC-ийн үр дүн: " + ", ".join(f"{k}={v}" for k, v in counts_rpc.items() if v))
+
     # Дүгнэлт — машинд уншигдах нэг мөр + зөвлөмж
     print("=" * 60)
     summary = "ҮР ДҮН: " + ", ".join(
@@ -183,9 +258,15 @@ def main() -> int:
                                 ("ERROR", counts_all["ERROR"]))
     )
     print(summary)
-    if migration_is_complete(counts_all, len(ALL_TABLES)):
-        print("Бүх шалгасан хүснэгт байна, унших эрхтэй. RPC болон incremental migration-уудыг тусад нь баталгаажуул.")
+    tables_ok = migration_is_complete(counts_all, len(ALL_TABLES))
+    rpcs_ok = migration_is_complete(counts_rpc, len(REQUIRED_RPCS))
+    if tables_ok and rpcs_ok:
+        print("Бүх шалгасан хүснэгт болон RPC байна, унших/дуудах эрхтэй.")
         return 0
+    if tables_ok and not rpcs_ok:
+        print("-> Хүснэгтүүд бүгд байна, ГЭХДЭЭ RPC дутуу байна. "
+              "src/database/migrations/ дахь migration-уудыг дугаарлалын дагуу хэрэглээд "
+              "NOTIFY pgrst, 'reload schema'; ажиллуул.")
     if counts_all["MISSING"]:
         print("-> Хүснэгтүүд дутуу: 'src/database/migrations/000_aether_complete.sql' bootstrap-ийг шалга.")
     if counts_all["PERMISSION"]:
@@ -194,6 +275,8 @@ def main() -> int:
         print("-> Зарим хүснэгт холболтын алдаагаар шалгагдаагүй; дахин ажиллуул.")
     if counts_all["ERROR"]:
         print("-> Зарим хүснэгт тодорхойгүй API алдаагаар шалгагдаагүй; дээрх HTTP алдааг зас.")
+    if counts_rpc["MISSING"]:
+        print("-> RPC дутуу: bot PGRST202 авч зогсоно (economy/confessions/government).")
     return 1
 
 

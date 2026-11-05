@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import src.cogs.automod as automod_module
-from src.cogs.automod import DEFAULT_ON, AutoModeration
+import src.cogs.admin.automod as automod_module
+from src.cogs.admin.automod import DEFAULT_ON, AutoModeration
 
 
 class FakeDB:

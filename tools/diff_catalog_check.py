@@ -1,4 +1,4 @@
-"""Diff the help catalog (COMMAND_INFO in src/cogs/help.py) against the commands
+"""Diff the help catalog (COMMAND_INFO in src/cogs/system/help.py) against the commands
 actually registered after loading all cogs offline.
 
 Reports:
@@ -66,7 +66,7 @@ async def main():
 
     # Help.cog_load prunes documentation for cogs excluded by ACTIVE_COGS.
     # Compare against that runtime catalog, not the unpruned source literal.
-    from src.cogs.help import COMMAND_INFO
+    from src.cogs.system.help import COMMAND_INFO
     doc = dict(COMMAND_INFO)
     documented = set(doc.keys())
 

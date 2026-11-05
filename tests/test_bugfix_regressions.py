@@ -18,6 +18,9 @@ Each test targets one confirmed finding:
   H6  pvp accept is idempotent - double-click starts one duel
   H7  /daily concurrent claims grant the reward once
   H8  counting expression evaluation must reject `**` (DoS vector)
+  C9  blackjack double-down/split re-check the balance at click time; a stake
+      the player can no longer cover is refused, never committed and paid
+      out on (the button state is stale by the time the click lands)
 
 Naming convention uses pytest-asyncio with lightweight fakes.
 """
@@ -29,16 +32,17 @@ from types import SimpleNamespace
 import discord
 import pytest
 
-import src.cogs.casino as casino_mod
-import src.cogs.economy as econ_mod
-from src.cogs.automod import AutoModeration
-from src.cogs.casino import BlackjackView, Casino
-from src.cogs.confessions import Confessions
-from src.cogs.counting import evaluate_expression
-from src.cogs.economy import Economy
-from src.cogs.games import Games
-from src.cogs.pvp import PVP, PVPView
-from src.cogs.trade import Marketplace
+import src.cogs.economy.economy as econ_mod
+import src.cogs.games.casino as casino_mod
+from src.cogs.admin.automod import AutoModeration
+from src.cogs.community.confessions import Confessions
+from src.cogs.economy.economy import Economy
+from src.cogs.games.casino import BlackjackView, Casino
+from src.cogs.games.counting import evaluate_expression
+from src.cogs.games.games import Games
+from src.cogs.games.pvp import PVP, PVPView
+from src.cogs.shop.trade import Marketplace
+from src.core.exceptions import DatabaseSchemaError, InsufficientFundsError
 
 # ══════════════ FAKES ══════════════
 
@@ -88,8 +92,12 @@ class FakeDB:
 
     async def delete(self, table, query):
         rows = self._rows(table)
+        # The real SupabaseManager.delete returns the removed rows, which is
+        # what Marketplace.claim_listing uses as its atomic claim.
+        removed = [dict(r) for r in rows if self._match(r, query)]
         kept = [r for r in rows if not self._match(r, query)]
         rows[:] = kept
+        return removed
 
     async def insert(self, table, data):
         self._rows(table).append(dict(data))
@@ -394,6 +402,154 @@ async def test_blackjack_double_down_win_pays_doubled_stake():
 
 
 @pytest.mark.asyncio
+async def test_blackjack_loss_does_not_double_debit():
+    # The stake is debited when the hand is dealt, so settlement must not
+    # debit it again. It used to, so a losing player lost twice their bet.
+    view, eco = make_blackjack_view(bet=200, hands=[[{"value": 12, "display": "4", "rank": 4}]])
+
+    class Res:
+        async def edit_message(self, **kwargs):
+            pass
+    interaction = SimpleNamespace(response=Res())
+
+    await view.finalize_game(interaction)
+
+    assert eco.debits == []
+    assert eco.credits == []
+    assert view.casino.stats == [(False, 200, 200)]
+
+
+@pytest.mark.asyncio
+async def test_blackjack_bust_does_not_double_debit():
+    # A bust is a loss too: the stake is gone, nothing more is taken.
+    view, eco = make_blackjack_view(bet=200, hands=[[{"value": 25, "display": "10", "rank": 10}]])
+
+    class Res:
+        async def edit_message(self, **kwargs):
+            pass
+    interaction = SimpleNamespace(response=Res())
+
+    await view.finalize_game(interaction)
+
+    assert eco.debits == []
+    assert eco.credits == []
+
+
+@pytest.mark.asyncio
+async def test_blackjack_tie_refunds_the_stake():
+    # A push returns the stake; it must not be kept by the house.
+    view, eco = make_blackjack_view(bet=200, hands=[[{"value": 17, "display": "10", "rank": 10}]])
+
+    class Res:
+        async def edit_message(self, **kwargs):
+            pass
+    interaction = SimpleNamespace(response=Res())
+
+    await view.finalize_game(interaction)
+
+    assert eco.debits == []
+    assert eco.credits == [200]
+    assert view.casino.stats == []
+
+
+def make_unfundable_view(bet=1000):
+    """A two-card blackjack hand, ready for a Double Down / Split click."""
+    view, eco = make_blackjack_view(bet=bet)
+    view.original_bet = bet
+    view.active_hand_index = 0
+    view.hands = [[{"value": 11, "display": "A", "rank": 11},
+                   {"value": 10, "display": "10", "rank": 10}]]
+    view.game_over = False
+    view.all_hands_resolved = False
+
+    notes = []
+    stands = []
+
+    class Response:
+        async def edit_message(self, **kwargs):
+            pass
+
+    class Followup:
+        async def send(self, content=None, **kwargs):
+            notes.append(content)
+
+    async def stand(interaction, from_double=False):
+        stands.append(interaction)
+
+    async def refresh_buttons():
+        pass
+
+    view._update_buttons = refresh_buttons
+    view.update_embed = lambda: None
+    view.embed = SimpleNamespace(description="stub embed")  # set for real by update_embed()
+    view.stand = stand
+    view.draw_card = lambda: {"value": 3, "display": "3", "rank": 3}
+    interaction = SimpleNamespace(response=Response(), followup=Followup())
+    return view, eco, interaction, notes, stands
+
+
+@pytest.mark.asyncio
+async def test_blackjack_double_down_refused_when_balance_dropped():
+    # C9: the Double Down button is enabled when the view renders. If the
+    # balance drops before the click lands, the stake must be refused - not
+    # charged - otherwise the win pays out on a bet that was never covered.
+    view, eco, interaction, notes, stands = make_unfundable_view(bet=1000)
+    eco.balance = 380
+
+    await view.double_down(interaction)
+
+    assert eco.debits == []          # nothing charged
+    assert view.bet == 1000          # stake not escalated to 2000
+    assert stands == []              # hand not advanced
+    assert notes and "380" in notes[0]  # player told why
+
+
+@pytest.mark.asyncio
+async def test_blackjack_double_down_refused_when_debit_races():
+    # The balance can also drop between our read and the debit. The raised
+    # error must become a refusal, not an exception inside the view callback.
+    view, eco, interaction, notes, stands = make_unfundable_view(bet=1000)
+    eco.balance = 5000
+
+    async def racy_debit(uid, gid, delta, apply_tax=None, *, reference=None):
+        raise InsufficientFundsError("insufficient balance for user 7 in guild 5")
+
+    eco.update_balance = racy_debit
+
+    await view.double_down(interaction)
+
+    assert view.bet == 1000
+    assert stands == []
+    assert notes
+
+
+@pytest.mark.asyncio
+async def test_blackjack_split_refused_when_balance_dropped():
+    view, eco, interaction, notes, _stands = make_unfundable_view(bet=1000)
+    eco.balance = 12
+
+    await view.split_hand(interaction)
+
+    assert eco.debits == []
+    assert view.bet == 1000
+    assert notes
+
+
+@pytest.mark.asyncio
+async def test_blackjack_double_down_still_debits_when_affordable():
+    # Guard must not break the normal path.
+    view, eco, interaction, notes, stands = make_unfundable_view(bet=1000)
+    eco.balance = 5000
+
+    await view.double_down(interaction)
+
+    assert eco.debits == [-1000]
+    assert view.bet == 2000
+    assert stands == [interaction]   # proceeded to the doubled hand
+    assert notes == []
+
+
+@pytest.mark.asyncio
 async def test_blackjack_finalize_scheduled_once():
     # C4: rapid stand/hit on the last hand must not schedule finalize twice.
     view = object.__new__(BlackjackView)
@@ -478,6 +634,27 @@ async def test_confession_increment_id_is_unique_under_concurrency():
 
 
 @pytest.mark.asyncio
+async def test_confession_id_falls_back_to_atomic_compare_and_swap_when_rpc_is_missing():
+    class MissingRPCDB(FakeDB):
+        async def rpc(self, name, params):
+            raise DatabaseSchemaError("PGRST202 allocate_confession_id missing")
+
+        async def update(self, table, query, data):
+            for row in self._rows(table):
+                if self._match(row, query):
+                    row.update(dict(data))
+                    return [dict(row)]
+            return []
+
+    db = MissingRPCDB()
+    db.tables["confession_config"] = [{"guild_id": "5", "next_id": 7}]
+    cog = Confessions(SimpleNamespace(db_manager=db))
+
+    assert await cog.increment_id(5) == 7
+    assert db.tables["confession_config"][0]["next_id"] == 8
+
+
+@pytest.mark.asyncio
 async def test_confession_blacklist_is_cached_and_normalized():
     class CountingDB(FakeDB):
         def __init__(self):
@@ -556,7 +733,7 @@ async def test_transfer_aborts_when_balance_drops_during_confirm(monkeypatch):
             row = next(r for r in db.tables["economy"] if r["user_id"] == "7")
             row["balance"] = 30
 
-    monkeypatch.setattr("src.cogs.economy.ConfirmView", FakeConfirmView)
+    monkeypatch.setattr("src.cogs.economy.economy.ConfirmView", FakeConfirmView)
 
     member = SimpleNamespace(id=8, mention="<@8>", display_name="r")
     ctx, _sent = make_context(eco.bot)
@@ -651,7 +828,7 @@ async def test_automod_raid_timeout_uses_datetime_and_isolates_failures(monkeypa
         def __init__(self, uid, fail=False):
             self.id = uid
             self.fail = fail
-            self.created_at = datetime.datetime.now(datetime.timezone.utc)
+            self.created_at = datetime.datetime.now(datetime.UTC)
 
         def is_timed_out(self):
             return False
@@ -682,7 +859,7 @@ async def test_automod_raid_timeout_uses_datetime_and_isolates_failures(monkeypa
 
     # A timeout failure on member 2 must NOT stop members 1 and 3.
     assert [c[0] for c in calls] == [1, 2, 3]
-    for uid, until, reason in calls:
+    for _uid, until, reason in calls:
         assert isinstance(until, datetime.datetime), "timeout must receive a datetime"
         assert until.tzinfo is not None, "timeout datetime must be timezone-aware"
         assert "Anti-raid" in reason
@@ -727,7 +904,7 @@ async def test_trade_buy_selected_handles_dict_listing(monkeypatch):
         async def wait(self):
             return None
 
-    monkeypatch.setattr("src.cogs.trade.ConfirmView", FakeConfirmView)
+    monkeypatch.setattr("src.cogs.shop.trade.ConfirmView", FakeConfirmView)
 
     view = Marketplace.ListingsView(mkt, buyer_id=7, page=0)
     view.selected_listing_id = 1
@@ -740,8 +917,8 @@ async def test_trade_buy_selected_handles_dict_listing(monkeypatch):
             pass
 
     class FakeFollowup:
-        async def send(self, **kwargs):
-            pass
+        async def send(self, message=None, **kwargs):
+            self.last = message
 
     interaction = SimpleNamespace(
         guild_id=5,

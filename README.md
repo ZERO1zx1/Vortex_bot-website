@@ -10,7 +10,8 @@ A feature-rich Discord bot for the **𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹** communit
 - **Games & Casino** — Anime Clash, multiplayer Texas Hold'em, slots, blackjack, PvP, lottery
 - **Shop & Inventory** — items, stock, marketplace, food buffs (cafe)
 - **Moderation** — warnings, temproles, sticky messages, avatar logging
-- **Counting** — counting game with configurable channels, roles, streaks
+- **Counting** — dynamic XP, milestones, anti-farm scaling, Save tokens,
+  weekly shields, levels, roles, and configurable channels
 - **Confessions** — anonymous confessions with blacklist & cooldown
 - **Giveaways** — hosted giveaways with entries & winners
 - **Greetings** — customizable welcome/goodbye/boost embeds with templates
@@ -77,9 +78,9 @@ House rules:
 
 ```bash
 # Windows: use the same Python interpreter that will run the bot
-py -3.12 -m pip install -r requirements.txt
-# Or, if `python` is your selected interpreter:
 python -m pip install -r requirements.txt
+# For reproducible local/CI installs, use the tested lock snapshot instead:
+python -m pip install -r requirements.lock
 ```
 
 ### 2. Configure environment
@@ -132,15 +133,15 @@ Edit `src/config.json`:
 
 ```bash
 # From the repository root. The src/ package is importable either way:
-py -3.12 -m src.main
-# Or:
 python -m src.main
+# Or, via the deploy-compatibility shim:
+python main.py
 ```
 
 If you see `ModuleNotFoundError: No module named 'discord'`, install dependencies with the exact interpreter used to run the bot:
 
 ```bash
-py -3.12 -m pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 ## Database Layer
@@ -172,11 +173,13 @@ await self.bot.db_manager.increment("economy", {"user_id": "123"}, "balance", 10
 
 ## Website
 
-`website/` хавтас — ботын албан ёсны статик UI. Командын каталог болон live status нь тусдаа FastAPI service шаардахгүй; status нь зөвхөн нийтэд унших эрхтэй `bot_status` мөрийг Supabase publishable key-ээр уншина.
+`website/` хавтас — ботын албан ёсны статик UI (React 19 + Vite 7). Командын каталог болон live status нь тусдаа FastAPI service шаардахгүй; status нь зөвхөн нийтэд унших эрхтэй `bot_status` мөрийг Supabase publishable key-ээр уншина.
 
 - Hero (3D orb + particles), Онцлогууд, командын каталог, Статистик, Статус, About Us, Premium (3 төлөвлөгөө), Invite CTA
-- Hosting: Vercel / Netlify / GitHub Pages дээр `website/` хавтсыг publish directory болгох (нарийвчилсан заавар: `website/README.md`)
-- Тохиргоо: `website/js/config.js`-с invite холбоосоо тохируулна (`INVITE_URL`)
+- Build: `npm install && npm run build` → гаралтын хавтас `website/dist` (`base: '/'`)
+- Hosting: `firebase.json` нь `website/dist`-ийг publish directory болгон заасан. `npm run build`-ийг **deploy script** болгон ашиглана (Firebase өөрөө build хийхгүй)
+- Тохиргоо: `website/src/data/config.js`-ээс invite холбоосоо тохируулна (`INVITE_URL`)
+- Статик asset-ууд `website/public/` дотор; build үед `dist/assets/` руу хуулагдана
 ## Branding
 
 All embeds and UI use the centralized branding layer in `src/utils/branding.py`:

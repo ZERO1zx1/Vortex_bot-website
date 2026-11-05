@@ -66,7 +66,7 @@ async def main():
         try:
             await asyncio.wait_for(bot.load_extension(f"src.cogs.{name}"), timeout=15)
             print(f"[OK]   {name}")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             failed.append(name)
             print(f"[LOAD TIMEOUT] {name}")
         except Exception as e:

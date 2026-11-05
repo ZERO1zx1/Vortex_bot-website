@@ -4,7 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.cogs.economy import Economy
+from src.cogs.economy.economy import Economy
+from src.core.exceptions import InsufficientFundsError
 
 
 class AtomicEconomyDB:
@@ -162,7 +163,7 @@ async def test_idempotent_rpc_rejects_insufficient_balance_without_claiming_refe
     db = AtomicEconomyDB(balance=100)
     economy = Economy(Bot(db))
 
-    with pytest.raises(RuntimeError, match="insufficient balance"):
+    with pytest.raises(InsufficientFundsError, match="insufficient balance"):
         await economy.update_balance(
             7, 5, -101, apply_tax=False, reference="debit:too-large"
         )

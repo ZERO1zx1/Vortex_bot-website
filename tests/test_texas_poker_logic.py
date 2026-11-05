@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.cogs.texas_poker import (
+from src.cogs.games.texas_poker import (
     TexasHoldemGame,
     TexasPoker,
     TexasPokerView,
@@ -153,7 +153,7 @@ def test_side_pots_and_remaining_stacks_conserve_money():
     game.players[1].cards = [(13, "♥"), (13, "♦")]
     game.players[2].cards = [(3, "♥"), (4, "♦")]
     commitments = (100, 200, 200)
-    for player, committed in zip(game.players, commitments):
+    for player, committed in zip(game.players, commitments, strict=True):
         player.committed = committed
         player.chips = game.buy_in - committed
         player.round_bet = 0
@@ -188,6 +188,32 @@ def test_randomized_payout_plans_always_conserve_money():
 
         assert sum(payouts.values()) == buy_in * player_count
         assert all(amount >= 0 for amount in payouts.values())
+
+
+@pytest.mark.asyncio
+async def test_edit_uses_original_response_after_interaction_is_deferred():
+    calls = []
+
+    class Response:
+        def is_done(self):
+            return True
+
+        async def edit_message(self, **kwargs):
+            raise AssertionError("a deferred response cannot be edited through response.edit_message")
+
+    class Interaction:
+        response = Response()
+
+        async def edit_original_response(self, **kwargs):
+            calls.append(kwargs)
+
+    view = object.__new__(TexasPokerView)
+    view._sync_buttons = lambda: None
+    view.build_embed = lambda note="": f"embed:{note}"
+
+    await view._edit(Interaction(), "ready")
+
+    assert calls == [{"embed": "embed:ready", "view": view}]
 
 
 @pytest.mark.asyncio

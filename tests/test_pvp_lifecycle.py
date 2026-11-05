@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.cogs.pvp import PVP, PVPView
+from src.cogs.games.pvp import PVP, PVPView
 from tests.test_bugfix_regressions import FakeBot, FakeEconomySink
 
 

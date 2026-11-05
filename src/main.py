@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.core.config import load_config
+from src.core.config import load_config, report_key_mismatches_once
 from src.core.exceptions import DatabasePermissionError, DatabaseSchemaError
 from src.core.logger import get_logger, setup_logging
 from src.database.db_manager import SupabaseManager as DatabaseManager
@@ -149,6 +149,19 @@ class MyBot(commands.Bot):
         self.tree.on_error = self.on_app_command_error
 
     async def setup_hook(self):
+        # Report which server key was actually selected BEFORE connecting, so a
+        # misconfigured .env (server-named variable holding an anon key) is
+        # visible in the startup log instead of only failing later as 42501.
+        report_key_mismatches_once(logger)
+        for candidate in self.db_manager.available_keys():
+            logger.info("🔑 Supabase key candidate: %s", candidate["env"])
+        if not self.db_manager.key:
+            logger.error(
+                "❌ No server-level Supabase key resolved. Set SUPABASE_SECRET_KEY "
+                "to a service_role JWT or sb_secret_ key before starting."
+            )
+            raise RuntimeError("No server-level Supabase key configured")
+
         # Connect to Supabase
         try:
             self.db_manager.connect()
@@ -163,7 +176,9 @@ class MyBot(commands.Bot):
         # read leveling_config (anon CANNOT satisfy this probe) and switches
         # the live client to it so the startup health-check is accurate.
         try:
-            best = await self.db_manager.probe_best_key()
+            # Түлхүүрийн холболт дундах өндөр хүлээлтээс хамгаалж
+            # startup-ыг хэт удаан блоклохгүй.
+            best = await asyncio.wait_for(self.db_manager.probe_best_key(), timeout=60)
             if best and os.getenv(best, "").strip() != self.db_manager.key:
                 logger.info("⚙️ Supabase key probe: using env '%s' (server-level key)", best)
                 if not self.db_manager.switch_key(best):
@@ -232,7 +247,7 @@ class MyBot(commands.Bot):
                 elapsed = time.perf_counter() - start
                 self.loaded_cogs.append(cog)
                 logger.info("  ✅ %s.py loaded in %.2fs", cog, elapsed)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self.failed_cogs.append(cog)
                 logger.error("  ❌ %s.py load timed out after 15s", cog)
             except Exception:

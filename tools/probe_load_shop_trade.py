@@ -41,7 +41,7 @@ async def main():
     bot.config = {}
 
     failed = False
-    for ext in ("src.cogs.shop", "src.cogs.trade"):
+    for ext in ("src.cogs.shop.shop", "src.cogs.shop.trade"):
         try:
             await asyncio.wait_for(bot.load_extension(ext), timeout=15)
             print(f"[OK] loaded {ext}")

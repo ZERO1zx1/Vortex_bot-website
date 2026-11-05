@@ -24,7 +24,7 @@
 1. Supabase Dashboard-аас service-role/secret key авч bot болон backend-ийн
    secret environment-д `SUPABASE_SECRET_KEY` нэрээр хадгална.
 2. Hardening SQL-г maintenance window-д ажиллуулж bot/API smoke test хийнэ.
-3. `website/js/config.js` дахь `API_BASE_URL`-д production backend URL бичнэ.
+3. `website/src/data/config.js` дахь `API_BASE_URL`-д production backend URL бичнэ.
 4. Олон API worker ашиглавал `REDIS_URL` тохируулна.
 5. Discord Developer Portal дээр bot role-ийн permissions-ийг ашиглаж буй
    feature-үүдээр нь сонгож олгоно; Administrator бүү олго.

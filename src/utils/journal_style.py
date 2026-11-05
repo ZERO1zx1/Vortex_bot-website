@@ -65,7 +65,7 @@ def parchment(size, seed: int = 7, base=PARCHMENT_BASE) -> Image.Image:
     # Paper grain (small noise, scaled up for soft blotches).
     try:
         noise = Image.effect_noise((max(1, w // 3), max(1, h // 3)), 26)
-        noise = noise.resize(size, Image.BILINEAR).convert("L")
+        noise = noise.resize(size, Image.Resampling.BILINEAR).convert("L")
         grain = Image.new("RGBA", size, (118, 92, 58, 255))
         grain.putalpha(noise.point(lambda v: int(v * 0.10)))
         img.alpha_composite(grain)
@@ -75,7 +75,7 @@ def parchment(size, seed: int = 7, base=PARCHMENT_BASE) -> Image.Image:
     # A few lighter blotches for a watercolor-wash feel.
     wash = Image.new("RGBA", size, (0, 0, 0, 0))
     wd = ImageDraw.Draw(wash)
-    for i in range(5):
+    for _ in range(5):
         x, y = rng.randint(0, w), rng.randint(0, h)
         r = rng.randint(min(w, h) // 6, min(w, h) // 3)
         wd.ellipse([x - r, y - r, x + r, y + r], fill=(255, 250, 235, 14))
@@ -166,7 +166,7 @@ def banner(draw: ImageDraw.ImageDraw, box, text: str, font, seed: int = 9,
     try:
         tw = draw.textlength(text, font=font)
     except AttributeError:  # pragma: no cover - old Pillow
-        tw = draw.textsize(text, font=font)[0]
+        tw = draw.textbbox((0, 0), text, font=font)[2]
     draw.text(((x0 + x1 - tw) / 2, y0 + 3), text, font=font, fill=text_fill)
 
 
@@ -229,7 +229,8 @@ def wax_seal(draw: ImageDraw.ImageDraw, center, radius: int, text: str,
         tw = draw.textlength(text, font=font)
         th = font.size if hasattr(font, "size") else 20
     except AttributeError:  # pragma: no cover - old Pillow
-        tw, th = draw.textsize(text, font=font)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw, th = bbox[2], bbox[3]
     draw.text((cx - tw / 2, cy - th / 2 - 2), text, font=font, fill=(250, 235, 215, 255))
 
 
@@ -250,9 +251,9 @@ def stamp_burst(img: Image.Image, draw: ImageDraw.ImageDraw, center, r_outer: in
     try:
         tw = ld.textlength(text, font=font)
     except AttributeError:  # pragma: no cover - old Pillow
-        tw = ld.textsize(text, font=font)[0]
+        tw = ld.textbbox((0, 0), text, font=font)[2]
     ld.text(((layer.width - tw) / 2, 6), text, font=font, fill=(255, 244, 220, 255))
-    layer = layer.rotate(angle, expand=True, resample=Image.BICUBIC)
+    layer = layer.rotate(angle, expand=True, resample=Image.Resampling.BICUBIC)
     img.alpha_composite(layer, (int(cx - layer.width / 2), int(cy - layer.height / 2)))
 
 
@@ -328,7 +329,7 @@ def twine_tag(draw: ImageDraw.ImageDraw, x: int, y: int, text: str, font,
     try:
         tw = draw.textlength(text, font=font)
     except AttributeError:  # pragma: no cover - old Pillow
-        tw = draw.textsize(text, font=font)[0]
+        tw = draw.textbbox((0, 0), text, font=font)[2]
     w = int(tw) + 16
     draw.line([(x + 6, y + 7), (x + 12, y + 7)], fill=INK_SOFT, width=1)
     draw.rounded_rectangle([x + 12, y, x + 12 + w, y + 20], radius=5,
@@ -360,7 +361,7 @@ def sketch_frame(img: Image.Image, box, avatar: Image.Image, seed: int = 51) -> 
     # Mat.
     draw.rounded_rectangle([x0 - 8, y0 - 8, x1 + 8, y1 + 8], radius=4,
                            fill=(246, 240, 222, 255))
-    ava = avatar.resize((x1 - x0, y1 - y0), Image.LANCZOS)
+    ava = avatar.resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS)
     img.paste(ava, (x0, y0), ava if ava.mode == "RGBA" else None)
     for i, (a, b) in enumerate((((x0 - 8, y0 - 8), (x1 + 8, y0 - 8)),
                                 ((x1 + 8, y0 - 8), (x1 + 8, y1 + 8)),

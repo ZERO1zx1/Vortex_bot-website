@@ -3,7 +3,7 @@
 Change the bot's public identity here instead of searching through cogs.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 BOT_NAME = "𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹"
 BOT_DESCRIPTION = (
@@ -38,4 +38,4 @@ def footer_text(user: str | None = None) -> str:
 
 
 def timestamp_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)

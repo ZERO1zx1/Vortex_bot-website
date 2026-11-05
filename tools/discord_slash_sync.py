@@ -4,17 +4,17 @@
 What it does:
   1. Fetches ALL registered slash commands (global + guild) from the
      Discord API using your bot token (read from .env → DISCORD_TOKEN).
-  2. Compares them against the commands listed in commands.js (website).
+  2. Compares them against the generated website command catalog.
   3. Reports commands that exist in Discord but NOT in the website catalog,
      and commands in the website that no longer exist in Discord.
-  4. Optionally (--update) appends the missing commands into commands.js
+  4. Optionally (--update) appends the missing commands into the website catalog
      with sensible placeholders (icon, category, description) so you can
      edit them later.
 
 Usage (Windows):
-    py -3.12 tools/discord_slash_sync.py                # report only
-    py -3.12 tools/discord_slash_sync.py --update       # patch commands.js
-    py -3.12 tools/discord_slash_sync.py --guild GUILD_ID
+    python tools/discord_slash_sync.py                # report only
+    python tools/discord_slash_sync.py --update       # patch commands.js
+    python tools/discord_slash_sync.py --guild GUILD_ID
 
 Requirements: python-dotenv + requests (install requirements.txt).
 Make sure .env in the repo root contains: DISCORD_TOKEN=...
@@ -28,7 +28,7 @@ import os
 import sys
 
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WEBSITE_JS = os.path.join(APP_ROOT, "website", "js", "commands.js") if os.path.exists(
+WEBSITE_JS = os.path.join(APP_ROOT, "website", "src", "data", "commands.js") if os.path.exists(
     os.path.join(APP_ROOT, "website")) else None
 sys.path.insert(0, os.path.join(APP_ROOT, "website", "tools"))
 
@@ -122,7 +122,7 @@ def main():
     do_update = options.update
 
     if WEBSITE_JS is None or not os.path.exists(WEBSITE_JS):
-        sys.exit("ERROR: website/js/commands.js not found. "
+        sys.exit("ERROR: website/src/data/commands.js not found. "
                  "Keep the static website in this repository's website/ directory.")
 
     token = load_token()
@@ -157,7 +157,7 @@ def main():
         new_raw = sync_update(raw, [c for c in cmds if c["name"] in only_discord])
         with open(WEBSITE_JS, "w", encoding="utf-8") as f:
             f.write(new_raw)
-        print(f"\n✅ Appended {len(only_discord)} commands to website/js/commands.js")
+        print(f"\n✅ Appended {len(only_discord)} commands to website/src/data/commands.js")
         print("   ⚠ Review the appended entries (cat/icon/args) before committing!")
 
 

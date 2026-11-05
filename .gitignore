@@ -43,6 +43,10 @@ Thumbs.db
 __pycache__/
 bot_output.txt
 
+# Website scratch output from website/tools/*.py generators (never commit)
+website/.tmp_*.json
+website/dist/
+
 # Firebase CLI local cache
 .firebase/
 

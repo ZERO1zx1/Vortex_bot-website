@@ -85,7 +85,7 @@ class FakeCtx:
 
 async def build_shop_cog(bot):
     """Construct ShopCog.__new__ with real sync helpers + stubbed db calls."""
-    from src.cogs.shop import ShopCog
+    from src.cogs.shop.shop import ShopCog
     cog = ShopCog.__new__(ShopCog)
     cog.bot = bot
     cog.pending_trades = {}
@@ -106,7 +106,7 @@ async def build_shop_cog(bot):
 async def main():
     bot = commands.Bot(command_prefix="A!", intents=discord.Intents.default(), help_command=None)
     bot.loop = asyncio.get_running_loop()
-    await bot.load_extension("src.cogs.shop")
+    await bot.load_extension("src.cogs.shop.shop")
     shop = bot.get_cog("ShopCog")
 
     async def _inv(uid, gid=None):
@@ -124,7 +124,7 @@ async def main():
     recip = FakeInteraction(2)
     ctx = FakeCtx(1)
 
-    from src.cogs.shop import TradeBuilderView
+    from src.cogs.shop.shop import TradeBuilderView
 
     view = TradeBuilderView(shop, ctx, ctx.author, recip.user, {5: 2, 7: 10})
     assert view.send_btn.disabled is True, "send must start disabled"

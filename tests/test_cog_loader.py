@@ -31,12 +31,16 @@ def test_every_active_cog_has_a_module():
 def test_help_loads_after_feature_cogs():
     cogs_dir = Path(__file__).resolve().parents[1] / "src" / "cogs"
 
-    assert discover_cogs(cogs_dir, ACTIVE_COGS)[-1] == "help"
+    assert discover_cogs(cogs_dir, ACTIVE_COGS)[-1] == "system.help"
 
 
 def test_level_admin_loads_after_leveling_and_before_help():
     cogs_dir = Path(__file__).resolve().parents[1] / "src" / "cogs"
     names = discover_cogs(cogs_dir, ACTIVE_COGS)
 
-    assert "level_admin" in ACTIVE_COGS
-    assert names.index("leveling") < names.index("level_admin") < names.index("help")
+    assert "admin.level_admin" in ACTIVE_COGS
+    assert (
+        names.index("games.leveling")
+        < names.index("admin.level_admin")
+        < names.index("system.help")
+    )

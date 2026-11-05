@@ -19,9 +19,9 @@ from types import SimpleNamespace
 
 import pytest
 
-import src.cogs.government as gov_mod
-from src.cogs.economy import Economy
-from src.cogs.government import Government
+import src.cogs.economy.government as gov_mod
+from src.cogs.economy.economy import Economy
+from src.cogs.economy.government import Government
 
 # ══════════════ FAKES ══════════════
 
@@ -149,6 +149,14 @@ class GovFakeDB(FakeDB):
     def _next_id(self, table):
         self._seq[table] = self._seq.get(table, 0) + 1
         return self._seq[table]
+
+    async def increment(self, table, filters, column, amount=1):
+        """Atomic increment, matching db_manager.increment()'s contract."""
+        for row in self._rows(table):
+            if self._match(row, filters):
+                row[column] = (row.get(column) or 0) + amount
+                return True
+        return False
 
     async def fetch_safe(self, table, query=None, single=False, selects=None,
                          order_by=None, desc=False):

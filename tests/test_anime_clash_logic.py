@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import src.cogs.anime_clash as clash_mod
-from src.cogs.anime_clash import (
+import src.cogs.games.anime_clash as clash_mod
+from src.cogs.games.anime_clash import (
     MAX_ENERGY,
     WIN_REWARD_MAX,
     WIN_REWARD_MIN,

@@ -14,9 +14,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
-# Python dependencies (layered so dependency cache survives code changes)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Python dependencies (layered so dependency cache survives code changes).
+# requirements.lock pins the direct deps to the versions this project was
+# tested against; requirements.txt is the unpinned range set kept for local
+# development. The lock MUST be committed for this build to work.
+COPY requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.lock
 
 # Application code (src/ package + config.json inside src/, assets for fonts/gifs)
 COPY main.py ./main.py

@@ -59,8 +59,12 @@ class UserNotFoundError(VortexError):
 
 
 # ── Economy / Game ──────────────────────────────────────────
-class InsufficientFundsError(VortexError):
-    """Хэрэглэгчийн баланс хүрэлцэхгүй."""
+class InsufficientFundsError(VortexError, ValueError):
+    """Хэрэглэгчийн баланс хүрэлцэхгүй.
+
+    ``ValueError``-ийн урдсан удаасаар үргэлжлэл: balance update хэтэрсэн
+    дүнд урьдчилан зогссон код ``except ValueError`` барихад өөрчлөгдөөгүй.
+    """
 
 
 class InsufficientStockError(VortexError):

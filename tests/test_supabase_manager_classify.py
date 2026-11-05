@@ -1,6 +1,65 @@
 
 import pytest
 
+
+@pytest.mark.asyncio
+async def test_conditional_update_uses_sql_null_filter():
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    manager = object.__new__(SupabaseManager)
+    manager.client = object()
+    query = MagicMock()
+    query.update.return_value = query
+    query.eq.return_value = query
+    query.is_.return_value = query
+    query.execute.return_value = SimpleNamespace(data=[{"id": 1, "claimed_by": "7"}])
+    manager.table = MagicMock(return_value=query)
+
+    async def run(fn, *args, **kwargs):
+        return fn(*args)
+
+    # Keep this unit test deterministic on Python 3.13: the repository's
+    # thread offload is integration-tested elsewhere; this assertion is only
+    # about how NULL filters are built.
+    manager._run = run
+    rows = await manager.update("tickets", {"id": 1, "claimed_by": None}, {"claimed_by": "7"})
+    query.is_.assert_called_once_with("claimed_by", "null")
+    query.eq.assert_called_once_with("id", 1)
+    assert rows == [{"id": 1, "claimed_by": "7"}]
+
+
+@pytest.mark.asyncio
+async def test_idempotent_update_enables_transient_retry():
+    from types import SimpleNamespace
+
+    manager = object.__new__(SupabaseManager)
+    manager.client = object()
+    retry_flags = []
+
+    class Query:
+        def update(self, data):
+            return self
+
+        def eq(self, key, value):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[{"id": 1, "value": 2}])
+
+    manager.table = lambda name: Query()
+
+    async def run(fn, *args, _table="", _retry=True, **kwargs):
+        retry_flags.append(_retry)
+        return fn(*args, **kwargs)
+
+    manager._run = run
+
+    rows = await manager.update("levels", {"id": 1}, {"value": 2})
+
+    assert retry_flags == [True]
+    assert rows == [{"id": 1, "value": 2}]
+
 from src.database.db_manager import (
     DatabasePermissionError,
     DatabaseSchemaError,

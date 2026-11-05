@@ -141,7 +141,7 @@ class FakeCtx:
         self.guild.banner = None
         self.guild.owner = FakeMember()
         import datetime as _dt
-        self.guild.created_at = _dt.datetime(2026, 1, 1, tzinfo=_dt.timezone.utc)
+        self.guild.created_at = _dt.datetime(2026, 1, 1, tzinfo=_dt.UTC)
         self.guild.default_role = FakeRole("everyone", position=0)
         self.guild.me = FakeMember()
         self.guild.get_role = lambda rid: FakeRole() if rid else None

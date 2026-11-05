@@ -10,7 +10,7 @@ import logging
 import os
 import time
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, ClassVar, NoReturn
 
 import httpx
@@ -19,18 +19,18 @@ from supabase.lib.client_options import SyncClientOptions
 
 # Network errors that are transient (Windows/Python 3.13 socket flakiness,
 # temporary timeouts) and are safe to retry with backoff.
-_NETWORK_EXCEPTIONS = (
+_NETWORK_EXCEPTIONS: tuple[type[BaseException], ...] = (
     ConnectionError,
     TimeoutError,
     OSError,
 )
 try:
     from httpx import TransportError
-    _NETWORK_EXCEPTIONS = _NETWORK_EXCEPTIONS + (TransportError,)
+    _NETWORK_EXCEPTIONS += (TransportError,)
 except ImportError:
     pass
 
-_NETWORK_EXCEPTIONS = tuple({t for t in _NETWORK_EXCEPTIONS})
+_NETWORK_EXCEPTIONS = tuple(dict.fromkeys(_NETWORK_EXCEPTIONS))
 
 
 from src.core.config import is_server_level_key, pick_server_supabase_key
@@ -181,6 +181,9 @@ class SupabaseManager:
     def __init__(self):
         self.url: str = os.getenv("SUPABASE_URL", "")
         self.key: str = pick_server_supabase_key()
+        # httpx clients this manager created, so their connection pools can
+        # be released on shutdown or when the key is swapped.
+        self._http_clients: list[httpx.Client] = []
         self.using_legacy_env_name = bool(
             not os.getenv("SUPABASE_SERVICE_ROLE_KEY")
             and not os.getenv("SUPABASE_SECRET_KEY")
@@ -231,6 +234,8 @@ class SupabaseManager:
                         return cand["env"]
                 finally:
                     self.client = saved
+                    # The probe client is throwaway; do not leak its pool.
+                    self._close_http_clients()
             except Exception:
                 logging.getLogger("aether.db").debug(
                     "Supabase key probe failed for env '%s'", cand["env"], exc_info=True
@@ -240,16 +245,30 @@ class SupabaseManager:
         return candidates[0]["env"]
 
     def _make_client(self, key: str) -> Client:
+        # The httpx client is kept so it can be closed on shutdown or when the
+        # key is swapped; PostgREST does not expose it.
         http_client = httpx.Client(
             http1=True,
             http2=False,
             timeout=30.0,
         )
+        self._http_clients.append(http_client)
         return create_client(
             self.url,
             key,
             options=SyncClientOptions(httpx_client=http_client),
         )
+
+    def _close_http_clients(self) -> None:
+        """Close every httpx client this manager created."""
+        while self._http_clients:
+            client = self._http_clients.pop()
+            try:
+                client.close()
+            except Exception:  # shutdown must not raise
+                logging.getLogger("aether.db").debug(
+                    "failed to close a Supabase http client", exc_info=True
+                )
 
     # ------------------------------------------------------------------
     # Connection / lifecycle
@@ -299,6 +318,8 @@ class SupabaseManager:
             return False
         self.client = new_client
         self.key = key
+        # The old key's connection pool is no longer used.
+        self._close_http_clients()
         logger = logging.getLogger("aether.db")
         logger.info("Supabase key switched to env '%s' (runtime probe)", env_name)
         return True
@@ -308,6 +329,7 @@ class SupabaseManager:
 
     async def close(self):
         self.client = None
+        self._close_http_clients()
 
     REQUIRED_TABLES: ClassVar[list[str]] = [
         "economy", "levels", "giveaways", "temproles", "role_income",
@@ -319,6 +341,8 @@ class SupabaseManager:
         "government_members", "government_roles", "tax_recipients",
         "ticket_config", "tickets", "automation_rules", "automation_runs",
         "anime_clash_profiles", "poker_pending_payouts", "treasury_payments",
+        # family_relationships (migration 007) is written by the marriage cog.
+        "family_relationships",
     ]
 
     async def init_tables(self):
@@ -439,7 +463,11 @@ class SupabaseManager:
                     await asyncio.sleep(0.5 * (2 ** (attempt - 1)))
                 else:
                     break
-        raise last_exc
+        # The loop always runs once and either returns or assigns last_exc
+        # before falling through, but be explicit so the type is never None.
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("Supabase operation failed without an exception")
 
     def table(self, name: str) -> Any:
         if self.client is None:
@@ -512,16 +540,23 @@ class SupabaseManager:
         return await self._run(_insert, _table=table, _retry=False)
 
     async def update(self, table: str, filters: dict[str, Any], data: dict[str, Any]) -> list[dict[str, Any]]:
+        """Apply an idempotent partial-row update.
+
+        Replaying the same filters and absolute values has the same final
+        state, so transient transport failures are safe to retry. This is
+        different from inserts and non-idempotent RPCs, which keep retries
+        disabled because the server may have committed before disconnecting.
+        """
         def _update():
             q = self.table(table).update(data)
             for k, v in filters.items():
-                q = q.eq(k, v)
+                q = q.is_(k, "null") if v is None else q.eq(k, v)
             result = q.execute()
             d = result.data
             if isinstance(d, bool) or not isinstance(d, list):
                 return []
             return d or []
-        return await self._run(_update, _table=table, _retry=False)
+        return await self._run(_update, _table=table)
 
     async def upsert(self, table: str, data: dict[str, Any], on_conflict: str | None = None) -> list[dict[str, Any]]:
         def _upsert():
@@ -551,6 +586,7 @@ class SupabaseManager:
     # Whitelist of tables/columns allowed for atomic increment via RPC.
     _INCREMENT_WHITELIST: ClassVar[dict[str, set[str]]] = {
         "economy": {"balance", "bank_balance"},
+        "economy_guild_settings": {"treasury_balance"},
         "levels": {"xp", "message_count", "voice_seconds", "reaction_count"},
         "game_stats": {"wins", "losses", "total_won", "total_bet"},
         "shop_stock": {"current_stock"},
@@ -690,7 +726,7 @@ class SupabaseManager:
         and the static site reads them with the anon key.
         """
         try:
-            now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(UTC).isoformat()
             data: dict[str, Any] = {"id": 1, "status": status, "last_ping": now}
 
             def _ping():

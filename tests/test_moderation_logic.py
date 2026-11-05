@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-import src.cogs.moderation as moderation_module
-from src.cogs.moderation import Moderation
+import src.cogs.admin.moderation as moderation_module
+from src.cogs.admin.moderation import Moderation
 from src.utils import constants
 
 

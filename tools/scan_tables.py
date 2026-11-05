@@ -65,8 +65,16 @@ def collect_from_file(path: Path, found: dict[str, set[str]]):
 
 def main() -> int:
     found: dict[str, set[str]] = {}
+    # Only walk this repository's own sources.  The previous version scanned
+    # every .py file under the repo root, which included .uv-cache/ and the
+    # vendored site-packages copies, so third-party table names (pg_catalog,
+    # pg_type, ...) polluted the migration cross-check output.
+    skip_dirs = {
+        ".git", "__pycache__", "node_modules", ".venv", "venv", "env",
+        ".uv-cache", ".mypy_cache", ".ruff_cache", ".pytest_cache", "trash",
+    }
     for p in BASE.rglob("*.py"):
-        if ".git" in p.parts or "__pycache__" in p.parts:
+        if skip_dirs.intersection(p.parts):
             continue
         collect_from_file(p, found)
 

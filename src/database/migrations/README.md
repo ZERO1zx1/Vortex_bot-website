@@ -33,6 +33,26 @@ Government treasury payments. It installs the `treasury_payments` idempotency
 table and the atomic `treasury_pay_once` RPC. Apply it after the bootstrap and
 earlier incremental migrations.
 
+For an existing project, run `008_economy_command_cooldowns.sql` before
+deploying the current Economy and Casino cogs. It adds the persistent
+`last_crime` / `last_rob` / `last_hack` / `last_give` columns to `economy` so
+the money-faucet and rate-limit cooldowns survive a bot restart instead of
+living only in process memory. Apply it after the bootstrap and earlier
+incremental migrations.
+
+For an existing project, run `009_economy_transfer_atomic.sql` before relying
+on the atomic transfer path. It installs the `economy_transfer_references`
+table and the `apply_economy_transfer_once` RPC, which debits the sender,
+credits the receiver and distributes the transfer tax in one transaction.
+Until it is applied the bot falls back to the locked two-write path, which is
+safe within a single process but can lose the amount if the process dies
+between the two writes.
+
+For an existing project, run `010_counting_progression.sql` before deploying
+the Counting progression update. It adds separate spendable/lifetime Counting
+XP, level and save-token state, weekly-shield timestamps, the persisted
+anti-farm participant window, and optional Level 5/20/50 role IDs.
+
 `reference` makes reward and treasury mutations exactly-once. The 005 RPC
 commits the recipient balance and tax distribution in one transaction; replay
 of the same reference returns the committed result without applying tax again.

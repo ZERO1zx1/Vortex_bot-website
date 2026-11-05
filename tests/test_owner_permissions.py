@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.cogs.admin import Admin
+from src.cogs.admin.admin import Admin
 from src.core import config as config_module
 
 

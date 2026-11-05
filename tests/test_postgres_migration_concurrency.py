@@ -134,9 +134,8 @@ def test_tax_reward_replay_returns_bigint_result_without_crediting_twice(tax_dat
 
 def test_tax_reward_caps_credit_and_rejects_overdraft(tax_database):
     assert tax_reward(tax_database, "tax:cap", 1500)[1] == 1000
-    with pytest.raises(psycopg.Error, match="insufficient balance"):
-        with tax_database.transaction():
-            tax_reward(tax_database, "tax:overdraft", -1001)
+    with pytest.raises(psycopg.Error, match="insufficient balance"), tax_database.transaction():
+        tax_reward(tax_database, "tax:overdraft", -1001)
     assert tax_database.execute(
         "SELECT count(*) FROM economy_balance_references WHERE reference='tax:overdraft'"
     ).fetchone() == (0,)
@@ -146,9 +145,8 @@ def test_tax_reward_caps_credit_and_rejects_overdraft(tax_database):
 
 
 def test_tax_reward_cannot_debit_missing_account(tax_database):
-    with pytest.raises(psycopg.Error, match="insufficient balance"):
-        with tax_database.transaction():
-            tax_reward(tax_database, "tax:missing", -1)
+    with pytest.raises(psycopg.Error, match="insufficient balance"), tax_database.transaction():
+        tax_reward(tax_database, "tax:missing", -1)
     assert tax_database.execute(
         "SELECT count(*) FROM economy WHERE user_id='500' AND guild_id='500'"
     ).fetchone() == (0,)

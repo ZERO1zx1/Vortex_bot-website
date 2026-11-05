@@ -170,9 +170,16 @@ def build_executor(repo: Path):
                 run_cmd([py, "-m", "pytest", "tests", "-q"], self.repo, 600),
                 run_cmd([py, "-m", "compileall", "-q", "src", "tools",
                          "tests", "main.py"], self.repo, 300),
-                run_cmd(["node", "--check", "website/js/app.js"], self.repo, 120),
-                run_cmd(["node", "--check", "website/js/commands.js"], self.repo, 120),
-                run_cmd(["node", "--check", "website/js/config.js"], self.repo, 120),
+                # The website is a React/Vite app: plain-JS sources live under
+                # website/src and are ES modules (website/package.json sets
+                # "type": "module"), so `node --check` parses them as ESM.
+                # JSX components cannot be parsed by node and are covered by
+                # the Vite build instead.
+                run_cmd(["node", "--check", "website/src/data/config.js"], self.repo, 120),
+                run_cmd(["node", "--check", "website/src/data/commands.js"], self.repo, 120),
+                run_cmd(["node", "--check", "website/src/i18n/dictionary.js"], self.repo, 120),
+                run_cmd(["node", "--check", "website/src/hooks/useCommandCatalog.js"], self.repo, 120),
+                run_cmd(["node", "website/tools/validate_commands.mjs"], self.repo, 120),
             ]
             results = {c["cmd"]: c["exit_code"] for c in checks}
             self.evidence["validation"] = results

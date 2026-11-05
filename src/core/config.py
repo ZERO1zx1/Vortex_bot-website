@@ -65,6 +65,66 @@ def is_server_level_key(key: str) -> bool:
     return payload.get("role") in _SERVER_JWT_ROLES
 
 
+def describe_key(key: str) -> str:
+    """Human-readable role of a Supabase key. Never returns the value itself."""
+    if not key:
+        return "(not set)"
+    if key.startswith("sb_publishable_"):
+        return "anon (sb_publishable_)"
+    if key.startswith("sb_secret_"):
+        return "server (sb_secret_)"
+    payload = _jwt_payload(key)
+    if payload is None:
+        return "unrecognised (not a JWT)"
+    role = payload.get("role")
+    return f"{role} (JWT)" if role else "unrecognised (JWT without role claim)"
+
+
+def supabase_key_mismatches() -> list[tuple[str, str]]:
+    """``(env, actual_role)`` for every server-named variable holding anon.
+
+    ``SUPABASE_SERVICE_ROLE_KEY`` / ``SUPABASE_SECRET_KEY`` / ``SUPABASE_KEY``
+    all promise a server-level key.  When one of them actually holds an
+    anon/publishable value the bot still behaves correctly -- ``pick_server_-
+    supabase_key`` skips it -- but every script that reads the variable
+    directly (``os.getenv``) silently receives a publishable key.  This
+    returns those mismatches so startup can report them instead of leaving a
+    landmine for the next reader of ``.env``.
+    """
+    return [
+        (env, describe_key(os.getenv(env, "").strip()))
+        for env in SUPABASE_SERVER_ROLE_ENVS
+        if os.getenv(env, "").strip() and not is_server_level_key(os.getenv(env, "").strip())
+    ]
+
+
+_mismatch_reported = False
+
+
+def report_key_mismatches_once(logger: logging.Logger | None = None) -> list[tuple[str, str]]:
+    """Log server-named vars that hold anon keys, once per process.
+
+    Returns the mismatches so callers can assert on them without parsing logs.
+    """
+    global _mismatch_reported
+    if _mismatch_reported:
+        return []
+    _mismatch_reported = True
+    mismatches = supabase_key_mismatches()
+    if not mismatches:
+        return []
+    (logger or logging.getLogger("aether")).error(
+        "Supabase env var naming does not match the key it holds (%d mismatch(es)): %s. "
+        "These variables are reserved for server-level keys; anon/publishable values are "
+        "ignored by the bot, but any tool or script reading them directly gets a "
+        "publishable key. Fix: keep the server key in SUPABASE_SECRET_KEY and delete the "
+        "misleading entries (or add the publishable key as SUPABASE_ANON_KEY).",
+        len(mismatches),
+        ", ".join(f"{env}={role}" for env, role in mismatches),
+    )
+    return mismatches
+
+
 def pick_server_supabase_key() -> str:
     """First configured key that is server-level; else '' with an ERROR log.
 
@@ -72,6 +132,7 @@ def pick_server_supabase_key() -> str:
     bot run with anon privileges whenever a publishable key was present.
     """
     logger = logging.getLogger("aether")
+    report_key_mismatches_once(logger)
     for env in SUPABASE_SERVER_ROLE_ENVS:
         value = os.getenv(env, "").strip()
         if value and is_server_level_key(value):

@@ -28,9 +28,9 @@ import discord  # real
 import discord.ext  # noqa
 from discord.ext import commands as real_commands  # noqa
 
-from src.cogs import admin as admin_cog
-from src.cogs import games as games_cog
-from src.cogs import moderation as mod_cog
+from src.cogs.admin import admin as admin_cog
+from src.cogs.admin import moderation as mod_cog
+from src.cogs.games import games as games_cog
 
 src_a = inspect.getsource(admin_cog.Admin)
 src_m = inspect.getsource(mod_cog.Moderation)
