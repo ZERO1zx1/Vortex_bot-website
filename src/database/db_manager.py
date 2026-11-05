@@ -181,9 +181,11 @@ class SupabaseManager:
     def __init__(self):
         self.url: str = os.getenv("SUPABASE_URL", "")
         self.key: str = pick_server_supabase_key()
-        # httpx clients this manager created, so their connection pools can
-        # be released on shutdown or when the key is swapped.
-        self._http_clients: list[httpx.Client] = []
+        # httpx clients this manager created, keyed by the Supabase client that
+        # owns them.  Tracking them lets us close one discarded client without
+        # touching the active one (probe/switch) and release the rest on
+        # shutdown.
+        self._http_clients: dict[int, httpx.Client] = {}
         self.using_legacy_env_name = bool(
             not os.getenv("SUPABASE_SERVICE_ROLE_KEY")
             and not os.getenv("SUPABASE_SECRET_KEY")
@@ -224,18 +226,23 @@ class SupabaseManager:
         for cand in candidates:
             key = cand["key"]
             if key == current and self.client is not None:
-                # already connected with this key: not a fresh probe target
-                pass
+                # The active client already uses this key: probe it in place
+                # instead of rebuilding (and then closing) the live client.
+                if await self.probe_table(probe_table) == "OK":
+                    return cand["env"]
+                continue
             try:
                 saved = self.client
-                self.client = self._make_client(key)
+                probe_client = self._make_client(key)
+                self.client = probe_client
                 try:
                     if await self.probe_table(probe_table) == "OK":
                         return cand["env"]
                 finally:
                     self.client = saved
-                    # The probe client is throwaway; do not leak its pool.
-                    self._close_http_clients()
+                    # Close only the throwaway probe client; the active client
+                    # must stay usable for every query after startup.
+                    self._close_client(probe_client)
             except Exception:
                 logging.getLogger("aether.db").debug(
                     "Supabase key probe failed for env '%s'", cand["env"], exc_info=True
@@ -252,19 +259,38 @@ class SupabaseManager:
             http2=False,
             timeout=30.0,
         )
-        self._http_clients.append(http_client)
-        return create_client(
-            self.url,
-            key,
-            options=SyncClientOptions(httpx_client=http_client),
-        )
+        try:
+            client = create_client(
+                self.url,
+                key,
+                options=SyncClientOptions(httpx_client=http_client),
+            )
+        except Exception:
+            http_client.close()
+            raise
+        self._http_clients[id(client)] = http_client
+        return client
+
+    def _close_client(self, client: Client | None) -> None:
+        """Close exactly one Supabase client's httpx pool (no-op if unknown)."""
+        if client is None:
+            return
+        http_client = self._http_clients.pop(id(client), None)
+        if http_client is None:
+            return
+        try:
+            http_client.close()
+        except Exception:  # shutdown must not raise
+            logging.getLogger("aether.db").debug(
+                "failed to close a Supabase http client", exc_info=True
+            )
 
     def _close_http_clients(self) -> None:
         """Close every httpx client this manager created."""
         while self._http_clients:
-            client = self._http_clients.pop()
+            _, http_client = self._http_clients.popitem()
             try:
-                client.close()
+                http_client.close()
             except Exception:  # shutdown must not raise
                 logging.getLogger("aether.db").debug(
                     "failed to close a Supabase http client", exc_info=True
@@ -316,10 +342,11 @@ class SupabaseManager:
             logger = logging.getLogger("aether.db")
             logger.exception("switch_key: failed to build client for '%s'", env_name)
             return False
+        old_client = self.client
         self.client = new_client
         self.key = key
-        # The old key's connection pool is no longer used.
-        self._close_http_clients()
+        # Close the old key's pool only; the new client must stay usable.
+        self._close_client(old_client)
         logger = logging.getLogger("aether.db")
         logger.info("Supabase key switched to env '%s' (runtime probe)", env_name)
         return True
