@@ -277,11 +277,14 @@ class CardRenderer:
 class LeaderboardView(ui.View):
     PAGE_SIZE = 10
 
-    def __init__(self, cog, ctx, guild_id):
+    def __init__(self, cog, ctx, guild_id, *, category="level"):
         super().__init__(timeout=300)
         self.cog = cog; self.ctx = ctx; self.guild_id = guild_id
-        self.current_category = "level"; self.page = 0
+        self.current_category = category if category in {"level", "messages", "voice_time", "money", "invites", "counting", "games"} else "level"
+        self.page = 0
         self.message = None
+        for option in self.category_select.options:
+            option.default = option.value == self.current_category
 
     # ---------- Өгөгдөл ----------
     async def fetch_category_data(self, limit=10, offset=0):
@@ -505,7 +508,7 @@ class Leaderboard(commands.Cog):
     @commands.hybrid_command(name="economyboard", aliases=["moneyboard", "lb"], description="Серверийн мөнгөний эрэмбийн самбар")
     async def leaderboard_cmd(self, ctx):
         await ctx.defer()
-        view = LeaderboardView(self, ctx, ctx.guild.id)
+        view = LeaderboardView(self, ctx, ctx.guild.id, category="money")
         try:
             file, embed, _state = await view.render_current()
         except Exception:
