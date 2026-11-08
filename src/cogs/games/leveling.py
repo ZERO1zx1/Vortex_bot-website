@@ -24,6 +24,7 @@ from src.utils.fonts import load_font as _load_font
 from src.utils.http_images import download_public_image
 from src.utils.supabase_cog import SupabaseCog
 from src.core.exceptions import DatabaseUnavailableError
+from src.cogs.economy.leaderboard import LeaderboardView
 
 # ── Logger ──
 log = logging.getLogger(__name__)
@@ -1001,25 +1002,17 @@ class Leveling(SupabaseCog):
 
     @commands.hybrid_command(name="leaderboard", aliases=["levelboard", "levels", "levelleaderboard"], description="Серверийн XP эрэмбийн самбар")
     async def levelboard(self, ctx):
-        """Show the server's leveling leaderboard, independent of the money board."""
+        """Show the XP leaderboard as the shared paginated image card."""
         if ctx.interaction:
             await ctx.defer()
         try:
-            rows = await self.bot.db_manager.fetch_all(
-                "levels", {"guild_id": str(ctx.guild.id)}, order_by="level", desc=True, limit=10
-            )
-            rows.sort(key=lambda row: (row.get("level", 1) or 1, row.get("xp", 0) or 0), reverse=True)
-            lines = []
-            for position, row in enumerate(rows, 1):
-                member = ctx.guild.get_member(int(row["user_id"]))
-                name = member.display_name if member else f"User {row['user_id']}"
-                lines.append(f"**#{position}** {name} — Level **{int(row.get('level', 1) or 1)}** · {int(row.get('xp', 0) or 0):,} XP")
-            embed = discord.Embed(
-                title=f"🏆 {ctx.guild.name} Level Leaderboard",
-                description="\n".join(lines) or "Одоогоор level-ийн мэдээлэл алга.",
-                color=GOLD_COLOR,
-            )
-            await ctx.send(embed=embed)
+            board = self.bot.get_cog("Leaderboard")
+            if board is None:
+                raise RuntimeError("Leaderboard card cog is not loaded")
+            view = LeaderboardView(board, ctx, ctx.guild.id)
+            file, embed, _state = await view.render_current()
+            message = await ctx.send(embed=embed, file=file, view=view) if file else await ctx.send(embed=embed, view=view)
+            view.message = message
         except Exception:
             log.exception("Operation failed in levelboard")
             await ctx.send("❌ Level leaderboard уншихад алдаа гарлаа.", ephemeral=True)
