@@ -1000,7 +1000,7 @@ class Leveling(SupabaseCog):
             log.exception("Operation failed in rank")
             await ctx.send("❌ Rank карт үүсгэхэд алдаа гарлаа. Дахин оролдоно уу.", ephemeral=True)
 
-    @commands.hybrid_command(name="leaderboard", aliases=["levelboard", "levels", "levelleaderboard"], description="Серверийн XP эрэмбийн самбар")
+    @commands.hybrid_command(name="leaderboard", description="Серверийн XP эрэмбийн самбар")
     async def levelboard(self, ctx):
         """Show the XP leaderboard as the shared paginated image card."""
         if ctx.interaction:
