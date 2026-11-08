@@ -592,9 +592,10 @@ class Greetings(commands.Cog):
     async def greeting_toggle(self, interaction: discord.Interaction, event: str):
         if event not in {"welcome", "goodbye", "boost", "dm"}:
             return await interaction.response.send_message("❌ Үйл явдал буруу байна.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
         config = await self.get_config(interaction.guild.id)
         if not config:
-            return await interaction.response.send_message("❌ Тохиргоо байхгүй. `/greeting_set` ашиглана уу.", ephemeral=True)
+            return await interaction.followup.send("❌ Тохиргоо байхгүй. `/greeting_set` ашиглана уу.", ephemeral=True)
 
         if event == "dm":
             new_state = not config.dm_on_welcome
@@ -618,7 +619,7 @@ class Greetings(commands.Cog):
             desc = f"{event.capitalize()} мэдэгдэл **{'✅ Идэвхжлээ' if new_state else '❌ Унтарлаа'}**"
 
         embed = discord.Embed(title="🔄 Төлөв өөрчлөгдлөө", description=desc, color=SUCCESS_COLOR if new_state else WARNING_COLOR)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="template_create", description="Шинэ embed загвар үүсгэх")
     @app_commands.guild_only()
@@ -750,9 +751,10 @@ class Greetings(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     @app_commands.checks.has_permissions(administrator=True)
     async def greeting_reset(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         await self.bot.db_manager.delete("greeting_config", {"guild_id": str(interaction.guild.id)})
         self.invalidate_cache(interaction.guild.id)
-        await interaction.response.send_message("🧹 Бүх мэндчилгээний тохиргоо устгагдлаа.", ephemeral=True)
+        await interaction.followup.send("🧹 Бүх мэндчилгээний тохиргоо устгагдлаа.", ephemeral=True)
 
     @app_commands.command(name="set_log_channel", description="Алдааны лог сувгийг тохируулах")
     @app_commands.describe(channel="Лог суваг")
@@ -762,13 +764,14 @@ class Greetings(commands.Cog):
     async def set_log_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         if channel.guild.id != interaction.guild_id:
             return await interaction.response.send_message("❌ Энэ серверийн суваг сонгоно уу.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
         await self.bot.db_manager.upsert(
             "greeting_config",
             {"guild_id": str(interaction.guild.id), "log_channel": channel.id},
             on_conflict="guild_id",
         )
         self.invalidate_cache(interaction.guild.id)
-        await interaction.response.send_message(f"✅ Лог суваг: {channel.mention}", ephemeral=True)
+        await interaction.followup.send(f"✅ Лог суваг: {channel.mention}", ephemeral=True)
 
     # ================= EVENT LISTENERS =================
     @commands.Cog.listener()

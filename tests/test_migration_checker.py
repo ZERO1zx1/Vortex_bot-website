@@ -1,4 +1,4 @@
-from tools.check_migration_applied import migration_is_complete
+from tools.check_migration_applied import REQUIRED_COLUMNS, migration_is_complete
 
 
 def test_checker_covers_every_bootstrap_table():
@@ -24,3 +24,9 @@ def test_migration_checker_fails_closed_when_database_is_unavailable():
         {"OK": 0, "MISSING": 0, "PERMISSION": 0, "UNAVAILABLE": 3, "ERROR": 0},
         3,
     )
+
+
+def test_checker_declares_engauge_leveling_columns_explicitly():
+    assert "xp_message" in REQUIRED_COLUMNS["leveling_config"]
+    assert "required_role_ids" in REQUIRED_COLUMNS["level_roles"]
+    assert "multiplier" in REQUIRED_COLUMNS["level_role_xp_multipliers"]

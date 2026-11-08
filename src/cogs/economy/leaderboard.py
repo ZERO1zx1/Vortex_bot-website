@@ -300,9 +300,6 @@ class LeaderboardView(ui.View):
                 m = (sec % 3600) // 60
                 return f"{h} цаг {m} мин"
             return [(uid, sec) for uid, sec in rows], "🎤 ДУУТ ЦАГИЙН ЛИДЕРБОРД", voice_label
-        elif cat == "reactions":
-            rows = await self.cog.get_top_reactions(self.guild_id, limit, offset)
-            return [(uid, cnt) for uid, cnt in rows], "❤️ РЕАКЦЫН ЛИДЕРБОРД", lambda cnt: f"{_format_number(cnt)} реакц"
         elif cat == "money":
             eco = self.ctx.bot.get_cog("Economy")
             if eco and hasattr(eco, "get_top_balances"):
@@ -421,7 +418,6 @@ class LeaderboardView(ui.View):
         discord.SelectOption(label="🏆 Түвшин", value="level", description="Түвшнээр эрэмбэлэх", default=True),
         discord.SelectOption(label="💬 Мессеж", value="messages", description="Илгээсэн мессежийн тоогоор"),
         discord.SelectOption(label="🎤 Дуут цаг", value="voice_time", description="Дуут сувагт зарцуулсан хугацаа"),
-        discord.SelectOption(label="❤️ Реакц", value="reactions", description="Реакц дарах тоогоор"),
         discord.SelectOption(label="💰 Мөнгө", value="money", description="Валютын хэмжээгээр"),
         discord.SelectOption(label="📨 Урилга", value="invites", description="Урилгын тоогоор"),
         discord.SelectOption(label="🔢 Тоололт", value="counting", description="Counting тоглоомын зөв тоололт"),
@@ -506,14 +502,7 @@ class Leaderboard(commands.Cog):
         )
         return [(r["user_id"], r.get("voice_seconds", 0) or 0) for r in rows]
 
-    async def get_top_reactions(self, guild_id, limit=10, offset=0):
-        rows = await self.bot.db_manager.fetch_all(
-            "levels", {"guild_id": str(guild_id)},
-            order_by="reaction_count", desc=True, limit=limit, offset=offset,
-        )
-        return [(r["user_id"], r.get("reaction_count", 0) or 0) for r in rows]
-
-    @commands.command(name="leaderboard", aliases=["lb"], description="Серверийн эрэмбийн самбар")
+    @commands.hybrid_command(name="economyboard", aliases=["moneyboard", "lb"], description="Серверийн мөнгөний эрэмбийн самбар")
     async def leaderboard_cmd(self, ctx):
         await ctx.defer()
         view = LeaderboardView(self, ctx, ctx.guild.id)

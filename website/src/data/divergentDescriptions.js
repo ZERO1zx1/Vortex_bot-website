@@ -97,7 +97,7 @@ export const DIVERGENT_EN = {
   },
   leaderboard: {
     old: 'Show the top users by rank',
-    catalog: 'Server leaderboard'
+    catalog: 'XP leaderboard'
   },
   lock: {
     old: 'Lock a channel (admin)',
@@ -297,7 +297,7 @@ export const DIVERGENT_MN = {
   },
   leaderboard: {
     old: 'Түвшингийн тэргүүнүүд',
-    catalog: 'Серверийн эрэмбийн самбар.'
+    catalog: 'XP-ээр эрэмбэлсэн leaderboard.'
   },
   lock: {
     old: 'Суваг түгжих',

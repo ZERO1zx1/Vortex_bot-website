@@ -51,7 +51,7 @@ def test_staff_command_reply_is_private(command):
     fn = _command_node(command)
     assert fn is not None
     src = ast.unparse(fn)
-    sends = [ln for ln in src.splitlines() if "send_message" in ln]
+    sends = [ln for ln in src.splitlines() if "send_message" in ln or "followup.send" in ln]
     assert sends, f"{command} must send a reply"
     # Every branch that emits staff KPI data must be ephemeral.
     non_ephemeral = [ln.strip() for ln in sends if "ephemeral=True" not in ln]

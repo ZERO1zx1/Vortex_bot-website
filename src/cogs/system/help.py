@@ -798,7 +798,28 @@ COMMAND_INFO = {
         "description_mn": "Хэрэглэгчийн түвшин, XP болон эрэмбэ.",
         "description_en": "Rank, XP and position",
         "category": "Түвшин",
-        "usage": "A!rank <user>",
+        "usage": "/rank [user]",
+        "examples": []
+    },
+    "xpdrop": {
+        "description_mn": "Админ Engauge-style XP crate үүсгэнэ.",
+        "description_en": "Create an Engauge-style XP crate",
+        "category": "Түвшин",
+        "usage": "/xpdrop",
+        "examples": []
+    },
+    "roles": {
+        "description_mn": "Таны level role-уудыг дахин шалгаж засна.",
+        "description_en": "Refresh your level roles",
+        "category": "Түвшин",
+        "usage": "/roles",
+        "examples": []
+    },
+    "stats": {
+        "description_mn": "Хэрэглэгчийн level, message, voice статистик.",
+        "description_en": "Level, message and voice statistics",
+        "category": "Түвшин",
+        "usage": "/stats [user]",
         "examples": []
     },
     "serveractivity": {
@@ -810,23 +831,16 @@ COMMAND_INFO = {
     },
     "leaderboard": {
         "description_mn": "Серверийн эрэмбийн самбар.",
-        "description_en": "Server leaderboard",
+        "description_en": "XP leaderboard",
         "category": "Түвшин",
-        "usage": "A!leaderboard",
+        "usage": "/leaderboard",
         "examples": []
     },
-    "addxp": {
-        "description_mn": "Хэрэглэгчид XP нэмэх (эзэмшигч/co-owner).",
-        "description_en": "Add XP to a user",
-        "category": "Түвшин",
-        "usage": "A!addxp <user> <amount>",
-        "examples": []
-    },
-    "removexp": {
-        "description_mn": "Хэрэглэгчээс XP хасах (эзэмшигч/co-owner).",
-        "description_en": "Remove XP from a user",
-        "category": "Түвшин",
-        "usage": "A!removexp <user> <amount>",
+    "economyboard": {
+        "description_mn": "Серверийн мөнгөний эрэмбийн самбар.",
+        "description_en": "Economy leaderboard",
+        "category": "Эдийн засаг",
+        "usage": "/economyboard",
         "examples": []
     },
     "leveling_setup": {

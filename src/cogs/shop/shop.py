@@ -881,17 +881,11 @@ class ShopCog(commands.Cog):
         new_level = await self.add_drunk(ctx.author.id, guild_id, intox)
         bonus_msg = ""
         if random.random() < 0.05:
-            bonus_type = random.choice(["money", "xp", "ring"])
+            bonus_type = random.choice(["money", "ring"])
             if bonus_type == "money":
                 bonus = random.randint(500, 3000)
                 await economy.update_balance(ctx.author.id, guild_id, bonus)
                 bonus_msg = f"\n🎁 **Азтай!** +{bonus:,}₮"
-            elif bonus_type == "xp":
-                xp_cog = self.bot.get_cog("Leveling")
-                if xp_cog:
-                    bonus = random.randint(10, 50)
-                    await xp_cog.add_xp(ctx.author.id, guild_id, bonus, member=ctx.author, check_mute=True, channel=ctx.channel)
-                    bonus_msg = f"\n🎁 **Азтай!** +{bonus} XP"
             else:
                 ring_id = random.choice([36,37,38,39,40,41,42])
                 await self.add_item(ctx.author.id, guild_id, ring_id, 1)
@@ -1082,17 +1076,11 @@ class ShopCog(commands.Cog):
             relax_msg = f"\n😌 Амралт: -{relax_amt}%"
         bonus_msg = ""
         if random.random() < 0.05:
-            bonus_type = random.choice(["money", "xp", "ring"])
+            bonus_type = random.choice(["money", "ring"])
             if bonus_type == "money":
                 bonus = random.randint(500, 3000)
                 await economy.update_balance(ctx.author.id, guild_id, bonus)
                 bonus_msg = f"\n🎁 **Азтай!** +{bonus:,}₮"
-            elif bonus_type == "xp":
-                xp_cog = self.bot.get_cog("Leveling")
-                if xp_cog:
-                    bonus = random.randint(10, 50)
-                    await xp_cog.add_xp(ctx.author.id, guild_id, bonus, member=ctx.author, check_mute=True, channel=ctx.channel)
-                    bonus_msg = f"\n🎁 **Азтай!** +{bonus} XP"
             else:
                 ring_id = random.choice([36,37,38,39,40,41,42])
                 await self.add_item(ctx.author.id, guild_id, ring_id, 1)

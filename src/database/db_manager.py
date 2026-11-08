@@ -32,6 +32,12 @@ except ImportError:
 
 _NETWORK_EXCEPTIONS = tuple(dict.fromkeys(_NETWORK_EXCEPTIONS))
 
+# A Cloudflare/PostgREST outage can make every background task retry the same
+# request at once.  Briefly open a process-wide circuit after retries are
+# exhausted so the Discord event loop and Supabase are not flooded together.
+_DB_CIRCUIT_OPEN_UNTIL = 0.0
+_DB_CIRCUIT_COOLDOWN_SECONDS = 5.0
+
 
 from src.core.config import is_server_level_key, pick_server_supabase_key
 from src.core.exceptions import (
@@ -72,7 +78,7 @@ def classify_supabase_error(exc: BaseException) -> BaseException:
         return DatabaseSchemaError(str(exc))
     if "42501" in code_str or "42501" in msg:
         return DatabasePermissionError(str(exc))
-    if _is_retryable(exc) or status_int in (500, 502, 503, 504):
+    if _is_retryable(exc) or status_int in (500, 502, 503, 504, 522):
         return DatabaseUnavailableError(str(exc))
     return exc
 
@@ -162,7 +168,7 @@ def _is_retryable(exc: BaseException) -> bool:
         status = int(status)
     except (TypeError, ValueError):
         status = None
-    return code in (500, 502, 503, 504) or status in (500, 502, 503, 504)
+    return code in (500, 502, 503, 504, 522) or status in (500, 502, 503, 504, 522)
 
 
 class SupabaseManager:
@@ -464,11 +470,19 @@ class SupabaseManager:
                 f"{table}: {msg}\n"
                 "Hint: Apply src/database/migrations/000_aether_complete.sql."
             )
+        classified = classify_supabase_error(exc)
+        if isinstance(classified, DatabaseUnavailableError):
+            raise classified from exc
         raise exc
 
     async def _run(self, fn, *args, _table: str = "", _retry: bool = True, **kwargs):
+        global _DB_CIRCUIT_OPEN_UNTIL
         if self.client is None:
             raise RuntimeError("Supabase client is not connected.")
+        if _retry and time.monotonic() < _DB_CIRCUIT_OPEN_UNTIL:
+            raise DatabaseUnavailableError(
+                "Supabase түр хугацаанд unavailable байна; дахин оролдохоос өмнө cooldown хүлээнэ үү."
+            )
         # Retry wrapper: transient network errors (e.g. [WinError 10035]) and
         # server-side 5xx responses (e.g. 504 Gateway Timeout from PostgREST)
         # are retried with exponential backoff instead of failing outright.
@@ -489,6 +503,7 @@ class SupabaseManager:
                 if attempt <= 3:
                     await asyncio.sleep(0.5 * (2 ** (attempt - 1)))
                 else:
+                    _DB_CIRCUIT_OPEN_UNTIL = time.monotonic() + _DB_CIRCUIT_COOLDOWN_SECONDS
                     break
         # The loop always runs once and either returns or assigns last_exc
         # before falling through, but be explicit so the type is never None.
@@ -614,7 +629,7 @@ class SupabaseManager:
     _INCREMENT_WHITELIST: ClassVar[dict[str, set[str]]] = {
         "economy": {"balance", "bank_balance"},
         "economy_guild_settings": {"treasury_balance"},
-        "levels": {"xp", "message_count", "voice_seconds", "reaction_count"},
+        "levels": {"xp", "message_count", "voice_seconds"},
         "game_stats": {"wins", "losses", "total_won", "total_bet"},
         "shop_stock": {"current_stock"},
         "user_inventory": {"quantity"},

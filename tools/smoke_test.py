@@ -1,4 +1,4 @@
-"""Mock smoke test: games.py-г импортлоод бүх View класс, TRIVIA_QUESTIONS,
+"""Mock smoke test: games.games-г импортлоод бүх View класс, TRIVIA_QUESTIONS,
 командууд зөв бүртгэгдсэн эсэхийг Discord gateway-гүйгээр баталгаажуулна."""
 import importlib.util
 import logging
@@ -34,6 +34,13 @@ sys.modules["src.core"] = core_pkg
 core_config = types.ModuleType("src.core.config")
 core_config.load_config = lambda: {'prefix': '!', 'bonus_percent': 10}
 sys.modules["src.core.config"] = core_config
+
+core_exceptions = load_module(
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                 "src/core/exceptions.py"),
+    "src.core.exceptions",
+)
+sys.modules["src.core.exceptions"] = core_exceptions
 
 utils_branding = types.ModuleType("src.utils.branding")
 utils_branding.BOT_NAME = '𝓐𝓮𝓽𝓱𝓮𝓻  蒼穹'
@@ -78,7 +85,9 @@ for util_name, filename in [("fonts", "src/utils/fonts.py"), ("supabase_cog", "s
             print(f"⚠ src.utils.{util_name} load skipped: {e}")
 
 # Үндсэн тест
-games_spec = importlib.util.spec_from_file_location("games", os.path.join(base, "src", "cogs", "games.py"))
+games_spec = importlib.util.spec_from_file_location(
+    "games", os.path.join(base, "src", "cogs", "games", "games.py")
+)
 games = importlib.util.module_from_spec(games_spec)
 sys.modules["games"] = games
 games_spec.loader.exec_module(games)

@@ -40,12 +40,13 @@ class AddStaffModal(ui.Modal, title="Staff нэмэх"):
         member = interaction.guild.get_member(uid)
         if not member:
             return await interaction.response.send_message("❌ Хэрэглэгч серверт байхгүй.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
         await self.view.cog.bot.db_manager.upsert("staff_members", {
             "user_id": str(uid),
             "guild_id": str(interaction.guild.id),
             "staff_group": self.group.value
         }, on_conflict="user_id,guild_id")
-        await interaction.response.send_message(f"✅ {member.mention} **{self.group.value}** бүлэгт нэмэгдлээ.", ephemeral=True)
+        await interaction.followup.send(f"✅ {member.mention} **{self.group.value}** бүлэгт нэмэгдлээ.", ephemeral=True)
 
 class RemoveStaffModal(ui.Modal, title="Staff хасах"):
     user_id = ui.TextInput(label="Хэрэглэгчийн ID", placeholder="123456789", required=True)
@@ -61,10 +62,11 @@ class RemoveStaffModal(ui.Modal, title="Staff хасах"):
             uid = int(self.user_id.value)
         except ValueError:
             return await interaction.response.send_message("❌ ID тоо байх ёстой.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
         await self.view.cog.delete_data("staff_members", {"user_id": str(uid), "guild_id": str(interaction.guild.id)})
         await self.view.cog.delete_data("staff_activity", {"user_id": str(uid), "guild_id": str(interaction.guild.id)})
         member = interaction.guild.get_member(uid)
-        await interaction.response.send_message(f"✅ {member.mention if member else f'<@{uid}>'} Staff-ээс хасагдлаа.", ephemeral=True)
+        await interaction.followup.send(f"✅ {member.mention if member else f'<@{uid}>'} Staff-ээс хасагдлаа.", ephemeral=True)
 
 # ---------- Staff тохиргооны самбар (View) ----------
 class StaffSetupView(ui.View):
@@ -97,9 +99,17 @@ class StaffSetupView(ui.View):
     async def build_embed(self, guild):
         guild_id = str(guild.id)
         row = await self.cog.get_data("staff_config", {"guild_id": guild_id})
-        log_ch = guild.get_channel(int(row["log_channel"])) if row and row.get("log_channel") else None
-        ann_ch = guild.get_channel(int(row["announcement_channel"])) if row and row.get("announcement_channel") else None
-        stats_ch = guild.get_channel(int(row["stats_channel"])) if row and row.get("stats_channel") else None
+        def configured_channel(column):
+            raw_id = row.get(column) if row else None
+            try:
+                return guild.get_channel(int(raw_id)) if raw_id else None
+            except (TypeError, ValueError):
+                logger.warning("Invalid %s in staff_config for guild %s: %r", column, guild.id, raw_id)
+                return None
+
+        log_ch = configured_channel("log_channel")
+        ann_ch = configured_channel("announcement_channel")
+        stats_ch = configured_channel("stats_channel")
 
         configured = sum(channel is not None for channel in (log_ch, ann_ch, stats_ch))
         return (
@@ -129,20 +139,20 @@ class StaffSetupView(ui.View):
 
     @ui.select(cls=ui.ChannelSelect, channel_types=[discord.ChannelType.text], placeholder="📋 Лог суваг", row=0)
     async def select_log_channel(self, interaction: discord.Interaction, select: ui.ChannelSelect):
-        await self.cog._set_config_field(interaction.guild_id, "log_channel", str(select.values[0].id))
         await interaction.response.defer()
+        await self.cog._set_config_field(interaction.guild_id, "log_channel", str(select.values[0].id))
         await self.refresh(interaction)
 
     @ui.select(cls=ui.ChannelSelect, channel_types=[discord.ChannelType.text], placeholder="🏆 Зарлалын суваг", row=1)
     async def select_announcement_channel(self, interaction: discord.Interaction, select: ui.ChannelSelect):
-        await self.cog._set_config_field(interaction.guild_id, "announcement_channel", str(select.values[0].id))
         await interaction.response.defer()
+        await self.cog._set_config_field(interaction.guild_id, "announcement_channel", str(select.values[0].id))
         await self.refresh(interaction)
 
     @ui.select(cls=ui.ChannelSelect, channel_types=[discord.ChannelType.text], placeholder="📊 Статистик суваг", row=2)
     async def select_stats_channel(self, interaction: discord.Interaction, select: ui.ChannelSelect):
-        await self.cog._set_config_field(interaction.guild_id, "stats_channel", str(select.values[0].id))
         await interaction.response.defer()
+        await self.cog._set_config_field(interaction.guild_id, "stats_channel", str(select.values[0].id))
         await self.refresh(interaction)
 
     @ui.button(label="➕ Staff нэмэх", style=discord.ButtonStyle.success, row=3)
@@ -397,8 +407,12 @@ class Moderation(SupabaseCog):
     async def _get_configured_channel(self, guild: discord.Guild, channel_type: str):
         column = {"log": "log_channel", "announcement": "announcement_channel", "stats": "stats_channel"}[channel_type]
         cfg_row = await self.bot.db_manager.fetch_safe("staff_config", {"guild_id": str(guild.id)}, single=True)
-        if cfg_row and cfg_row.get(column):
-            return guild.get_channel(int(cfg_row[column]))
+        raw_channel_id = cfg_row.get(column) if cfg_row else None
+        if raw_channel_id:
+            try:
+                return guild.get_channel(int(raw_channel_id))
+            except (TypeError, ValueError):
+                logger.warning("Invalid %s channel ID in staff_config for guild %s: %r", column, guild.id, raw_channel_id)
         return None
 
     # ================== Хэрэглэгчийн мэдээлэл командууд ==================
@@ -407,6 +421,7 @@ class Moderation(SupabaseCog):
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(administrator=True)
     async def staff_counts(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         guild_id = str(interaction.guild.id)
         members = await self.bot.db_manager.fetch_safe("staff_members", {"guild_id": guild_id})
         activity_rows = await self.bot.db_manager.fetch_safe("staff_activity", {"guild_id": guild_id})
@@ -418,7 +433,7 @@ class Moderation(SupabaseCog):
             if (a := activity_map.get(m["user_id"]))
         ]
         if not rows:
-            return await interaction.response.send_message("❌ Одоогоор Staff-ийн идэвх бүртгэгдээгүй байна.", ephemeral=True)
+            return await interaction.followup.send("❌ Одоогоор Staff-ийн идэвх бүртгэгдээгүй байна.", ephemeral=True)
 
         scores = []
         for row in rows:
@@ -437,7 +452,7 @@ class Moderation(SupabaseCog):
                 value=f"⭐ **{kpi:.1f}** KPI оноо\n💬 {msg} мессеж | 🎙️ {vh:.1f} цаг | 🔨 {actions} арга хэмжээ | 🎫 {tickets} тикет",
                 inline=False
             )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="staff_status", description="Тухайн Staff-ийн дэлгэрэнгүй үзүүлэлт")
     @app_commands.default_permissions(administrator=True)
@@ -445,15 +460,16 @@ class Moderation(SupabaseCog):
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.describe(member="Харах Staff гишүүн")
     async def staff_status(self, interaction: discord.Interaction, member: discord.Member):
+        await interaction.response.defer(ephemeral=True)
         guild_id = str(interaction.guild.id)
         staff_row = await self.bot.db_manager.fetch_safe("staff_members", {"user_id": str(member.id), "guild_id": guild_id}, single=True)
         if not staff_row:
-            return await interaction.response.send_message(f"❌ {member.mention} нь Staff-д бүртгэлтэй биш байна.", ephemeral=True)
+            return await interaction.followup.send(f"❌ {member.mention} нь Staff-д бүртгэлтэй биш байна.", ephemeral=True)
         group = staff_row.get("staff_group", "")
 
         activity_row = await self.bot.db_manager.fetch_safe("staff_activity", {"user_id": str(member.id), "guild_id": guild_id}, single=True)
         if not activity_row:
-            return await interaction.response.send_message(f"ℹ️ {member.mention} идэвхийн мэдээлэл олдсонгүй.", ephemeral=True)
+            return await interaction.followup.send(f"ℹ️ {member.mention} идэвхийн мэдээлэл олдсонгүй.", ephemeral=True)
         messages = activity_row.get("messages", 0)
         voice_seconds = activity_row.get("voice_seconds", 0)
         tickets = activity_row.get("tickets_closed", 0)
@@ -471,7 +487,7 @@ class Moderation(SupabaseCog):
         embed.add_field(name="🎫 Тикет", value=tickets, inline=True)
         embed.add_field(name="⭐ KPI оноо", value=f"**{kpi:.1f}**", inline=False)
         embed.set_thumbnail(url=member.display_avatar.url)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     # ================== Идэвх бүртгэл ==================
     async def increment_staff_activity(self, user_id: int, guild_id: int, field: str, amount=1):
@@ -920,6 +936,7 @@ class Moderation(SupabaseCog):
             warn_row = next((w for w in warning_rows if w["id"] == warning_id), None)
             if warn_row is None:
                 return await cb_interaction.response.send_message("❌ Анхааруулга олдсонгүй.", ephemeral=True)
+            await cb_interaction.response.defer()
             await self.bot.db_manager.delete("warnings", {"id": warning_id, "guild_id": str(ctx.guild.id), "user_id": str(member.id)})
             remaining = await self.get_warn_count(member.id, ctx.guild.id)
             reason = str(warn_row.get("reason", "")) if warn_row else "?"
@@ -932,7 +949,7 @@ class Moderation(SupabaseCog):
             embed.set_thumbnail(url=member.display_avatar.url)
             for child in view.children:
                 child.disabled = True
-            await cb_interaction.response.edit_message(embed=embed, view=view)
+            await cb_interaction.edit_original_response(embed=embed, view=view)
             await self.log_to_mod_channel(ctx.guild, "Unwarn", member.mention, ctx.author, f"Анхааруулга #{warning_id} устгасан")
 
         select.callback = unwarn_select

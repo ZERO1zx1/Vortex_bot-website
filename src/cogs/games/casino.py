@@ -83,6 +83,13 @@ class BlackjackView(View):
         # down; a discarded handle can outlive the view and mutate its embed.
         self._init_task = asyncio.create_task(_safe_init())
 
+    async def _edit_interaction(self, interaction, **kwargs):
+        """Edit the button message whether the interaction was deferred or not."""
+        is_done = getattr(interaction.response, "is_done", lambda: False)()
+        if is_done and hasattr(interaction, "edit_original_response"):
+            return await interaction.edit_original_response(**kwargs)
+        return await interaction.response.edit_message(**kwargs)
+
     async def _init_buttons(self):
         # Эхний товчлуурын төлвийг тогтоох
         await self._update_buttons()
@@ -198,7 +205,7 @@ class BlackjackView(View):
         await self._update_buttons()
         self.update_embed()
         try:
-            await interaction.response.edit_message(embed=self.embed, view=self)
+            await self._edit_interaction(interaction, embed=self.embed, view=self)
         except discord.HTTPException:
             # Includes NotFound (10062) when the token already expired.
             logger.debug("Could not refresh blackjack view after unfunded action", exc_info=True)
@@ -254,7 +261,7 @@ class BlackjackView(View):
 
         await self._update_buttons()
         self.update_embed()
-        await interaction.response.edit_message(embed=self.embed, view=self)
+        await self._edit_interaction(interaction, embed=self.embed, view=self)
 
     async def finalize_game(self, interaction):
         # Энд `if self._finalizing: return` байхгүй. Өмнө нь байсан бөгөөд
@@ -332,7 +339,7 @@ class BlackjackView(View):
         embed.add_field(name="📋 ДҮН", value="\n".join(results_text), inline=False)
         embed.description = f"💰 **Нийт хожил/гарз:** {total_display:+,}₮"
         embed.set_footer(text="🃏 Тоглоом дууслаа")
-        await interaction.response.edit_message(embed=embed, view=self)
+        await self._edit_interaction(interaction, embed=embed, view=self)
 
     async def hit(self, interaction):
         active_hand = self.hands[self.active_hand_index]
@@ -342,7 +349,7 @@ class BlackjackView(View):
         else:
             await self._update_buttons()
             self.update_embed()
-            await interaction.response.edit_message(embed=self.embed, view=self)
+            await self._edit_interaction(interaction, embed=self.embed, view=self)
 
     async def stand(self, interaction, from_double=False):
         if not from_double:
@@ -365,7 +372,7 @@ class BlackjackView(View):
     async def _after_hand_switch(self, interaction):
         await self._update_buttons()
         self.update_embed()
-        await interaction.response.edit_message(embed=self.embed, view=self)
+        await self._edit_interaction(interaction, embed=self.embed, view=self)
 
     # ---------- Товчлуурууд ----------
     @discord.ui.button(label="🃏 Hit", style=discord.ButtonStyle.primary, row=0)
@@ -374,6 +381,7 @@ class BlackjackView(View):
             return await interaction.response.send_message("Тоглоом дууссан.", ephemeral=True)
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message("Энэ тоглоом таных биш!", ephemeral=True)
+        await interaction.response.defer()
         await self.hit(interaction)
 
     @discord.ui.button(label="🛑 Stand", style=discord.ButtonStyle.danger, row=0)
@@ -382,6 +390,7 @@ class BlackjackView(View):
             return await interaction.response.send_message("Тоглоом дууссан.", ephemeral=True)
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message("Таных биш!", ephemeral=True)
+        await interaction.response.defer()
         await self.stand(interaction)
 
     @discord.ui.button(label="⏫ Double Down", style=discord.ButtonStyle.success, row=1)
@@ -392,6 +401,7 @@ class BlackjackView(View):
             return await interaction.response.send_message("Таных биш!", ephemeral=True)
         if len(self.hands[self.active_hand_index]) != 2:
             return await interaction.response.send_message("Double Down зөвхөн эхний хоёр картанд хийгдэнэ.", ephemeral=True)
+        await interaction.response.defer()
         await self.double_down(interaction)
 
     @discord.ui.button(label="✂️ Split", style=discord.ButtonStyle.secondary, row=1)
@@ -404,6 +414,7 @@ class BlackjackView(View):
             return await interaction.response.send_message("Split зөвхөн эхний хоёр картанд хийгдэнэ.", ephemeral=True)
         if self.card_rank(self.hands[0][0]) != self.card_rank(self.hands[0][1]):
             return await interaction.response.send_message("Картуудын зэрэглэл ижил биш байна.", ephemeral=True)
+        await interaction.response.defer()
         await self.split_hand(interaction)
 
     @discord.ui.button(label="❓ Тусламж", style=discord.ButtonStyle.gray, disabled=True, row=2)
@@ -623,7 +634,7 @@ class Casino(commands.Cog):
         await ctx.send(embed=embed)
 
     # ==================== КОМАНДУУД ====================
-    @commands.command(name='blackjack', aliases=['bj'])
+    @commands.hybrid_command(name='blackjack', aliases=['bj'])
     async def blackjack(self, ctx, amount_str: str):
         if ctx.guild is None: return await ctx.send("❌ Серверт ашиглана уу.")
         if not await self.check_hunger_mood(ctx): return
@@ -640,7 +651,7 @@ class Casino(commands.Cog):
         view = BlackjackView(ctx, self, amount)
         view.message = await ctx.send(embed=view.embed, view=view)
 
-    @commands.command(name='rob')
+    @commands.hybrid_command(name='rob')
     async def rob(self, ctx, target: discord.Member):
         if ctx.guild is None: return await ctx.send("❌ Серверт ашиглана уу.")
         if not await self.check_hunger_mood(ctx): return
@@ -693,7 +704,7 @@ class Casino(commands.Cog):
         embed.set_footer(text="⏱️ Дараагийн дээрэм 1 цагийн дараа")
         await ctx.send(embed=embed)
 
-    @commands.command(name='hack')
+    @commands.hybrid_command(name='hack')
     async def hack(self, ctx, target: discord.Member):
         if ctx.guild is None: return await ctx.send("❌ Серверт ашиглана уу.")
         if not await self.check_hunger_mood(ctx): return
@@ -749,7 +760,7 @@ class Casino(commands.Cog):
         embed.set_footer(text="⏱️ Дараагийн хакер 2 цагийн дараа")
         await ctx.send(embed=embed)
 
-    @commands.command(name='highlow', aliases=['hl'])
+    @commands.hybrid_command(name='highlow', aliases=['hl'])
     async def highlow(self, ctx, amount_str: str, choice: str | None = None):
         if ctx.guild is None: return await ctx.send("❌ Серверт ашиглана уу.")
         if not await self.check_hunger_mood(ctx): return

@@ -260,9 +260,9 @@ class SetupView(ui.View):
 
     @ui.button(label="Илгээх зай: 30 сек", emoji="⏱️", style=discord.ButtonStyle.secondary, row=2)
     async def cooldown_button(self, interaction: discord.Interaction, button: ui.Button):
-        cfg = await self.cog.get_config(self.guild_id)
-        current = (cfg or {}).get("cooldown", 30)
-        await interaction.response.send_modal(CooldownModal(self, current))
+        # A modal must be opened as the first interaction response; do not wait
+        # for Supabase here. The modal validates and persists the submitted value.
+        await interaction.response.send_modal(CooldownModal(self, 30))
 
     @ui.button(label="Дахин ачаалах", emoji="↻", style=discord.ButtonStyle.gray, row=2)
     async def refresh_button(self, interaction: discord.Interaction, button: ui.Button):

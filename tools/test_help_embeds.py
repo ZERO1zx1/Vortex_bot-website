@@ -24,7 +24,10 @@ logger = logging.getLogger(__name__)
 
 spec = importlib.util.spec_from_file_location(
     "help_cog",
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "cogs", "help.py"),
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "src", "cogs", "system", "help.py",
+    ),
 )
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)

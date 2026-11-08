@@ -1,7 +1,7 @@
 /* ============================================================
    𝓐𝓮𝓽𝓱𝓮𝓻 蒼穹 — Command catalog
    Auto-generated from src/cogs/help.py COMMAND_INFO by website/tools/sync_website_commands.py.
-   179 commands · slash=76 text=103
+   181 commands · slash=82 text=99
    Mapped into the website's 7 user-facing filter categories.
 
    DO NOT EDIT BY HAND — run `python website/tools/sync_website_commands.py`.
@@ -25,6 +25,7 @@ const COMMANDS = [
   { name: "eat", cat: "Economy", icon: "💰", desc: "Инвентариас хоол идэж цатгалан болон сэтгэл санаагаа сэргээнэ.", descEN: "Eat food from inventory", args: [], example: "A!eat" },
   { name: "economy", cat: "Economy", icon: "💰", desc: "Хэрэглэгчийн эдийн засгийн самбар — үлдэгдэл, ажил, татвар, засгийн газар.", descEN: "User economy panel (balance, jobs, tax, government)", args: [], example: "/economy" },
   { name: "economy-config", cat: "Economy", icon: "💰", desc: "Эдийн засгийн тохиргоо — татвар, хүлээн авагч, ажил, ролын орлого.", descEN: "Economy config (tax, recipients, jobs, role income)", args: [], example: "/economy-config" },
+  { name: "economyboard", cat: "Economy", icon: "💰", desc: "Серверийн мөнгөний эрэмбийн самбар.", descEN: "Economy leaderboard", args: [], example: "/economyboard" },
   { name: "equip", cat: "Economy", icon: "💰", desc: "Зүйлээ зүүж авна.", descEN: "Equip an item", args: [{"key": "item_input", "req": true}], example: "A!equip <item_input>" },
   { name: "equipped", cat: "Economy", icon: "💰", desc: "Хэрэглэгчийн зүүсэн зүйлс.", descEN: "View equipped items", args: [{"key": "member", "req": true}], example: "A!equipped <member>" },
   { name: "government", cat: "Economy", icon: "💰", desc: "Засгийн газрын самбар — ажилтнууд, роль, co-owner, систем идэвхжүүлэх.", descEN: "Government panel (officials, roles, co-owners, toggle)", args: [], example: "/government" },
@@ -49,12 +50,13 @@ const COMMANDS = [
   { name: "withdraw", cat: "Economy", icon: "💰", desc: "Банкнаас мөнгө гаргаж авна.", descEN: "Withdraw money from bank", args: [{"key": "amount_str", "req": true}], example: "A!withdraw <amount_str>" },
   { name: "work", cat: "Economy", icon: "💰", desc: "Ажиллаж мөнгө олох (нэмэлт текст зааж болно).", descEN: "Work to earn money", args: [{"key": "custom_text", "req": true}], example: "A!work <custom_text>" },
   { name: "workphrase", cat: "Economy", icon: "💰", desc: "Ажлын өгүүлбэрийн тохиргоо (embed+button+modal).", descEN: "Work phrase settings", args: [], example: "A!workphrase" },
-  { name: "addxp", cat: "Leveling", icon: "📊", desc: "Хэрэглэгчид XP нэмэх (эзэмшигч/co-owner).", descEN: "Add XP to a user", args: [{"key": "user", "req": true}, {"key": "amount", "req": true}], example: "A!addxp <user> <amount>" },
-  { name: "leaderboard", cat: "Leveling", icon: "📊", desc: "Серверийн эрэмбийн самбар.", descEN: "Server leaderboard", args: [], example: "A!leaderboard" },
+  { name: "leaderboard", cat: "Leveling", icon: "📊", desc: "Серверийн эрэмбийн самбар.", descEN: "XP leaderboard", args: [], example: "/leaderboard" },
   { name: "leveling_setup", cat: "Leveling", icon: "📊", desc: "Түвшний системийн бүрэн тохиргоо (роль, XP, цаг).", descEN: "Leveling setup", args: [], example: "A!leveling_setup" },
-  { name: "rank", cat: "Leveling", icon: "📊", desc: "Хэрэглэгчийн түвшин, XP болон эрэмбэ.", descEN: "Rank, XP and position", args: [{"key": "user", "req": true}], example: "A!rank <user>" },
-  { name: "removexp", cat: "Leveling", icon: "📊", desc: "Хэрэглэгчээс XP хасах (эзэмшигч/co-owner).", descEN: "Remove XP from a user", args: [{"key": "user", "req": true}, {"key": "amount", "req": true}], example: "A!removexp <user> <amount>" },
+  { name: "rank", cat: "Leveling", icon: "📊", desc: "Хэрэглэгчийн түвшин, XP болон эрэмбэ.", descEN: "Rank, XP and position", args: [], example: "/rank [user]" },
+  { name: "roles", cat: "Leveling", icon: "📊", desc: "Таны level role-уудыг дахин шалгаж засна.", descEN: "Refresh your level roles", args: [], example: "/roles" },
   { name: "serveractivity", cat: "Leveling", icon: "📊", desc: "Серверийн идэвхтэй байдлын статистик.", descEN: "Server activity ranking", args: [], example: "A!serveractivity" },
+  { name: "stats", cat: "Leveling", icon: "📊", desc: "Хэрэглэгчийн level, message, voice статистик.", descEN: "Level, message and voice statistics", args: [], example: "/stats [user]" },
+  { name: "xpdrop", cat: "Leveling", icon: "📊", desc: "Админ Engauge-style XP crate үүсгэнэ.", descEN: "Create an Engauge-style XP crate", args: [], example: "/xpdrop" },
   { name: "confess", cat: "Social", icon: "💍", desc: "Нууц захиа илгээх (модал).", descEN: "Send a confession", args: [], example: "/confess" },
   { name: "confess_blacklist", cat: "Social", icon: "💍", desc: "Хориотой үгийн жагсаалт удирдах.", descEN: "Confession blacklist", args: [{"key": "action", "req": true}, {"key": "word", "req": true}], example: "/confess_blacklist <action> <word>" },
   { name: "confess_delete", cat: "Social", icon: "💍", desc: "Нууц захиаг ID-гаар устгах (админ).", descEN: "Delete a confession", args: [{"key": "confession_id", "req": true}], example: "/confess_delete <confession_id>" },

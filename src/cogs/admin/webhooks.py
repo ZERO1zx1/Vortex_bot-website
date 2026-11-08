@@ -104,17 +104,18 @@ class WebhookAutomation(commands.Cog):
         app_commands.Choice(name="Гишүүн гарахад", value="member_leave"),
     ])
     async def automation_test(self, interaction: discord.Interaction, event: app_commands.Choice[str]):
+        await interaction.response.defer(ephemeral=True)
         rule = await self.bot.db_manager.fetch_one("automation_rules", {"guild_id": str(interaction.guild_id), "event_name": event.value})
         if not rule:
-            return await interaction.response.send_message("❌ Эхлээд `/automation_setup` хийж rule үүсгэнэ үү.", ephemeral=True)
+            return await interaction.followup.send("❌ Эхлээд `/automation_setup` хийж rule үүсгэнэ үү.", ephemeral=True)
         channel = interaction.guild.get_channel(int(rule["channel_id"]))
         if not isinstance(channel, discord.TextChannel):
-            return await interaction.response.send_message("❌ Тохируулсан суваг олдсонгүй.", ephemeral=True)
+            return await interaction.followup.send("❌ Тохируулсан суваг олдсонгүй.", ephemeral=True)
         message = (rule["message_template"].replace("{member}", interaction.user.mention)
                    .replace("{server}", interaction.guild.name)
                    .replace("{count}", str(interaction.guild.member_count or 0)))
         await channel.send(message, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
-        await interaction.response.send_message(f"✅ Test message {channel.mention} руу явлаа.", ephemeral=True)
+        await interaction.followup.send(f"✅ Test message {channel.mention} руу явлаа.", ephemeral=True)
 
     @app_commands.command(name="automation_embed", description="Automation message-ийн embed харагдац тохируулах")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -129,10 +130,11 @@ class WebhookAutomation(commands.Cog):
                 raise ValueError
         except ValueError:
             return await interaction.response.send_message("❌ Color нь `FF4FA3` шиг 6 оронтой hex байх ёстой.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
         changed = await self.bot.db_manager.update("automation_rules", {"guild_id": str(interaction.guild_id), "event_name": event.value}, {"embed_title": title[:256], "embed_color": color, "updated_at": int(time.time())})
         if not changed:
-            return await interaction.response.send_message("❌ Эхлээд `/automation_setup` хийж rule үүсгэнэ үү.", ephemeral=True)
-        await interaction.response.send_message("✅ Embed харагдац хадгалагдлаа. `/automation_test` ашиглан шалгана уу.", ephemeral=True)
+            return await interaction.followup.send("❌ Эхлээд `/automation_setup` хийж rule үүсгэнэ үү.", ephemeral=True)
+        await interaction.followup.send("✅ Embed харагдац хадгалагдлаа. `/automation_test` ашиглан шалгана уу.", ephemeral=True)
 
     @app_commands.command(name="automation_disable", description="Automation event унтраах")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -141,26 +143,28 @@ class WebhookAutomation(commands.Cog):
         app_commands.Choice(name="Гишүүн гарахад", value="member_leave"),
     ])
     async def automation_disable(self, interaction: discord.Interaction, event: app_commands.Choice[str]):
+        await interaction.response.defer(ephemeral=True)
         changed = await self.bot.db_manager.update(
             "automation_rules", {"guild_id": str(interaction.guild_id), "event_name": event.value},
             {"enabled": False, "updated_at": int(time.time())},
         )
         if not changed:
-            return await interaction.response.send_message("❌ Энэ event-д тохиргоо байхгүй.", ephemeral=True)
-        await interaction.response.send_message("✅ Automation унтарлаа.", ephemeral=True)
+            return await interaction.followup.send("❌ Энэ event-д тохиргоо байхгүй.", ephemeral=True)
+        await interaction.followup.send("✅ Automation унтарлаа.", ephemeral=True)
 
     @app_commands.command(name="automation_status", description="Automation тохиргоо харах")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def automation_status(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         rules = await self.bot.db_manager.fetch_all("automation_rules", {"guild_id": str(interaction.guild_id)})
         if not rules:
-            return await interaction.response.send_message(embed=accent_embed("✦ Automation", "Одоогоор идэвхтэй rule алга."), ephemeral=True)
+            return await interaction.followup.send(embed=accent_embed("✦ Automation", "Одоогоор идэвхтэй rule алга."), ephemeral=True)
         lines = []
         for rule in rules:
             state = "🟢" if rule.get("enabled") else "⚪"
             log = f" • log: <#{rule['log_channel_id']}>" if rule.get("log_channel_id") else ""
             lines.append(f"{state} **{EVENTS.get(rule['event_name'], rule['event_name'])}** → <#{rule['channel_id']}>{log}")
-        await interaction.response.send_message(embed=accent_embed("✦ Automation", "\n".join(lines)), ephemeral=True)
+        await interaction.followup.send(embed=accent_embed("✦ Automation", "\n".join(lines)), ephemeral=True)
 
     async def _run(self, member: discord.Member, event_name: str):
         try:

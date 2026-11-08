@@ -813,7 +813,7 @@ class TexasPoker(commands.Cog):
             return "😡 Та хэт ууртай байна. `A!relax` ашиглана уу."
         return None
 
-    @commands.command(name="pokerclaim")
+    @commands.hybrid_command(name="pokerclaim")
     async def pokerclaim(self, ctx):
         view = self.active_channels.get(ctx.channel.id)
         try:
@@ -852,7 +852,7 @@ class TexasPoker(commands.Cog):
         else:
             await ctx.send("⚠️ Зарим payout амжилтгүй хэвээр байна. Дараа дахин оролдоно уу.")
 
-    @commands.command(name="pokerclaimadmin")
+    @commands.hybrid_command(name="pokerclaimadmin")
     @commands.has_permissions(manage_guild=True)
     async def pokerclaimadmin(self, ctx):
         """Let a guild moderator settle an orphaned payout in this channel."""
@@ -896,7 +896,7 @@ class TexasPoker(commands.Cog):
         else:
             await ctx.send("⚠️ Зарим payout амжилтгүй хэвээр байна. Дараа дахин оролдоно уу.")
 
-    @commands.command(name="texas", aliases=["poker", "holdem"])
+    @commands.hybrid_command(name="texas", aliases=["poker", "holdem"])
     @commands.cooldown(1, 30, commands.BucketType.user)
     async def texas(self, ctx, buy_in: int | None = None):
         if ctx.guild is None:

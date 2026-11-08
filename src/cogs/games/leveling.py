@@ -23,6 +23,7 @@ from src.utils.fonts import draw_text_with_fallback
 from src.utils.fonts import load_font as _load_font
 from src.utils.http_images import download_public_image
 from src.utils.supabase_cog import SupabaseCog
+from src.core.exceptions import DatabaseUnavailableError
 
 # ── Logger ──
 log = logging.getLogger(__name__)
@@ -44,13 +45,10 @@ ERROR_COLOR   = 0xFF5C8A
 INFO_COLOR    = 0x63D9FF
 
 # ── Defaults ──
-DEFAULT_XP_TIERS = [{"max_words":10,"xp":5},{"max_words":30,"xp":10},{"max_words":999,"xp":20}]
-DEFAULT_XP_MEDIA = 15
-DEFAULT_XP_REACTION = 1
-DEFAULT_XP_VOICE_SILENT = 5
-DEFAULT_XP_VOICE_TALKING = 15
+DEFAULT_MESSAGE_XP = 15
+DEFAULT_XP_VOICE_TALKING = 4
 DEFAULT_MSG_COOLDOWN = 60
-DEFAULT_REACT_COOLDOWN = 10
+DEFAULT_VOICE_XP_PER_MINUTE = 4
 DEFAULT_PROG_TYPE = "arithmetic"
 DEFAULT_PROG_BASE = 100
 DEFAULT_PROG_STEP = 150
@@ -59,6 +57,7 @@ VOICE_INTERVAL_SECS = 180
 # ── In-memory TTL caches (perf) ──
 _CFG_CACHE: dict[int, tuple] = {}      # guild_id -> (expires_at, cfg)
 _EXC_CACHE: dict[int, tuple] = {}      # guild_id -> (expires_at, {"channels":[],"users":[]})
+_ROLE_XP_CACHE: dict[int, tuple] = {}   # guild_id -> (expires_at, multiplier rows)
 _CACHE_TTL = 20.0
 
 # ── Safe converters ──
@@ -78,30 +77,32 @@ def _safe_bool(value, default=False):
     if isinstance(value, str): return value.lower() in ('1','true','yes','on')
     return default
 
-def _parse_xp_tiers(raw):
-    """Accept jsonb list/dict or JSON string; fall back to defaults."""
-    parsed = raw
-    if isinstance(raw, str) and raw.lstrip().startswith('['):
+def _parse_id_list(raw):
+    if isinstance(raw, str):
         try:
-            parsed = json.loads(raw)
-        except (ValueError, TypeError) as e:
-            log.debug("xp_tiers JSON parse failed, using defaults: %s", e)
-            parsed = None
-    if not isinstance(parsed, list):
-        return [dict(tier) for tier in DEFAULT_XP_TIERS]
-    cleaned = []
-    for tier in parsed:
-        if not isinstance(tier, dict):
-            continue
-        try:
-            max_words = int(tier.get("max_words"))
-            xp = int(tier.get("xp"))
-        except (TypeError, ValueError, OverflowError):
-            continue
-        if max_words < 0 or xp < 0:
-            continue
-        cleaned.append({"max_words": max_words, "xp": xp})
-    return sorted(cleaned, key=lambda tier: tier["max_words"]) or [dict(tier) for tier in DEFAULT_XP_TIERS]
+            raw = json.loads(raw)
+        except (TypeError, ValueError):
+            return []
+    if not isinstance(raw, list):
+        return []
+    return [int(value) for value in raw if str(value).isdigit()]
+
+def _format_template(template, *, member=None, guild=None, channel=None, level=None, xp=None):
+    values = {
+        "mention": getattr(member, "mention", "") if member else "",
+        "name": getattr(member, "display_name", "") if member else "",
+        "displayname": getattr(member, "display_name", "") if member else "",
+        "username": getattr(member, "name", "") if member else "",
+        "guild-name": getattr(guild, "name", "") if guild else "",
+        "channel": getattr(channel, "mention", "") if channel else "",
+        "channel-name": getattr(channel, "name", "") if channel else "",
+        "level": level if level is not None else "",
+        "xp": xp if xp is not None else "",
+    }
+    result = str(template or "")
+    for key, value in values.items():
+        result = result.replace("{" + key + "}", str(value))
+    return result
 
 # ── XP progression math ──
 def xp_for_level(level: int, cfg: dict[str, Any]) -> int:
@@ -111,15 +112,13 @@ def xp_for_level(level: int, cfg: dict[str, Any]) -> int:
     return max(1, cfg.get("prog_base", 100) + level * int(cfg.get("prog_step", 150)))
 
 def xp_for_message(content: str, cfg: dict[str, Any]) -> int:
-    words = len(content.split()) if content else 0
-    tiers = _parse_xp_tiers(cfg.get("xp_tiers", DEFAULT_XP_TIERS))
-    for tier in tiers:
-        if words <= tier["max_words"]:
-            return tier["xp"]
-    return tiers[-1]["xp"]
+    # Engauge defaults to 15 XP, while allowing each server to configure it.
+    return max(0, _safe_int(cfg.get("xp_message"), DEFAULT_MESSAGE_XP))
 
 # ── Avatar / image helpers (used by DLC card) ──
 async def fetch_avatar(url, size=128):
+    if not isinstance(url, str) or not url.strip():
+        return Image.new("RGBA", (size, size), (88, 101, 242, 255))
     try:
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=10),
@@ -137,7 +136,7 @@ async def fetch_avatar(url, size=128):
             if len(data) > MAX_IMAGE_BYTES:
                 raise ValueError("image response too large")
         img = Image.open(io.BytesIO(data)).convert("RGBA").resize((size, size), resample=Resampling.LANCZOS)
-    except (aiohttp.ClientError, TimeoutError, OSError, ValueError):
+    except (aiohttp.ClientError, TimeoutError, OSError, ValueError, TypeError):
         log.debug("Avatar download failed; using fallback", exc_info=True)
         img = Image.new("RGBA", (size, size), (88, 101, 242, 255))
     mask = Image.new("L", (size, size), 0)
@@ -189,8 +188,16 @@ async def get_config(db_manager, guild_id: int) -> dict[str, Any]:
     hit = _CFG_CACHE.get(gid)
     if hit and hit[0] > now:
         return hit[1]
+    stale_cfg = hit[1] if hit else None
     try:
         row = await db_manager.fetchone("leveling_config", {"guild_id": str(guild_id)})
+    except DatabaseUnavailableError as e:
+        log.warning("Leveling config temporarily unavailable for guild %s: %s", guild_id, e)
+        # A transient Supabase outage must not replace a known-good config with
+        # defaults (which could silently enable/disable XP or crates).
+        if stale_cfg is not None:
+            return stale_cfg
+        row = None
     except Exception as e:
         log.exception("Operation failed in get_config")
         if all(code not in str(e) for code in ("PGRST202", "PGRST205")) and getattr(e, "status_code", None) != 404:
@@ -199,40 +206,44 @@ async def get_config(db_manager, guild_id: int) -> dict[str, Any]:
     if not row:
         cfg = {
             "enabled": True, "announce_channel": None, "voice_xp_enabled": True,
+            "level_message": "{mention} Level {level} хүрлээ!",
+            "xp_message": DEFAULT_MESSAGE_XP,
             "prog_type": "arithmetic", "prog_base": 100, "prog_step": 150,
-            "xp_tiers": DEFAULT_XP_TIERS, "xp_media": 15, "xp_reaction": 1,
-            "xp_voice_silent": 5, "xp_voice_talking": 15, "msg_cooldown": 60,
-            "react_cooldown": 10, "background_url": None, "xp_drop_enabled": False,
+            "xp_voice_talking": DEFAULT_VOICE_XP_PER_MINUTE, "msg_cooldown": 60,
+            "background_url": None, "xp_drop_enabled": False,
             "xp_drop_channel": None, "xp_drop_min": 100, "xp_drop_max": 500,
-            "xp_drop_interval": 3600, "cafe_buff_enabled": True, "invite_xp": 0,
-            "marriage_bonus": 0.1,
+            "xp_drop_interval": 3600, "xp_drop_redeem_seconds": 300,
+            "xp_drop_cooldown": 60, "xp_drop_max_redeemers": 0,
+            "xp_drop_criteria": "time", "xp_drop_message_count": 100,
+            "xp_drop_contributing_channels": [],
         }
     else:
-        cols = ["guild_id","enabled","announce_channel","voice_xp_enabled","prog_type","prog_base","prog_step","xp_tiers","xp_media","xp_reaction","xp_voice_silent","xp_voice_talking","msg_cooldown","react_cooldown","background_url","xp_drop_enabled","xp_drop_channel","xp_drop_min","xp_drop_max","xp_drop_interval","cafe_buff_enabled","invite_xp","marriage_bonus"]
+        cols = ["guild_id","enabled","announce_channel","voice_xp_enabled","level_message","xp_message","prog_type","prog_base","prog_step","xp_voice_talking","msg_cooldown","background_url","xp_drop_enabled","xp_drop_channel","xp_drop_min","xp_drop_max","xp_drop_interval","xp_drop_redeem_seconds","xp_drop_cooldown","xp_drop_max_redeemers","xp_drop_criteria","xp_drop_message_count","xp_drop_contributing_channels","xp_drop_message"]
         data = {key: row.get(key) for key in cols}
         cfg = {
             "enabled": _safe_bool(data.get("enabled"), True),
             "announce_channel": data.get("announce_channel"),
             "voice_xp_enabled": _safe_bool(data.get("voice_xp_enabled"), True),
+            "level_message": data.get("level_message") or "{mention} Level {level} хүрлээ!",
+            "xp_message": _safe_int(data.get("xp_message"), DEFAULT_MESSAGE_XP),
             "prog_type": data.get("prog_type") or "arithmetic",
             "prog_base": _safe_int(data.get("prog_base"), 100),
             "prog_step": _safe_float(data.get("prog_step"), 150.0),
-            "xp_tiers": _parse_xp_tiers(data.get("xp_tiers")),
-            "xp_media": _safe_int(data.get("xp_media"), 15),
-            "xp_reaction": _safe_int(data.get("xp_reaction"), 1),
-            "xp_voice_silent": _safe_int(data.get("xp_voice_silent"), 5),
-            "xp_voice_talking": _safe_int(data.get("xp_voice_talking"), 15),
+            "xp_voice_talking": _safe_int(data.get("xp_voice_talking"), DEFAULT_VOICE_XP_PER_MINUTE),
             "msg_cooldown": _safe_int(data.get("msg_cooldown"), 60),
-            "react_cooldown": _safe_int(data.get("react_cooldown"), 10),
             "background_url": data.get("background_url"),
             "xp_drop_enabled": _safe_bool(data.get("xp_drop_enabled"), False),
             "xp_drop_channel": data.get("xp_drop_channel"),
             "xp_drop_min": _safe_int(data.get("xp_drop_min"), 100),
             "xp_drop_max": _safe_int(data.get("xp_drop_max"), 500),
             "xp_drop_interval": _safe_int(data.get("xp_drop_interval"), 3600),
-            "cafe_buff_enabled": _safe_bool(data.get("cafe_buff_enabled"), True),
-            "invite_xp": _safe_int(data.get("invite_xp"), 0),
-            "marriage_bonus": _safe_float(data.get("marriage_bonus"), 0.1),
+            "xp_drop_redeem_seconds": _safe_int(data.get("xp_drop_redeem_seconds"), 300),
+            "xp_drop_cooldown": _safe_int(data.get("xp_drop_cooldown"), 60),
+            "xp_drop_max_redeemers": _safe_int(data.get("xp_drop_max_redeemers"), 0),
+            "xp_drop_criteria": data.get("xp_drop_criteria") or "time",
+            "xp_drop_message_count": _safe_int(data.get("xp_drop_message_count"), 100),
+            "xp_drop_contributing_channels": _parse_id_list(data.get("xp_drop_contributing_channels")),
+            "xp_drop_message": data.get("xp_drop_message") or "🌟 {xp} XP crate drop боллоо!",
         }
     _CFG_CACHE[gid] = (now + _CACHE_TTL, cfg)
     return cfg
@@ -243,25 +254,26 @@ async def set_config(db_manager, guild_id: int, cfg: dict[str, Any]):
         "enabled": bool(cfg.get("enabled", True)),
         "announce_channel": cfg.get("announce_channel"),
         "voice_xp_enabled": bool(cfg.get("voice_xp_enabled", True)),
+        "level_message": cfg.get("level_message", "{mention} Level {level} хүрлээ!"),
+        "xp_message": max(0, int(cfg.get("xp_message", DEFAULT_MESSAGE_XP))),
         "prog_type": cfg.get("prog_type", "arithmetic"),
         "prog_base": int(cfg.get("prog_base", 100)),
         "prog_step": float(cfg.get("prog_step", 150)),
-        "xp_tiers": json.dumps(cfg.get("xp_tiers", DEFAULT_XP_TIERS)),
-        "xp_media": int(cfg.get("xp_media", 15)),
-        "xp_reaction": int(cfg.get("xp_reaction", 1)),
-        "xp_voice_silent": int(cfg.get("xp_voice_silent", 5)),
-        "xp_voice_talking": int(cfg.get("xp_voice_talking", 15)),
+        "xp_voice_talking": int(cfg.get("xp_voice_talking", DEFAULT_VOICE_XP_PER_MINUTE)),
         "msg_cooldown": int(cfg.get("msg_cooldown", 60)),
-        "react_cooldown": int(cfg.get("react_cooldown", 10)),
         "background_url": cfg.get("background_url"),
         "xp_drop_enabled": bool(cfg.get("xp_drop_enabled", False)),
         "xp_drop_channel": cfg.get("xp_drop_channel"),
         "xp_drop_min": int(cfg.get("xp_drop_min", 100)),
         "xp_drop_max": int(cfg.get("xp_drop_max", 500)),
         "xp_drop_interval": int(cfg.get("xp_drop_interval", 3600)),
-        "cafe_buff_enabled": bool(cfg.get("cafe_buff_enabled", True)),
-        "invite_xp": int(cfg.get("invite_xp", 0)),
-        "marriage_bonus": float(cfg.get("marriage_bonus", 0.1))
+        "xp_drop_redeem_seconds": int(cfg.get("xp_drop_redeem_seconds", 300)),
+        "xp_drop_cooldown": int(cfg.get("xp_drop_cooldown", 60)),
+        "xp_drop_max_redeemers": int(cfg.get("xp_drop_max_redeemers", 0)),
+        "xp_drop_criteria": cfg.get("xp_drop_criteria", "time"),
+        "xp_drop_message_count": int(cfg.get("xp_drop_message_count", 100)),
+        "xp_drop_contributing_channels": json.dumps(cfg.get("xp_drop_contributing_channels", [])),
+        "xp_drop_message": cfg.get("xp_drop_message", "🌟 {xp} XP crate drop боллоо!"),
     }
     await db_manager.execute("leveling_config", data)
     _CFG_CACHE.pop(int(guild_id), None)
@@ -347,17 +359,40 @@ async def render_dlc_card(member, level, current_xp, needed_xp, rank_pos, backgr
 
 # ── UI Views (shared by level_admin cog) ──
 class XPDropView(ui.View):
-    def __init__(self, xp_amount, cog):
-        super().__init__(timeout=300)
+    def __init__(self, xp_amount, cog, redeem_seconds=300, max_redeemers=0):
+        super().__init__(timeout=max(30, int(redeem_seconds)))
         self.xp_amount = xp_amount; self.cog = cog; self.claimed = set()
+        self.max_redeemers = max(0, int(max_redeemers))
     @ui.button(label="🎉 XP авах", style=discord.ButtonStyle.success)
     async def claim(self, interaction, button):
         if interaction.user.id in self.claimed:
             return await interaction.response.send_message("❌ Та аль хэдийн авсан.", ephemeral=True)
+        if self.max_redeemers and len(self.claimed) >= self.max_redeemers:
+            return await interaction.response.send_message("❌ Энэ XP drop-ийн бүх шагнал авсан байна.", ephemeral=True)
         self.claimed.add(interaction.user.id)
-        await self.cog.add_xp(interaction.user.id, interaction.guild.id, self.xp_amount,
-                              member=interaction.guild.get_member(interaction.user.id))
+        try:
+            await self.cog.add_xp(interaction.user.id, interaction.guild.id, self.xp_amount,
+                                  member=interaction.guild.get_member(interaction.user.id))
+        except Exception:
+            # A transient database/Discord failure must not permanently burn
+            # the member's claim. Put it back so the same drop can be retried.
+            self.claimed.discard(interaction.user.id)
+            log.exception("XP drop claim failed for user %s", interaction.user.id)
+            return await interaction.response.send_message(
+                "⚠️ XP олгоход түр алдаа гарлаа. Дахин оролдоно уу.", ephemeral=True
+            )
         await interaction.response.send_message(f"✅ +{self.xp_amount} XP авлаа!", ephemeral=True)
+
+
+def is_audible_voice_member(member, channel) -> bool:
+    """Match Engauge voice eligibility: 2+ human members, not muted/deafened."""
+    voice = getattr(member, "voice", None)
+    if voice is None or getattr(voice, "channel", None) is None:
+        return False
+    humans = [m for m in getattr(channel, "members", ()) if not getattr(m, "bot", False)]
+    if len(humans) < 2:
+        return False
+    return not any((getattr(voice, key, False) for key in ("mute", "self_mute", "deaf", "self_deaf")))
 
 # ================== MAIN COG ==================
 class Leveling(SupabaseCog):
@@ -366,13 +401,13 @@ class Leveling(SupabaseCog):
         self.bot = bot
         self.session: aiohttp.ClientSession | None = None
         self._msg_cooldown = {}
-        self._react_cooldown = {}
         self._voice_join = {}
         self._voice_last_xp = {}
         self.voice_task = None
         self.xp_drop_task = None
         # guild_id -> epoch seconds of the last XP drop actually posted.
         self._xp_drop_last = {}
+        self._xp_drop_message_counts = {}
         # Serializes every read-modify-write on the `levels` row for a given
         # (user, guild). XP/level and message_count live in the SAME row, so
         # they must share one lock or a concurrent _add_xp upsert would clobber
@@ -385,9 +420,6 @@ class Leveling(SupabaseCog):
         self._xp_locks: weakref.WeakValueDictionary[str, asyncio.Lock] = (
             weakref.WeakValueDictionary()
         )
-        self._transfer_locks: weakref.WeakValueDictionary[int, asyncio.Lock] = (
-            weakref.WeakValueDictionary()
-        )
 
     def _user_xp_lock(self, user_id, guild_id) -> asyncio.Lock:
         key = f"{user_id}:{guild_id}"
@@ -395,13 +427,6 @@ class Leveling(SupabaseCog):
         if lock is None:
             lock = asyncio.Lock()
             self._xp_locks[key] = lock
-        return lock
-
-    def _guild_transfer_lock(self, guild_id) -> asyncio.Lock:
-        lock = self._transfer_locks.get(int(guild_id))
-        if lock is None:
-            lock = asyncio.Lock()
-            self._transfer_locks[int(guild_id)] = lock
         return lock
 
     async def cog_load(self):
@@ -425,28 +450,6 @@ class Leveling(SupabaseCog):
         storage[key] = now
         return False
 
-    async def get_active_buff(self, user_id, guild_id):
-        mult = 1.0
-        try:
-            cafe = self.bot.get_cog("Cafe")
-            if cafe:
-                cfg = await get_config(self.bot.db_manager, guild_id)
-                if cfg.get("cafe_buff_enabled", True) and hasattr(cafe, 'get_buff'):
-                    buff = cafe.get_buff(user_id, guild_id)
-                    if asyncio.iscoroutine(buff): buff = await buff
-                    if buff and buff.get('type') == 'xp_boost': mult *= buff.get('xp_mult', 1.0)
-        except Exception:
-            log.exception("Operation failed in get_active_buff")
-        try:
-            marriage = self.bot.get_cog("Marriage")
-            if marriage and hasattr(marriage, 'get_married_bonus'):
-                bonus = marriage.get_married_bonus(user_id, guild_id)
-                if asyncio.iscoroutine(bonus): bonus = await bonus
-                if bonus: mult *= (1 + bonus)
-        except Exception:
-            log.exception("Operation failed in get_active_buff")
-        return mult
-
     async def _add_xp(self, user_id, guild_id, amount, member=None, check_mute=True, channel=None):
         if amount == 0: return
         if member and check_mute:
@@ -455,14 +458,35 @@ class Leveling(SupabaseCog):
                 if hasattr(member,'voice') and member.voice and (member.voice.mute or member.voice.self_mute): return
             except Exception:
                 log.exception("Operation failed in _add_xp")
-        if amount > 0:
+        if amount > 0 and member is not None:
             try:
-                multiplier = await self.get_active_buff(user_id, guild_id)
-                amount = int(amount * multiplier)
+                now = time.monotonic()
+                cached = _ROLE_XP_CACHE.get(int(guild_id))
+                if cached and cached[0] > now:
+                    role_rows = cached[1]
+                else:
+                    role_rows = await self.bot.db_manager.fetch_all(
+                        "level_role_xp_multipliers", {"guild_id": str(guild_id)}
+                    )
+                    _ROLE_XP_CACHE[int(guild_id)] = (now + _CACHE_TTL, role_rows)
+                member_role_ids = {getattr(role, "id", None) for role in getattr(member, "roles", ())}
+                matched = [
+                    row for row in role_rows
+                    if int(row.get("role_id", 0) or 0) in member_role_ids
+                ]
+                if any(float(row.get("multiplier", 1) or 1) == 0 for row in matched):
+                    amount = 0
+                elif matched:
+                    role_by_id = {getattr(role, "id", None): role for role in getattr(member, "roles", ())}
+                    selected = max(
+                        matched,
+                        key=lambda row: getattr(role_by_id.get(int(row["role_id"])), "position", 0),
+                    )
+                    amount = int(amount * max(0, float(selected.get("multiplier", 1) or 1)))
             except Exception:
-                log.exception("Operation failed in _add_xp")
+                log.exception("Operation failed applying role XP multiplier")
         # The read-modify-write below must be atomic per user: XP is granted
-        # from on_message, on_raw_reaction_add and the voice loop, any of which
+        # from on_message, the voice loop, and explicit crates, any of which
         # can interleave. Without the lock two grants both read xp=N and both
         # write N+15, silently destroying the other grant (and skipping the
         # level-up that the lost XP should have triggered).
@@ -536,6 +560,7 @@ class Leveling(SupabaseCog):
         guild = member.guild
         cfg = await get_config(self.bot.db_manager, guild.id)
         reached_levels = reached_levels or [new]
+        role_level_message = None
         for reached in reached_levels:
             try:
                 reward_row = await self.bot.db_manager.fetch_one(
@@ -561,6 +586,8 @@ class Leveling(SupabaseCog):
                     "level_roles", {"guild_id": str(guild.id), "level": reached}
                 )
                 if role_row:
+                    if role_row.get("level_message"):
+                        role_level_message = role_row["level_message"]
                     try:
                         role = guild.get_role(int(role_row.get("role_id")))
                     except (TypeError, ValueError):
@@ -568,6 +595,10 @@ class Leveling(SupabaseCog):
                     if role and role not in member.roles: await member.add_roles(role, reason=f"Level {reached}")
             except Exception as e:
                 log.warning("level role grant skipped: %s", e, exc_info=True)
+        try:
+            await self.sync_level_roles(member)
+        except Exception:
+            log.exception("Level role stacking sync failed")
         channel = guild.get_channel(cfg.get("announce_channel")) if cfg.get("announce_channel") else source_channel
         if not channel: return
         needed = xp_for_level(new, cfg)
@@ -576,11 +607,23 @@ class Leveling(SupabaseCog):
             buf = await render_dlc_card(member, new, current_xp, needed, rank_pos, cfg.get("background_url"), stamp_text="ASCEND!")
             if buf:
                 file = discord.File(buf, filename="levelup.png")
-                try: await channel.send(content=member.mention, file=file)
+                try:
+                    message = _format_template(
+                        role_level_message or cfg.get("level_message", "{mention} Level {level} хүрлээ!"),
+                        member=member, guild=guild, channel=channel, level=new,
+                    )
+                    await channel.send(content=message, file=file)
                 except discord.HTTPException:
                     log.exception("Operation failed in _announce_level_up")
             else:
-                embed = discord.Embed(title="🎉 Түвшин ахисан!", description=f"{member.mention} Lv.{new} хүрлээ!", color=GOLD_COLOR)
+                embed = discord.Embed(
+                    title="🎉 Түвшин ахисан!",
+                    description=_format_template(
+                        role_level_message or cfg.get("level_message", "{mention} Level {level} хүрлээ!"),
+                        member=member, guild=guild, channel=channel, level=new,
+                    ),
+                    color=GOLD_COLOR,
+                )
                 try: await channel.send(embed=embed)
                 except discord.HTTPException:
                     log.exception("Operation failed in _announce_level_up")
@@ -590,18 +633,6 @@ class Leveling(SupabaseCog):
     # ========== PUBLIC API ==========
     async def add_xp(self, user_id, guild_id, amount, member=None, check_mute=True, channel=None):
         await self._add_xp(user_id, guild_id, amount, member, check_mute, channel)
-    async def remove_xp(self, user_id, guild_id, amount, member=None):
-        await self._add_xp(user_id, guild_id, -amount, member, check_mute=False)
-    async def transfer_xp(self, from_id, to_id, guild_id, amount):
-        amount = _safe_int(amount, 0)
-        if amount <= 0 or int(from_id) == int(to_id):
-            return False
-        async with self._guild_transfer_lock(guild_id):
-            if await self.get_total_xp(from_id, guild_id) < amount:
-                return False
-            await self._add_xp(from_id, guild_id, -amount)
-            await self._add_xp(to_id, guild_id, amount)
-            return True
     async def get_total_xp(self, user_id, guild_id):
         row = await self.bot.db_manager.fetch_one(
             "levels", {"user_id": str(user_id), "guild_id": str(guild_id)}
@@ -625,25 +656,6 @@ class Leveling(SupabaseCog):
         for i, r in enumerate(rows):
             if int(r.get("user_id")) == int(user_id): return i+1
         return len(rows)+1
-    async def set_xp(self, user_id, guild_id, xp):
-        cfg = await get_config(self.bot.db_manager, guild_id)
-        level = 1; remaining = xp
-        while True:
-            needed = xp_for_level(level, cfg)
-            if remaining >= needed: remaining -= needed; level += 1
-            else: break
-        await self.bot.db_manager.upsert(
-            "levels",
-            {"user_id": str(user_id), "guild_id": str(guild_id), "xp": remaining, "level": level},
-            on_conflict="user_id,guild_id",
-        )
-    async def set_level(self, user_id, guild_id, level):
-        await self.bot.db_manager.upsert(
-            "levels",
-            {"user_id": str(user_id), "guild_id": str(guild_id), "xp": 0, "level": level},
-            on_conflict="user_id,guild_id",
-        )
-
     async def get_config(self, guild_id):
         return await get_config(self.bot.db_manager, guild_id)
     def xp_for_level(self, level, cfg):
@@ -655,23 +667,19 @@ class Leveling(SupabaseCog):
         if level < 100: return "Мастер", "💎"
         return "Домог", "👑"
 
-    async def award_invite_xp(self, inviter_id, guild_id):
-        cfg = await get_config(self.bot.db_manager, guild_id)
-        xp_reward = cfg.get("invite_xp", 0)
-        if xp_reward > 0:
-            guild = self.bot.get_guild(guild_id)
-            member = guild.get_member(inviter_id) if guild else None
-            await self._add_xp(inviter_id, guild_id, xp_reward, member=member)
-
     async def get_exceptions(self, guild_id):
         gid = int(guild_id)
         now = time.monotonic()
         hit = _EXC_CACHE.get(gid)
         if hit and hit[0] > now:
             return hit[1]
-        rows = await self.bot.db_manager.fetch_all(
-            "leveling_exceptions", {"guild_id": str(guild_id)}
-        )
+        try:
+            rows = await self.bot.db_manager.fetch_all(
+                "leveling_exceptions", {"guild_id": str(guild_id)}
+            )
+        except DatabaseUnavailableError as e:
+            log.warning("Leveling exceptions temporarily unavailable for guild %s: %s", guild_id, e)
+            return hit[1] if hit else {"channels": [], "users": []}
         ex = {"channels":[r["target_id"] for r in rows if r.get("type")=="channel"],
               "users":[r["target_id"] for r in rows if r.get("type")=="user"]}
         _EXC_CACHE[gid] = (now + _CACHE_TTL, ex)
@@ -694,18 +702,78 @@ class Leveling(SupabaseCog):
         rows = await self.bot.db_manager.fetch_all(
             "level_roles", {"guild_id": str(guild_id)}, order_by="level"
         )
-        return [{"level": r["level"], "role_id": r["role_id"]} for r in rows]
+        return [{
+            "level": r["level"], "role_id": r["role_id"],
+            "stacking": r.get("stacking", True) is not False,
+            "stacking_group": r.get("stacking_group"),
+            "required_role_ids": _parse_id_list(r.get("required_role_ids")),
+            "level_message": r.get("level_message"),
+        } for r in rows]
     async def set_level_role(self, guild_id, level, role_id):
         await self.bot.db_manager.upsert(
             "level_roles",
             {"guild_id": str(guild_id), "level": level, "role_id": role_id},
             on_conflict="guild_id,level",
         )
+
+    async def set_role_xp_multiplier(self, guild_id, role_id, multiplier):
+        await self.bot.db_manager.upsert(
+            "level_role_xp_multipliers",
+            {"guild_id": str(guild_id), "role_id": role_id, "multiplier": float(multiplier)},
+            on_conflict="guild_id,role_id",
+        )
+        _ROLE_XP_CACHE.pop(int(guild_id), None)
+
+    async def set_level_role_options(self, guild_id, level, stacking, stacking_group=None, required_role_ids=None, level_message=None):
+        await self.bot.db_manager.update(
+            "level_roles",
+            {"guild_id": str(guild_id), "level": level},
+            {
+                "stacking": bool(stacking), "stacking_group": stacking_group or None,
+                "required_role_ids": json.dumps(required_role_ids or []),
+                "level_message": level_message or None,
+            },
+        )
     async def delete_level_role(self, guild_id, level):
         await self.bot.db_manager.delete(
             "level_roles",
             {"guild_id": str(guild_id), "level": level}
         )
+
+    async def sync_level_roles(self, member):
+        """Repair all level roles the member should currently have."""
+        level = await self.get_level(member.id, member.guild.id)
+        rows = await self.get_level_roles(member.guild.id)
+        bot_member = member.guild.me
+        if bot_member is None or not bot_member.guild_permissions.manage_roles:
+            return 0
+        eligible = [row for row in rows if int(row["level"]) <= int(level)]
+        winners = {}
+        for row in eligible:
+            if row.get("stacking", True):
+                continue
+            group = row.get("stacking_group") or "__default__"
+            current = winners.get(group)
+            if current is None or int(row["level"]) > int(current["level"]):
+                winners[group] = row
+        granted = 0
+        for row in rows:
+            role = member.guild.get_role(int(row["role_id"]))
+            if role is None or role.is_default() or role.managed or role >= bot_member.top_role:
+                continue
+            keep = int(row["level"]) <= int(level)
+            required = set(row.get("required_role_ids", []))
+            if required and not required.issubset({getattr(role, "id", None) for role in member.roles}):
+                keep = False
+            if keep and not row.get("stacking", True):
+                group = row.get("stacking_group") or "__default__"
+                keep = winners.get(group) is row
+            if keep and role not in member.roles:
+                await member.add_roles(role, reason="Level role repair")
+                granted += 1
+            elif not keep and role in member.roles and not row.get("stacking", True):
+                await member.remove_roles(role, reason="Level role stacking")
+        return granted
 
     async def get_level_rewards(self, guild_id):
         rows = await self.bot.db_manager.fetch_all(
@@ -732,11 +800,37 @@ class Leveling(SupabaseCog):
         if not cfg["enabled"]: return
         exc = await self.get_exceptions(message.guild.id)
         if message.channel.id in exc["channels"] or message.author.id in exc["users"]: return
-        if self._on_cooldown(self._msg_cooldown, message.author.id, cfg["msg_cooldown"], message.guild.id): return
-        xp = xp_for_message(message.content, cfg)
-        if message.attachments: xp += cfg["xp_media"]
-        await self._add_xp(message.author.id, message.guild.id, xp, member=message.author, channel=message.channel)
+        # Engauge's message counter tracks every eligible message, even when
+        # the one-minute XP reward cooldown suppresses the XP grant.
         await self._bump_message_count(message.author.id, message.guild.id)
+        if self._on_cooldown(self._msg_cooldown, message.author.id, cfg["msg_cooldown"], message.guild.id): return
+        # Engauge rewards a message once per cooldown regardless of its word
+        # count or whether it contains an attachment.
+        xp = xp_for_message(message.content, cfg)
+        try:
+            await self._add_xp(
+                message.author.id, message.guild.id, xp,
+                member=message.author, channel=message.channel,
+            )
+        except DatabaseUnavailableError as e:
+            # A transient Supabase outage must not surface as an unhandled
+            # Discord listener error; the next eligible message can retry.
+            log.warning("Message XP temporarily skipped for guild %s: %s", message.guild.id, e)
+            return
+        if cfg.get("xp_drop_enabled") and cfg.get("xp_drop_criteria") == "message_count":
+            channels = cfg.get("xp_drop_contributing_channels", [])
+            if not channels or message.channel.id in channels:
+                guild_id = message.guild.id
+                count = self._xp_drop_message_counts.get(guild_id, 0) + 1
+                threshold = max(1, int(cfg.get("xp_drop_message_count", 100)))
+                if count >= threshold:
+                    channel = message.guild.get_channel(cfg.get("xp_drop_channel")) or message.channel
+                    if await self._post_xp_drop(message.guild, channel, cfg):
+                        self._xp_drop_message_counts[guild_id] = 0
+                    else:
+                        self._xp_drop_message_counts[guild_id] = count
+                else:
+                    self._xp_drop_message_counts[guild_id] = count
 
     async def _bump_message_count(self, user_id, guild_id):
         """Increment `message_count` on the same locked `levels` row.
@@ -766,36 +860,6 @@ class Leveling(SupabaseCog):
             log.exception("Operation failed in _bump_message_count")
 
     @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload):
-        if not payload.guild_id or payload.user_id == self.bot.user.id: return
-        cfg = await get_config(self.bot.db_manager, payload.guild_id)
-        if not cfg["enabled"]: return
-        exc = await self.get_exceptions(payload.guild_id)
-        if payload.channel_id in exc["channels"] or payload.user_id in exc["users"]: return
-        guild = self.bot.get_guild(payload.guild_id)
-        if not guild: return
-        member = guild.get_member(payload.user_id)
-        if not member or member.bot: return
-        if self._on_cooldown(self._react_cooldown, payload.user_id, cfg["react_cooldown"], payload.guild_id): return
-        await self._add_xp(payload.user_id, payload.guild_id, cfg["xp_reaction"], member=member, check_mute=False)
-        try:
-            lvl_row = await self.bot.db_manager.fetch_one(
-                "levels", {"user_id": str(payload.user_id), "guild_id": str(payload.guild_id)}
-            )
-            if lvl_row:
-                await self.bot.db_manager.update(
-                    "levels",
-                    {"user_id": str(payload.user_id), "guild_id": str(payload.guild_id)},
-                    {"reaction_count": (lvl_row.get("reaction_count", 0) or 0) + 1},
-                )
-            else:
-                await self.bot.db_manager.insert("levels", {
-                    "user_id": str(payload.user_id), "guild_id": str(payload.guild_id), "reaction_count": 1,
-                })
-        except Exception:
-            log.exception("Operation failed in on_raw_reaction_add")
-
-    @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         if before.channel and not after.channel:
             key = (member.guild.id, member.id)
@@ -820,13 +884,11 @@ class Leveling(SupabaseCog):
                         for member in vc.members:
                             if member.bot or member.id in exc["users"]: continue
                             voice = member.voice
-                            if voice is None or voice.channel is None: continue
-                            if voice.deaf or voice.self_deaf: continue
+                            if not is_audible_voice_member(member, vc): continue
                             key = (guild.id, member.id)
                             if key not in self._voice_join: self._voice_join[key] = now; self._voice_last_xp[key] = now
                             if now - self._voice_last_xp.get(key,0) >= VOICE_INTERVAL_SECS:
-                                talking = not (voice.mute or voice.self_mute)
-                                xp = cfg["xp_voice_talking"] if talking else cfg["xp_voice_silent"]
+                                xp = max(0, int(cfg.get("xp_voice_talking", DEFAULT_VOICE_XP_PER_MINUTE)))
                                 self._voice_last_xp[key] = now
                                 await self._add_xp(member.id, guild.id, xp, member=member, check_mute=False)
                                 try:
@@ -849,6 +911,43 @@ class Leveling(SupabaseCog):
                 log.exception("Voice XP loop failed")
             await asyncio.sleep(30)
 
+    async def _post_xp_drop(self, guild, channel, cfg):
+        minimum = max(1, int(cfg.get("xp_drop_min", 100)))
+        maximum = max(minimum, int(cfg.get("xp_drop_max", 500)))
+        xp = random.randint(minimum, maximum)
+        redeem_seconds = max(30, int(cfg.get("xp_drop_redeem_seconds", 300)))
+        cooldown = max(0, int(cfg.get("xp_drop_cooldown", 60)))
+        embed = discord.Embed(
+            title="🌟 Mystery Crate",
+            description=_format_template(
+                cfg.get("xp_drop_message", "🌟 {xp} XP crate drop боллоо!"),
+                guild=guild, channel=channel, xp=xp,
+            ) + f" {redeem_seconds // 60} минутын дотор claim хийнэ үү.",
+            color=GOLD_COLOR,
+        )
+        view = XPDropView(
+            xp, self, redeem_seconds=redeem_seconds,
+            max_redeemers=int(cfg.get("xp_drop_max_redeemers", 0)),
+        )
+        await channel.send(embed=embed, view=view)
+        self._xp_drop_last[guild.id] = time.time() + redeem_seconds + cooldown
+        return True
+
+    @commands.hybrid_command(name="xpdrop", description="Engauge-style XP crate үүсгэх")
+    @commands.guild_only()
+    @commands.has_guild_permissions(manage_guild=True)
+    async def xpdrop(self, ctx):
+        cfg = await get_config(self.bot.db_manager, ctx.guild.id)
+        if not cfg.get("xp_drop_enabled"):
+            return await ctx.send("❌ XP crate систем асаалттай биш байна.", ephemeral=True)
+        channel = ctx.guild.get_channel(cfg.get("xp_drop_channel")) or ctx.channel
+        try:
+            await self._post_xp_drop(ctx.guild, channel, cfg)
+        except Exception:
+            log.exception("Manual XP crate failed")
+            return await ctx.send("❌ XP crate үүсгэж чадсангүй.", ephemeral=True)
+        await ctx.send(f"✅ XP crate {channel.mention} сувагт үүслээ.", ephemeral=True)
+
     @tasks.loop(minutes=1)
     async def xp_drop_loop(self):
         now = time.time()
@@ -856,19 +955,16 @@ class Leveling(SupabaseCog):
             try:
                 cfg = await get_config(self.bot.db_manager, guild.id)
                 if not cfg["xp_drop_enabled"]: continue
+                if cfg.get("xp_drop_criteria", "time") != "time": continue
                 channel = guild.get_channel(cfg["xp_drop_channel"])
                 if not channel: continue
-                # `xp_drop_interval` (seconds) is the minimum gap between two
-                # drops. It used to be read into cfg but never applied, so the
-                # loop rolled a 10% chance every minute regardless of setting.
+                # `xp_drop_interval` is the configured gap between drops. Once
+                # the gap has elapsed, post one drop immediately; adding a
+                # second random chance here made a one-hour interval produce
+                # drops only about once every ten hours on average.
                 interval = max(60, int(cfg["xp_drop_interval"]))
                 if now - self._xp_drop_last.get(guild.id, 0) < interval: continue
-                if random.random() < 0.1:
-                    self._xp_drop_last[guild.id] = now
-                    xp = random.randint(cfg["xp_drop_min"], cfg["xp_drop_max"])
-                    embed = discord.Embed(title="🌟 XP DROP!", description=f"Түргэн! Дараагийн товчийг дарж **{xp} XP** аваарай!", color=GOLD_COLOR)
-                    view = XPDropView(xp, self)
-                    await channel.send(embed=embed, view=view)
+                await self._post_xp_drop(guild, channel, cfg)
             except Exception:
                 log.exception("XP drop failed")
 
@@ -876,7 +972,7 @@ class Leveling(SupabaseCog):
     async def before_xp_drop_loop(self): await self.bot.wait_until_ready()
 
     # ========== USER COMMANDS (hybrid) ==========
-    @commands.command(name="rank", description="Хэрэглэгчийн түвшин, XP болон эрэмбийг харах")
+    @commands.hybrid_command(name="rank", description="Хэрэглэгчийн түвшин, XP болон эрэмбийг харах")
     async def rank(self, ctx, user: discord.Member | None = None):
         target = user or ctx.author
         if ctx.interaction:
@@ -902,6 +998,69 @@ class Leveling(SupabaseCog):
         except Exception:
             log.exception("Operation failed in rank")
             await ctx.send("❌ Rank карт үүсгэхэд алдаа гарлаа. Дахин оролдоно уу.", ephemeral=True)
+
+    @commands.hybrid_command(name="leaderboard", aliases=["levelboard", "levels", "levelleaderboard"], description="Серверийн XP эрэмбийн самбар")
+    async def levelboard(self, ctx):
+        """Show the server's leveling leaderboard, independent of the money board."""
+        if ctx.interaction:
+            await ctx.defer()
+        try:
+            rows = await self.bot.db_manager.fetch_all(
+                "levels", {"guild_id": str(ctx.guild.id)}, order_by="level", desc=True, limit=10
+            )
+            rows.sort(key=lambda row: (row.get("level", 1) or 1, row.get("xp", 0) or 0), reverse=True)
+            lines = []
+            for position, row in enumerate(rows, 1):
+                member = ctx.guild.get_member(int(row["user_id"]))
+                name = member.display_name if member else f"User {row['user_id']}"
+                lines.append(f"**#{position}** {name} — Level **{int(row.get('level', 1) or 1)}** · {int(row.get('xp', 0) or 0):,} XP")
+            embed = discord.Embed(
+                title=f"🏆 {ctx.guild.name} Level Leaderboard",
+                description="\n".join(lines) or "Одоогоор level-ийн мэдээлэл алга.",
+                color=GOLD_COLOR,
+            )
+            await ctx.send(embed=embed)
+        except Exception:
+            log.exception("Operation failed in levelboard")
+            await ctx.send("❌ Level leaderboard уншихад алдаа гарлаа.", ephemeral=True)
+
+    @commands.hybrid_command(name="roles", description="Таны level role-уудыг дахин шалгаж засах")
+    @commands.guild_only()
+    async def roles(self, ctx):
+        target = ctx.author
+        if ctx.interaction:
+            await ctx.defer(ephemeral=True)
+        try:
+            granted = await self.sync_level_roles(target)
+            await ctx.send(
+                f"✅ Level role шалгалт дууслаа. {granted} role нэмэгдлээ.",
+                ephemeral=True,
+            )
+        except Exception:
+            log.exception("Operation failed in roles repair")
+            await ctx.send("❌ Level role шалгаж чадсангүй.", ephemeral=True)
+
+    @commands.hybrid_command(name="stats", description="Хэрэглэгчийн level, message, voice статистик")
+    @commands.guild_only()
+    async def stats(self, ctx, user: discord.Member | None = None):
+        target = user or ctx.author
+        if ctx.interaction:
+            await ctx.defer()
+        row = await self.bot.db_manager.fetch_one(
+            "levels", {"user_id": str(target.id), "guild_id": str(ctx.guild.id)}
+        ) or {}
+        level = int(row.get("level", 1) or 1)
+        xp = int(row.get("xp", 0) or 0)
+        messages = int(row.get("message_count", 0) or 0)
+        voice_minutes = int(row.get("voice_seconds", 0) or 0) // 60
+        rank = await self.get_rank_position(target.id, ctx.guild.id)
+        embed = discord.Embed(title=f"📊 {target.display_name} stats", color=INFO_COLOR)
+        embed.add_field(name="Level", value=str(level), inline=True)
+        embed.add_field(name="XP", value=f"{xp:,}", inline=True)
+        embed.add_field(name="Rank", value=f"#{rank}", inline=True)
+        embed.add_field(name="Messages", value=f"{messages:,}", inline=True)
+        embed.add_field(name="Voice", value=f"{voice_minutes:,} минут", inline=True)
+        await ctx.send(embed=embed)
 
     @commands.command(name="serveractivity", aliases=["activity"], description="Серверийн идэвхтэй байдлын статистик")
     async def server_activity(self, ctx):

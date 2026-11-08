@@ -16,7 +16,7 @@ sys.path.insert(0, _root())
 
 # Pre-mock external packages before any discord import.
 mocks = ("supabase", "psutil", "motor", "asyncpg", "psycopg2",
-         "src.core.config", "src.database.db_manager")
+         "src.database.db_manager")
 for mod in mocks:
     if mod not in sys.modules:
         sys.modules[mod] = types.ModuleType(mod)
@@ -48,7 +48,13 @@ a_legacy = re.findall(r"@commands\.(hybrid_command|command)\(", src_a)
 m_legacy = re.findall(r"@commands\.(hybrid_command|command)\(", src_m)
 print("admin_apps:", sorted(a_apps), "legacy:", a_legacy)
 print("mod_apps:", sorted(m_apps), "legacy:", m_legacy)
-assert not a_legacy and not m_legacy, "legacy prefix commands remain"
+# Admin intentionally retains the public text-only ``status``/``info``
+# utilities and the hybrid ``adminpanel`` entry point.  Moderation is
+# slash-only, so its command surface must stay free of legacy decorators.
+assert not m_legacy, "legacy moderation commands remain"
+assert sorted(a_legacy) == ["command", "command", "hybrid_command"], (
+    "unexpected admin command surface"
+)
 
 # Verify permission checks use app_commands scope
 assert "@app_commands.checks.has_permissions" in src_a and "@commands.has_permissions" not in src_a

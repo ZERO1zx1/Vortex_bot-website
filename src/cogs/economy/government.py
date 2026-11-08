@@ -34,6 +34,7 @@ from discord import SelectOption, app_commands
 from discord.ext import commands
 from discord.ui import Button, Modal, RoleSelect, Select, TextInput, UserSelect, View
 
+from src.core.exceptions import DatabaseSchemaError
 from src.ui.setup import SetupPanel, SetupState, state_text
 from src.utils.constants import (
     ERROR_COLOR,
@@ -925,6 +926,9 @@ class Government(SupabaseCog):
                     "p_reason": reason or "treasury_pay",
                 },
             )
+        except DatabaseSchemaError:
+            logger.warning("treasury_pay_once RPC is missing for gid=%s; apply migration 006", gid)
+            return False, "⚠️ Treasury-ийн database migration дутуу байна. Админд мэдэгдэнэ үү."
         except Exception as e:
             logger.exception("treasury_pay_once RPC failed gid=%s", gid)
             return False, f"Тэтгэвэрийн гүйлгээ амжилтгүй: {e}"

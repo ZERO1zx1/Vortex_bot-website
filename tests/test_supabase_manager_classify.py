@@ -80,6 +80,13 @@ def test_raise_with_hint_preserves_unclassified_exception():
     assert caught.value is original
 
 
+def test_cloudflare_522_is_transient_database_unavailable():
+    from types import SimpleNamespace
+
+    exc = SimpleNamespace(code=522, status_code=522)
+    assert isinstance(classify_supabase_error(exc), DatabaseUnavailableError)
+
+
 class _FakeErr:
     """Exception-like object with real attribute semantics for ``str()``."""
 

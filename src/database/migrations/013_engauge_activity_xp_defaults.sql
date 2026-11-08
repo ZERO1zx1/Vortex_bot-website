@@ -1,0 +1,2 @@
+-- Legacy activity XP columns are removed by 015. This migration is retained
+-- as a safe no-op for installations that already recorded migration 013.

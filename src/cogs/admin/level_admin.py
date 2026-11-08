@@ -231,6 +231,51 @@ class LevelRewardManagerView(LevelManagerView):
         await interaction.followup.send(f"🗑️ Level {level} шагнал устгагдлаа.", ephemeral=True)
 
 
+class RoleMultiplierModal(AdminModal):
+    multiplier = ui.TextInput(label="XP multiplier (0, 1, 2 гэх мэт)", placeholder="1", max_length=8)
+
+    def __init__(self, view, role_id):
+        super().__init__(view, title="Role XP multiplier")
+        self.role_id = role_id
+
+    async def on_submit(self, interaction):
+        try:
+            value = float(self.multiplier.value)
+            if value < 0 or value > 100:
+                raise ValueError
+        except ValueError:
+            return await interaction.response.send_message("❌ Multiplier 0–100 хооронд тоо байна.", ephemeral=True)
+        await self.panel.cog.set_role_xp_multiplier(self.panel.guild_id, self.role_id, value)
+        await self.panel.refresh_message()
+        await interaction.response.send_message(f"✅ Role <@&{self.role_id}> multiplier: {value:g}x", ephemeral=True)
+
+
+class RoleStackingModal(AdminModal):
+    stacking = ui.TextInput(label="Stacking: true эсвэл false", placeholder="true", max_length=5)
+    group = ui.TextInput(label="Stacking group (хоосон = default)", required=False, max_length=80)
+    required_roles = ui.TextInput(label="Required role ID-ууд (таслалаар)", required=False, max_length=500)
+    level_message = ui.TextInput(label="Role level message", required=False, max_length=1000)
+
+    def __init__(self, view, level):
+        super().__init__(view, title="Role stacking")
+        self.level = level
+
+    async def on_submit(self, interaction):
+        value = self.stacking.value.strip().lower()
+        if value not in {"true", "false"}:
+            return await interaction.response.send_message("❌ Stacking нь true эсвэл false байна.", ephemeral=True)
+        try:
+            required_roles = [int(item.strip()) for item in self.required_roles.value.split(",") if item.strip()]
+        except ValueError:
+            return await interaction.response.send_message("❌ Required role ID буруу байна.", ephemeral=True)
+        await self.panel.cog.set_level_role_options(
+            self.panel.guild_id, self.level, value == "true", self.group.value.strip() or None,
+            required_roles, self.level_message.value.strip() or None,
+        )
+        await self.panel.refresh_message()
+        await interaction.response.send_message(f"✅ Level {self.level} stacking: {value}", ephemeral=True)
+
+
 class LevelRoleManagerView(LevelManagerView):
     def __init__(self, engine, ctx):
         super().__init__(engine, ctx)
@@ -243,7 +288,9 @@ class LevelRoleManagerView(LevelManagerView):
             role_id = int(entry["role_id"])
             role = self.ctx.guild.get_role(role_id)
             role_text = role.mention if role else f"<@&{role_id}>"
-            lines.append(f"**Level {int(entry['level'])}** → {role_text}")
+            stacking = "stack" if entry.get("stacking", True) else f"no-stack:{entry.get('stacking_group') or 'default'}"
+            required = f" · requires {len(entry.get('required_role_ids', []))}" if entry.get("required_role_ids") else ""
+            lines.append(f"**Level {int(entry['level'])}** → {role_text} · `{stacking}`{required}")
         embed = discord.Embed(
             title="🛠️ Түвшний ролиудыг тохируулах",
             description=_description(lines, "Одоогоор ямар ч түвшний роль тохируулаагүй байна."),
@@ -279,6 +326,25 @@ class LevelRoleManagerView(LevelManagerView):
         await self.cog.set_level_role(self.guild_id, level, role.id)
         await self.refresh_message()
         await interaction.followup.send(f"✅ Level {level} → {role.mention}", ephemeral=True)
+
+    @ui.button(label="⚡ XP multiplier", style=discord.ButtonStyle.secondary, row=2)
+    async def multiplier_btn(self, interaction, button):
+        if self.selected_role is None:
+            return await interaction.response.send_message("❌ Эхлээд role сонгоно уу.", ephemeral=True)
+        await interaction.response.send_modal(RoleMultiplierModal(self, self.selected_role.id))
+
+    @ui.button(label="🔗 Stacking", style=discord.ButtonStyle.secondary, row=3)
+    async def stacking_btn(self, interaction, button):
+        if self.selected_level is None:
+            return await interaction.response.send_message("❌ Эхлээд түвшин сонгоно уу.", ephemeral=True)
+        modal = RoleStackingModal(self, self.selected_level)
+        existing = next((row for row in await self.cog.get_level_roles(self.guild_id) if int(row["level"]) == self.selected_level), None)
+        if existing:
+            modal.stacking.default = "true" if existing.get("stacking", True) else "false"
+            modal.group.default = str(existing.get("stacking_group") or "")
+            modal.required_roles.default = ", ".join(str(role_id) for role_id in existing.get("required_role_ids", []))
+            modal.level_message.default = str(existing.get("level_message") or "")
+        await interaction.response.send_modal(modal)
 
     @ui.button(label="🗑️ Устгах", style=discord.ButtonStyle.red, row=2)
     async def remove_btn(self, interaction, button):
@@ -320,7 +386,6 @@ class ChannelPickerView(AdminView):
 
 class CooldownModal(AdminModal):
     message_seconds = ui.TextInput(label="Мессеж (секунд)", placeholder="60", max_length=10)
-    reaction_seconds = ui.TextInput(label="Реакц (секунд)", placeholder="10", max_length=10)
 
     def __init__(self, view):
         super().__init__(view, title="Cooldown тохируулах")
@@ -328,11 +393,10 @@ class CooldownModal(AdminModal):
     async def on_submit(self, interaction):
         try:
             message_seconds = _positive_int(self.message_seconds.value)
-            reaction_seconds = _positive_int(self.reaction_seconds.value)
         except ValueError:
             return await interaction.response.send_message("❌ Эерэг бүхэл секунд оруулна уу.", ephemeral=True)
         await interaction.response.defer(ephemeral=True, thinking=True)
-        await _save_config(self.panel.cog, self.panel.guild_id, msg_cooldown=message_seconds, react_cooldown=reaction_seconds)
+        await _save_config(self.panel.cog, self.panel.guild_id, msg_cooldown=message_seconds)
         await self.panel.refresh_message()
         await interaction.followup.send("✅ Cooldown шинэчлэгдлээ.", ephemeral=True)
 
@@ -354,10 +418,35 @@ class BackgroundModal(AdminModal):
         await interaction.followup.send("✅ Арын зураг шинэчлэгдлээ.", ephemeral=True)
 
 
+class MessageTemplatesModal(AdminModal):
+    message_xp = ui.TextInput(label="Нэг message-ийн XP", placeholder="15", max_length=10)
+    level_message = ui.TextInput(label="Level message", placeholder="{mention} Level {level} хүрлээ!", max_length=1000)
+    crate_message = ui.TextInput(label="Crate message", placeholder="🌟 {xp} XP crate drop боллоо!", max_length=1000)
+
+    def __init__(self, view):
+        super().__init__(view, title="Level / crate messages")
+
+    async def on_submit(self, interaction):
+        try:
+            message_xp = _positive_int(self.message_xp.value, 1_000_000)
+        except ValueError:
+            return await interaction.response.send_message("❌ Message XP буруу байна.", ephemeral=True)
+        await _save_config(
+            self.panel.cog, self.panel.guild_id,
+            xp_message=message_xp,
+            level_message=self.level_message.value,
+            xp_drop_message=self.crate_message.value,
+        )
+        await self.panel.refresh_message()
+        await interaction.response.send_message("✅ Level болон crate message хадгалагдлаа.", ephemeral=True)
+
+
 class XPDropAmountsModal(AdminModal):
     minimum = ui.TextInput(label="Хамгийн бага XP", placeholder="100", max_length=10)
     maximum = ui.TextInput(label="Хамгийн их XP", placeholder="500", max_length=10)
     interval_minutes = ui.TextInput(label="Дrops хоорондох хамгийн бага зай (минут)", placeholder="60", max_length=10)
+    criteria = ui.TextInput(label="Шалгуур: time/message_count/manual", placeholder="time", max_length=20)
+    message_count = ui.TextInput(label="Message count threshold", placeholder="100", max_length=10)
 
     def __init__(self, view):
         super().__init__(view, title="XP Drop тохиргоо")
@@ -367,8 +456,12 @@ class XPDropAmountsModal(AdminModal):
             minimum = _positive_int(self.minimum.value, 1_000_000)
             maximum = _positive_int(self.maximum.value, 1_000_000)
             minutes = _positive_int(self.interval_minutes.value, 10_000)
+            criteria = self.criteria.value.strip().lower() or "time"
+            if criteria not in {"time", "message_count", "manual"}:
+                raise ValueError
+            message_count = _positive_int(self.message_count.value, 1_000_000)
         except ValueError:
-            return await interaction.response.send_message("❌ Эерэг бүхэл тоонууд оруулна уу.", ephemeral=True)
+            return await interaction.response.send_message("❌ Дүн, interval, threshold зөв эсвэл criteria нь time/message_count/manual байна.", ephemeral=True)
         if minimum > maximum:
             return await interaction.response.send_message("❌ Хамгийн бага нь хамгийн ихээсээ их байж болохгүй.", ephemeral=True)
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -378,6 +471,8 @@ class XPDropAmountsModal(AdminModal):
             xp_drop_min=minimum,
             xp_drop_max=maximum,
             xp_drop_interval=minutes * 60,
+            xp_drop_criteria=criteria,
+            xp_drop_message_count=message_count,
         )
         await self.panel.refresh_message()
         await interaction.followup.send("✅ XP Drop тохиргоо шинэчлэгдлээ.", ephemeral=True)
@@ -404,6 +499,33 @@ class XPDropChannelPickerView(AdminView):
         await _save_config(self.cog, self.guild_id, xp_drop_channel=channel.id)
         await self.parent.refresh_message()
         await interaction.followup.send("✅ XP Drop суваг тохируулагдлаа.", ephemeral=True)
+
+
+class XPDropChannelsModal(AdminModal):
+    channels = ui.TextInput(
+        label="Contributing channel ID-ууд (таслалаар, хоосон = бүгд)",
+        placeholder="123456789012345678, 234567890123456789",
+        required=False,
+        max_length=1000,
+    )
+
+    def __init__(self, view):
+        super().__init__(view, title="XP crate contributing channels")
+
+    async def on_submit(self, interaction):
+        try:
+            raw = [item.strip() for item in self.channels.value.split(",") if item.strip()]
+            channel_ids = [int(item) for item in raw]
+            if len(channel_ids) > 25 or any(channel_id <= 0 for channel_id in channel_ids):
+                raise ValueError
+        except ValueError:
+            return await interaction.response.send_message("❌ Channel ID-уудыг таслалаар зөв оруулна уу (дээд тал нь 25).", ephemeral=True)
+        await _save_config(self.panel.cog, self.panel.guild_id, xp_drop_contributing_channels=channel_ids)
+        await self.panel.refresh_message()
+        await interaction.response.send_message(
+            "✅ Бүх channel" if not channel_ids else f"✅ {len(channel_ids)} contributing channel хадгалагдлаа.",
+            ephemeral=True,
+        )
 
 
 class XPDropSettingsView(AdminView):
@@ -434,7 +556,9 @@ class XPDropSettingsView(AdminView):
             f"🔘 Төлөв  {state_text(enabled)}",
             f"📍 Суваг  {mention_or_missing(channel)}",
             f"🎲 Дүн  **{int(cfg.get('xp_drop_min', 100)):,}–{int(cfg.get('xp_drop_max', 500)):,} XP**",
-            f"⏱️ Хамгийн бага зай  **{interval // 60} минут**",
+            f"⏱️ Criteria  **{cfg.get('xp_drop_criteria', 'time')}** · interval **{interval // 60} минут**",
+            f"💬 Message threshold  **{int(cfg.get('xp_drop_message_count', 100)):,}**",
+            f"📚 Contributing channels  **{len(cfg.get('xp_drop_contributing_channels', [])) or 'бүгд'}**",
         ], icon="⚙️")
         sync_toggle_button(
             self.toggle_btn,
@@ -442,7 +566,7 @@ class XPDropSettingsView(AdminView):
             disable_label="XP Drop унтраах",
             enable_label="XP Drop асаах",
         )
-        return panel.finish("Давталт минут тутам 10% магадлалтай")
+        return panel.finish("Time, message-count, эсвэл manual crate")
 
     @ui.button(label="🌟 Асаах/унтраах", style=discord.ButtonStyle.primary, row=0)
     async def toggle_btn(self, interaction, button):
@@ -465,6 +589,11 @@ class XPDropSettingsView(AdminView):
     @ui.button(label="🎲 Дүн ба давтамж", style=discord.ButtonStyle.secondary, row=1)
     async def amounts_btn(self, interaction, button):
         await interaction.response.send_modal(XPDropAmountsModal(self))
+
+    @ui.button(label="💬 Contributing channels", style=discord.ButtonStyle.secondary, row=1)
+    async def channels_btn(self, interaction, button):
+        modal = XPDropChannelsModal(self)
+        await interaction.response.send_modal(modal)
 
 
 class ProgressionModal(ui.Modal, title="Прогрессийн дүрэм"):
@@ -492,80 +621,6 @@ class ProgressionModal(ui.Modal, title="Прогрессийн дүрэм"):
         await self.parent.refresh_message()
 
 
-class XPSourceModal(ui.Modal, title="XP эх үүсвэрүүд"):
-    media = ui.TextInput(label="Зураг/файл XP", max_length=8)
-    reaction = ui.TextInput(label="Reaction XP", max_length=8)
-    silent = ui.TextInput(label="Дуугүй voice XP", max_length=8)
-    talking = ui.TextInput(label="Ярьж буй voice XP", max_length=8)
-
-    def __init__(self, parent):
-        super().__init__()
-        self.parent = parent
-
-    async def on_submit(self, interaction):
-        try:
-            values = {name: _positive_int(getattr(self, name).value, 100000) for name in ("media", "reaction", "silent", "talking")}
-        except (TypeError, ValueError):
-            return await interaction.response.send_message("❌ XP нь 0-ээс их бүхэл тоо байна.", ephemeral=True)
-        await _save_config(
-            self.parent.cog, self.parent.guild_id,
-            xp_media=values["media"], xp_reaction=values["reaction"],
-            xp_voice_silent=values["silent"], xp_voice_talking=values["talking"],
-        )
-        await interaction.response.send_message("✅ XP эх үүсвэрүүд хадгалагдлаа.", ephemeral=True)
-        await self.parent.refresh_message()
-
-
-class BonusModal(ui.Modal, title="Нэмэлт XP урамшуулал"):
-    invite = ui.TextInput(label="Invite XP (0 бол унтраалттай)", max_length=8)
-    marriage = ui.TextInput(label="Marriage bonus (0.1 = 10%)", max_length=8)
-
-    def __init__(self, parent):
-        super().__init__()
-        self.parent = parent
-
-    async def on_submit(self, interaction):
-        try:
-            invite = int(self.invite.value)
-            marriage = float(self.marriage.value)
-            if invite < 0 or marriage < 0 or marriage > 10:
-                raise ValueError
-        except (TypeError, ValueError):
-            return await interaction.response.send_message("❌ Invite XP ≥ 0, marriage bonus 0-10 хооронд байна.", ephemeral=True)
-        await _save_config(self.parent.cog, self.parent.guild_id, invite_xp=invite, marriage_bonus=marriage)
-        await interaction.response.send_message("✅ Нэмэлт урамшуулал хадгалагдлаа.", ephemeral=True)
-        await self.parent.refresh_message()
-
-
-class XPTiersModal(ui.Modal, title="Message XP шатлал"):
-    tiers = ui.TextInput(
-        label="max_words:xp (ж: 10:5, 30:10, 999:20)",
-        style=discord.TextStyle.paragraph, max_length=500,
-    )
-
-    def __init__(self, parent):
-        super().__init__()
-        self.parent = parent
-
-    async def on_submit(self, interaction):
-        try:
-            parsed = []
-            for item in self.tiers.value.split(","):
-                words, xp = item.strip().split(":", 1)
-                words, xp = int(words), int(xp)
-                if words < 0 or xp < 0:
-                    raise ValueError
-                parsed.append({"max_words": words, "xp": xp})
-            if not parsed:
-                raise ValueError
-            parsed.sort(key=lambda row: row["max_words"])
-        except (TypeError, ValueError):
-            return await interaction.response.send_message("❌ Формат: 10:5, 30:10, 999:20", ephemeral=True)
-        await _save_config(self.parent.cog, self.parent.guild_id, xp_tiers=parsed)
-        await interaction.response.send_message("✅ Message XP шатлал хадгалагдлаа.", ephemeral=True)
-        await self.parent.refresh_message()
-
-
 class LevelingSetupView(AdminView):
     async def build_embed(self):
         cfg = await get_config(self.cog.bot.db_manager, self.guild_id)
@@ -579,18 +634,16 @@ class LevelingSetupView(AdminView):
             state=SetupState.READY if enabled else SetupState.DISABLED,
             status="XP систем ажиллаж байна" if enabled else "XP систем унтраалттай",
         )
-        tiers = ", ".join(f"{t['max_words']}:{t['xp']}" for t in cfg.get("xp_tiers", []))
         panel.section("Үндсэн төлөв", [
             f"🔘 Систем  {state_text(enabled)}",
             f"📣 Мэдэгдэл  {mention_or_missing(channel)}",
             f"🎙️ Дуут XP  {state_text(bool(cfg['voice_xp_enabled']))}",
-            f"⏱️ Cooldown  message **{cfg['msg_cooldown']}с** · reaction **{cfg['react_cooldown']}с**",
+            f"⏱️ Message cooldown  **{cfg['msg_cooldown']}с**",
         ], icon="⚙️")
         panel.section("XP дүрэм", [
             f"📈 Прогресс  **{cfg['prog_type']}** · base `{cfg['prog_base']}` · step `{cfg['prog_step']}`",
-            f"🪜 Message шатлал  {tiers or '⚠️ Тохируулаагүй'}",
-            f"🧮 Media `{cfg['xp_media']}` · reaction `{cfg['xp_reaction']}` · voice `{cfg['xp_voice_silent']}/{cfg['xp_voice_talking']}`",
-            f"🎁 Урилга `{cfg.get('invite_xp', 0)}` · гэрлэлт `{cfg.get('marriage_bonus', 0.1) * 100:g}%`",
+            f"💬 Message  **{cfg.get('xp_message', 15)} XP** · 🎙️ Audible voice  **{cfg['xp_voice_talking']} XP/мин**",
+            f"📝 Level message  `{str(cfg.get('level_message', ''))[:60]}`",
         ], icon="✨")
         drop_channel_id = cfg.get("xp_drop_channel")
         drop_channel = self.ctx.guild.get_channel(int(drop_channel_id)) if drop_channel_id else None
@@ -625,39 +678,17 @@ class LevelingSetupView(AdminView):
 
     @ui.button(label="📈 Прогресс", style=discord.ButtonStyle.secondary, row=1)
     async def progression_btn(self, interaction, button):
-        cfg = await get_config(self.cog.bot.db_manager, self.guild_id)
         modal = ProgressionModal(self)
-        modal.prog_type.default = str(cfg.get("prog_type", "arithmetic"))
-        modal.base.default = str(cfg.get("prog_base", 100))
-        modal.step.default = str(cfg.get("prog_step", 150))
-        await interaction.response.send_modal(modal)
-
-    @ui.button(label="🧮 XP эх үүсвэр", style=discord.ButtonStyle.secondary, row=2)
-    async def xp_source_btn(self, interaction, button):
-        cfg = await get_config(self.cog.bot.db_manager, self.guild_id)
-        modal = XPSourceModal(self)
-        for field, key in ((modal.media, "xp_media"), (modal.reaction, "xp_reaction"), (modal.silent, "xp_voice_silent"), (modal.talking, "xp_voice_talking")):
-            field.default = str(cfg.get(key, 0))
-        await interaction.response.send_modal(modal)
-
-    @ui.button(label="🪜 Message шатлал", style=discord.ButtonStyle.secondary, row=2)
-    async def tiers_btn(self, interaction, button):
-        cfg = await get_config(self.cog.bot.db_manager, self.guild_id)
-        modal = XPTiersModal(self)
-        modal.tiers.default = ", ".join(f"{t['max_words']}:{t['xp']}" for t in cfg.get("xp_tiers", []))
-        await interaction.response.send_modal(modal)
-
-    @ui.button(label="🎁 Bonus", style=discord.ButtonStyle.secondary, row=3)
-    async def bonus_btn(self, interaction, button):
-        cfg = await get_config(self.cog.bot.db_manager, self.guild_id)
-        modal = BonusModal(self)
-        modal.invite.default = str(cfg.get("invite_xp", 0))
-        modal.marriage.default = str(cfg.get("marriage_bonus", 0.1))
         await interaction.response.send_modal(modal)
 
     @ui.button(label="🎨 Арын зураг URL", style=discord.ButtonStyle.secondary, row=1)
     async def bg_btn(self, interaction, button):
         await interaction.response.send_modal(BackgroundModal(self))
+
+    @ui.button(label="📝 Message templates", style=discord.ButtonStyle.secondary, row=1)
+    async def message_templates_btn(self, interaction, button):
+        modal = MessageTemplatesModal(self)
+        await interaction.response.send_modal(modal)
 
     @ui.button(label="🎖️ Түвшний роль тохиргоо", style=discord.ButtonStyle.success, row=2)
     async def role_manager_btn(self, interaction, button):
@@ -675,8 +706,9 @@ class LevelAdmin(commands.Cog):
     def _engine(self) -> Leveling | None:
         engine = self.bot.get_cog("Leveling")
         required = (
-            "add_xp", "remove_xp", "get_level_roles", "set_level_role",
+            "add_xp", "get_level_roles", "set_level_role",
             "delete_level_role", "get_level_rewards", "set_level_reward", "delete_level_reward",
+            "set_role_xp_multiplier", "set_level_role_options",
         )
         return engine if engine and all(callable(getattr(engine, method, None)) for method in required) else None
 
@@ -688,38 +720,6 @@ class LevelAdmin(commands.Cog):
         if not allowed:
             await ctx.send("⛔ Бот эзэмшигч/co-owner эрх шаардлагатай." if owners_only else "⛔ Админ эрх шаардлагатай.", ephemeral=True)
         return allowed
-
-    @commands.hybrid_command(name="addxp", description="Хэрэглэгчид XP нэмэх (эзэмшигч/co-owner)")
-    @commands.guild_only()
-    @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(user="XP нэмэх хэрэглэгч", amount="Нэмэх XP тоо")
-    async def addxp_cmd(self, ctx, user: discord.Member, amount: int):
-        if not await self._authorize(ctx, owners_only=True):
-            return
-        if not 1 <= amount <= MAX_DB_INT:
-            return await ctx.send("❌ Эерэг бүхэл XP оруулна уу.", ephemeral=True)
-        engine = self._engine()
-        if engine is None:
-            return await ctx.send("❌ Leveling систем ачаалагдаагүй байна.", ephemeral=True)
-        await ctx.defer(ephemeral=True)
-        await engine.add_xp(user.id, ctx.guild.id, amount, member=user, check_mute=False)
-        await ctx.send(f"✅ {user.display_name}-д {amount} XP нэмлээ.", ephemeral=True)
-
-    @commands.hybrid_command(name="removexp", description="Хэрэглэгчээс XP хасах (эзэмшигч/co-owner)")
-    @commands.guild_only()
-    @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(user="XP хасах хэрэглэгч", amount="Хасах XP тоо")
-    async def removexp_cmd(self, ctx, user: discord.Member, amount: int):
-        if not await self._authorize(ctx, owners_only=True):
-            return
-        if not 1 <= amount <= MAX_DB_INT:
-            return await ctx.send("❌ Эерэг бүхэл XP оруулна уу.", ephemeral=True)
-        engine = self._engine()
-        if engine is None:
-            return await ctx.send("❌ Leveling систем ачаалагдаагүй байна.", ephemeral=True)
-        await ctx.defer(ephemeral=True)
-        await engine.remove_xp(user.id, ctx.guild.id, amount, member=user)
-        await ctx.send(f"✅ {user.display_name}-ээс {amount} XP хасагдлаа.", ephemeral=True)
 
     @commands.hybrid_command(name="leveling_setup", aliases=["lsetup"], description="Түвшний системийн тохиргоо (админ)")
     @commands.guild_only()

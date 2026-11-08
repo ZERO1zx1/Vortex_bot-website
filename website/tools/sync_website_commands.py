@@ -58,9 +58,9 @@ WEB_CAT = {
     "trade": "Games", "mp": "Games", "unequip": "Economy", "use": "Economy",
     "vape": "Economy", "inventory": "Utility",
     "government": "Economy", "economy-config": "Economy",
-    "treasury": "Economy", "economy": "Economy",
+    "treasury": "Economy", "economy": "Economy", "economyboard": "Economy", "moneyboard": "Economy",
     # Leveling
-    "addxp": "Leveling", "removexp": "Leveling", "leveling_setup": "Leveling",
+    "leveling_setup": "Leveling",
     "rank": "Leveling", "leaderboard": "Leveling", "serveractivity": "Leveling",
     # Social (family / marriage / confession / relationship)
     "marriage guide": "Social", "marriage propose": "Social",

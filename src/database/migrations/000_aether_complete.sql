@@ -52,7 +52,6 @@ CREATE TABLE IF NOT EXISTS levels (
     level INT DEFAULT 1,
     message_count INT DEFAULT 0,
     voice_seconds BIGINT DEFAULT 0,
-    reaction_count INT DEFAULT 0,
     PRIMARY KEY (user_id, guild_id)
 );
 
@@ -61,16 +60,13 @@ CREATE TABLE IF NOT EXISTS leveling_config (
     enabled BOOLEAN DEFAULT TRUE,
     announce_channel BIGINT,
     voice_xp_enabled BOOLEAN DEFAULT TRUE,
+    level_message TEXT DEFAULT '{mention} Level {level} хүрлээ!',
+    xp_message INT DEFAULT 15,
     prog_type TEXT DEFAULT 'arithmetic',
     prog_base INT DEFAULT 100,
     prog_step FLOAT DEFAULT 150,
-    xp_tiers TEXT,
-    xp_media INT DEFAULT 15,
-    xp_reaction INT DEFAULT 1,
-    xp_voice_silent INT DEFAULT 5,
-    xp_voice_talking INT DEFAULT 15,
+    xp_voice_talking INT DEFAULT 4,
     msg_cooldown INT DEFAULT 60,
-    react_cooldown INT DEFAULT 10,
     background_url TEXT,
     font_name TEXT,
     xp_drop_enabled BOOLEAN DEFAULT FALSE,
@@ -78,16 +74,31 @@ CREATE TABLE IF NOT EXISTS leveling_config (
     xp_drop_min INT DEFAULT 100,
     xp_drop_max INT DEFAULT 500,
     xp_drop_interval INT DEFAULT 3600,
-    cafe_buff_enabled BOOLEAN DEFAULT TRUE,
-    invite_xp INT DEFAULT 0,
-    marriage_bonus FLOAT DEFAULT 0.1
+    xp_drop_redeem_seconds INT DEFAULT 300,
+    xp_drop_cooldown INT DEFAULT 60,
+    xp_drop_max_redeemers INT DEFAULT 0,
+    xp_drop_criteria TEXT DEFAULT 'time',
+    xp_drop_message_count INT DEFAULT 100,
+    xp_drop_contributing_channels TEXT DEFAULT '[]',
+    xp_drop_message TEXT DEFAULT '🌟 {xp} XP crate drop боллоо!'
 );
 
 CREATE TABLE IF NOT EXISTS level_roles (
     guild_id TEXT,
     level INT,
     role_id BIGINT,
+    stacking BOOLEAN DEFAULT TRUE,
+    stacking_group TEXT,
+    required_role_ids TEXT DEFAULT '[]',
+    level_message TEXT,
     PRIMARY KEY (guild_id, level)
+);
+
+CREATE TABLE IF NOT EXISTS level_role_xp_multipliers (
+    guild_id TEXT,
+    role_id BIGINT,
+    multiplier FLOAT NOT NULL DEFAULT 1,
+    PRIMARY KEY (guild_id, role_id)
 );
 
 CREATE TABLE IF NOT EXISTS level_rewards (
@@ -752,7 +763,6 @@ CREATE TABLE IF NOT EXISTS levels (
     level INT DEFAULT 1,
     message_count INT DEFAULT 0,
     voice_seconds BIGINT DEFAULT 0,
-    reaction_count INT DEFAULT 0,
     PRIMARY KEY (user_id, guild_id)
 );
 
@@ -761,16 +771,13 @@ CREATE TABLE IF NOT EXISTS leveling_config (
     enabled BOOLEAN DEFAULT TRUE,
     announce_channel BIGINT,
     voice_xp_enabled BOOLEAN DEFAULT TRUE,
+    level_message TEXT DEFAULT '{mention} Level {level} хүрлээ!',
+    xp_message INT DEFAULT 15,
     prog_type TEXT DEFAULT 'arithmetic',
     prog_base INT DEFAULT 100,
     prog_step FLOAT DEFAULT 150,
-    xp_tiers TEXT,
-    xp_media INT DEFAULT 15,
-    xp_reaction INT DEFAULT 1,
-    xp_voice_silent INT DEFAULT 5,
-    xp_voice_talking INT DEFAULT 15,
+    xp_voice_talking INT DEFAULT 4,
     msg_cooldown INT DEFAULT 60,
-    react_cooldown INT DEFAULT 10,
     background_url TEXT,
     font_name TEXT,
     xp_drop_enabled BOOLEAN DEFAULT FALSE,
@@ -778,16 +785,31 @@ CREATE TABLE IF NOT EXISTS leveling_config (
     xp_drop_min INT DEFAULT 100,
     xp_drop_max INT DEFAULT 500,
     xp_drop_interval INT DEFAULT 3600,
-    cafe_buff_enabled BOOLEAN DEFAULT TRUE,
-    invite_xp INT DEFAULT 0,
-    marriage_bonus FLOAT DEFAULT 0.1
+    xp_drop_redeem_seconds INT DEFAULT 300,
+    xp_drop_cooldown INT DEFAULT 60,
+    xp_drop_max_redeemers INT DEFAULT 0,
+    xp_drop_criteria TEXT DEFAULT 'time',
+    xp_drop_message_count INT DEFAULT 100,
+    xp_drop_contributing_channels TEXT DEFAULT '[]',
+    xp_drop_message TEXT DEFAULT '🌟 {xp} XP crate drop боллоо!'
 );
 
 CREATE TABLE IF NOT EXISTS level_roles (
     guild_id TEXT,
     level INT,
     role_id BIGINT,
+    stacking BOOLEAN DEFAULT TRUE,
+    stacking_group TEXT,
+    required_role_ids TEXT DEFAULT '[]',
+    level_message TEXT,
     PRIMARY KEY (guild_id, level)
+);
+
+CREATE TABLE IF NOT EXISTS level_role_xp_multipliers (
+    guild_id TEXT,
+    role_id BIGINT,
+    multiplier FLOAT NOT NULL DEFAULT 1,
+    PRIMARY KEY (guild_id, role_id)
 );
 
 CREATE TABLE IF NOT EXISTS level_rewards (

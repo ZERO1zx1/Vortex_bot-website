@@ -186,14 +186,6 @@ class PVPView(View):
             # end_game дахин дуудах нь давхар буцаалт (double refund) үүсгэнэ.
             return
 
-    async def _give_xp(self, user_id, guild_id, amount):
-        leveling = self.bot.get_cog("Leveling")
-        if leveling:
-            try:
-                await leveling.add_xp(user_id, guild_id, amount, check_mute=False)
-            except Exception:
-                logger.exception("Operation failed in _give_xp")
-
     async def _refund(self, economy, guild_id):
         for player in (self.player1, self.player2):
             await economy.update_balance(
@@ -347,8 +339,6 @@ class PVPView(View):
                 winner.id, guild_id, total_win,
                 reference=f"pvp:{self.game_id}:winner:{winner.id}",
             )
-        await self._give_xp(winner.id, guild_id, 15)
-        await self._give_xp(loser.id, guild_id, 5)
 
         if games_cog:
             try:

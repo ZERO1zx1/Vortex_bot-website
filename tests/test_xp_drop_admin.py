@@ -136,8 +136,6 @@ async def test_second_drop_is_suppressed_inside_the_interval(monkeypatch):
     lv.bot.guilds = [_Guild(_Channel())]
     _Channel.sent.clear()
 
-    monkeypatch.setattr("src.cogs.games.leveling.random.random", lambda: 0.0)  # always roll a drop
-
     await lv.xp_drop_loop()
     assert len(_Channel.sent) == 1, "first drop must be allowed"
 
@@ -146,7 +144,7 @@ async def test_second_drop_is_suppressed_inside_the_interval(monkeypatch):
     assert len(_Channel.sent) == 1, "second drop inside the interval must be blocked"
 
     # Past the interval -> allowed again.
-    lv._xp_drop_last[5] -= 3601
+    lv._xp_drop_last[5] -= 5000
     await lv.xp_drop_loop()
     assert len(_Channel.sent) == 2, "drop must resume once the interval elapses"
 
@@ -156,8 +154,6 @@ async def test_zero_interval_is_floored_so_the_loop_cannot_spin(monkeypatch):
     lv = _engine(_cfg(xp_drop_interval=0))
     lv.bot.guilds = [_Guild(_Channel())]
     _Channel.sent.clear()
-    monkeypatch.setattr("src.cogs.games.leveling.random.random", lambda: 0.0)
-
     await lv.xp_drop_loop()
     await lv.xp_drop_loop()
     # interval floored to 60s -> still suppressed on the second tick.
@@ -169,8 +165,6 @@ async def test_disabled_feature_never_posts(monkeypatch):
     lv = _engine(_cfg(xp_drop_enabled=False))
     lv.bot.guilds = [_Guild(_Channel())]
     _Channel.sent.clear()
-    monkeypatch.setattr("src.cogs.games.leveling.random.random", lambda: 0.0)
-
     await lv.xp_drop_loop()
     assert _Channel.sent == []
 
@@ -180,8 +174,6 @@ async def test_missing_channel_never_posts(monkeypatch):
     lv = _engine(_cfg())
     lv.bot.guilds = [_Guild(None)]
     _Channel.sent.clear()
-    monkeypatch.setattr("src.cogs.games.leveling.random.random", lambda: 0.0)
-
     await lv.xp_drop_loop()
     assert _Channel.sent == []
 
@@ -196,6 +188,7 @@ def test_xp_drop_claim_is_guarded_against_double_claim():
     body = view_src.group(0)
     assert "self.claimed" in body
     assert "interaction.user.id in self.claimed" in body
+    assert "self.claimed.discard(interaction.user.id)" in body
 
 
 @pytest.mark.asyncio

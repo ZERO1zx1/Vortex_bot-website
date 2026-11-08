@@ -12,7 +12,7 @@ from discord import app_commands
 from discord.ext import commands
 from discord.ui import Button, Modal, TextInput, View
 
-from src.core.exceptions import InsufficientFundsError
+from src.core.exceptions import DatabaseSchemaError, InsufficientFundsError
 from src.ui.setup import ConfirmActionView, SetupPanel, SetupState, disable_setup_panel
 from src.utils.branding import BOT_NAME
 from src.utils.embed_style import (
@@ -226,10 +226,6 @@ class Economy(SupabaseCog):
             cafe = self.bot.get_cog("Cafe")
             if cafe is None or not hasattr(cafe, "get_buff"):
                 return 100
-            from src.cogs.games.leveling import get_config
-            cfg = await get_config(self.bot.db_manager, guild_id)
-            if not cfg.get("cafe_buff_enabled", True):
-                return 100
             buff = cafe.get_buff(user_id, guild_id)
             if asyncio.iscoroutine(buff):
                 buff = await buff
@@ -321,6 +317,10 @@ class Economy(SupabaseCog):
                             "p_discarded": plan["discarded"],
                         },
                     )
+                except DatabaseSchemaError as exc:
+                    raise RuntimeError(
+                        "Economy-ийн atomic balance migration дутуу байна (migration 005)."
+                    ) from exc
                 except InsufficientFundsError:
                     raise
                 except Exception as exc:
@@ -645,7 +645,7 @@ class Economy(SupabaseCog):
         except Exception as exc:
             logger.warning("economy ledger write failed: %s", exc, exc_info=True)
 
-    @commands.command(name="transactions", aliases=["tx", "history"])
+    @commands.hybrid_command(name="transactions", aliases=["tx", "history"])
     async def transactions(self, ctx, member: discord.Member = None):
         target = member or ctx.author
         if target.id != ctx.author.id and not ctx.author.guild_permissions.manage_guild:
@@ -778,7 +778,7 @@ class Economy(SupabaseCog):
         )
 
     # ================== COMMANDS ==================
-    @commands.command(name='admin-panel')
+    @commands.hybrid_command(name='admin-panel')
     @commands.has_permissions(administrator=True)
     async def admin_panel(self, ctx):
         view = AdminPanelView(self, ctx)
@@ -828,7 +828,7 @@ class Economy(SupabaseCog):
         view = WorkPhraseView(self, ctx)
         view.message = await ctx.send(embed=embed, view=view)
 
-    @commands.command(aliases=['bal','money','wallet','bank'])
+    @commands.hybrid_command(aliases=['bal','money','wallet','bank'])
     async def balance(self, ctx, member: discord.Member = None):
         if ctx.guild is None:
             return await ctx.send("❌ Энэ командыг зөвхөн серверт ашиглаж болно.")
@@ -854,7 +854,7 @@ class Economy(SupabaseCog):
         embed.set_footer(text=f"{BOT_NAME} • {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
-    @commands.command(name='work')
+    @commands.hybrid_command(name='work')
     async def work(self, ctx, *, custom_text: str | None = None):
         if not await self.check_registration(ctx): return
         if await self.is_in_prison(ctx.author.id, ctx.guild.id):
@@ -929,13 +929,6 @@ class Economy(SupabaseCog):
             new_mood = min(100, mood+mood_inc)
             await self.set_hunger_mood(ctx.author.id, ctx.guild.id, hunger=new_hunger, mood=new_mood)
             await self.record_money(ctx.guild.id, ctx.author.id, ctx.author.id, "work", after - before, before, after, job["name"])
-            leveling = self.bot.get_cog("Leveling")
-            if leveling:
-                try:
-                    await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(10, 20), member=ctx.author, check_mute=True, channel=ctx.channel)
-                except Exception:
-                    logger.exception("Operation failed in work")
-
             quests_cog = self.bot.get_cog("Quests")
             try:
                 if quests_cog:
@@ -957,7 +950,7 @@ class Economy(SupabaseCog):
         embed.set_footer(text="Дараагийн ажил 30 минутын дараа")
         await ctx.send(embed=embed)
 
-    @commands.command(name='daily')
+    @commands.hybrid_command(name='daily')
     async def daily(self, ctx):
         if not await self.check_registration(ctx): return
         if await self.is_in_prison(ctx.author.id, ctx.guild.id):
@@ -981,11 +974,6 @@ class Economy(SupabaseCog):
             await self.record_money(ctx.guild.id, ctx.author.id, ctx.author.id, "daily", after - before, before, after, "Daily reward")
             rate = await self.get_effective_rate(ctx.guild.id)
             tax_note = f"\n🏛️ Татвар ({rate}%): -{int(reward * rate / 100):,} ₮" if reward > 0 else ""
-            leveling = self.bot.get_cog("Leveling")
-            if leveling:
-                try: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(5, 10), member=ctx.author, check_mute=True, channel=ctx.channel)
-                except Exception:
-                    logger.exception("Operation failed in daily")
             embed = discord.Embed(
                 title="🎉 Daily Reward",
                 description=f"Өдрийн шагнал: **{reward:,} ₮**",
@@ -997,7 +985,7 @@ class Economy(SupabaseCog):
             embed.set_footer(text="Дараагийн урамшуулал 24 цагийн дараа")
             await ctx.send(embed=embed)
 
-    @commands.command(name='crime')
+    @commands.hybrid_command(name='crime')
     async def crime(self, ctx):
         if not await self.check_registration(ctx): return
         if await self.is_in_prison(ctx.author.id, ctx.guild.id):
@@ -1015,8 +1003,6 @@ class Economy(SupabaseCog):
             await self.update_balance(ctx.author.id, ctx.guild.id, reward)
             rate = await self.get_effective_rate(ctx.guild.id)
             crime_tax_note = f"\n🏛️ Татвар ({rate}%): -{int(reward * rate / 100):,} ₮"
-            leveling = self.bot.get_cog("Leveling")
-            if leveling: await leveling.add_xp(ctx.author.id, ctx.guild.id, random.randint(10, 20), member=ctx.author, check_mute=True, channel=ctx.channel)
             embed = discord.Embed(title="🎉 ГЭМТ ХЭРЭГ АМЖИЛТТАЙ!",
                                   description=f"{ctx.author.mention} **{crime['name']}** үйлдэж, **{reward:,}** ₮ оллоо!{crime_tax_note}",
                                   color=SUCCESS_COLOR,
@@ -1034,7 +1020,7 @@ class Economy(SupabaseCog):
             embed.set_thumbnail(url=ctx.author.display_avatar.url)
             await ctx.send(embed=embed)
 
-    @commands.command(name='transfer', aliases=['send', 'give'])
+    @commands.hybrid_command(name='transfer', aliases=['send', 'give'])
     async def transfer(self, ctx, member: discord.Member, amount_str: str):
         if not await self.check_registration(ctx): return
         if await self.is_in_prison(ctx.author.id, ctx.guild.id):
@@ -1115,7 +1101,7 @@ class Economy(SupabaseCog):
         except discord.HTTPException:
             logger.debug("Transfer receipt could not be delivered", exc_info=True)
 
-    @commands.command(name='deposit', aliases=['dep'])
+    @commands.hybrid_command(name='deposit', aliases=['dep'])
     async def deposit(self, ctx, amount_str: str):
         if not await self.check_registration(ctx): return
         cash = await self.get_balance(ctx.author.id, ctx.guild.id)
@@ -1144,7 +1130,7 @@ class Economy(SupabaseCog):
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
-    @commands.command(name='withdraw', aliases=['with'])
+    @commands.hybrid_command(name='withdraw', aliases=['with'])
     async def withdraw(self, ctx, amount_str: str):
         if not await self.check_registration(ctx): return
         bank = await self.get_bank(ctx.author.id, ctx.guild.id)
@@ -1173,7 +1159,7 @@ class Economy(SupabaseCog):
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
-    @commands.command(name='eat')
+    @commands.hybrid_command(name='eat')
     async def eat(self, ctx):
         if not await self.check_registration(ctx): return
         bal = await self.get_balance(ctx.author.id, ctx.guild.id)
@@ -1191,7 +1177,7 @@ class Economy(SupabaseCog):
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
-    @commands.command(name='relax')
+    @commands.hybrid_command(name='relax')
     async def relax(self, ctx):
         if not await self.check_registration(ctx): return
         _, mood = await self.get_hunger_mood(ctx.author.id, ctx.guild.id)
@@ -1205,7 +1191,7 @@ class Economy(SupabaseCog):
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
-    @commands.command(name='bankprotect', aliases=['bp', 'block'])
+    @commands.hybrid_command(name='bankprotect', aliases=['bp', 'block'])
     async def bank_protect(self, ctx):
         if not await self.check_registration(ctx): return
         rem = await self.get_bank_protection_remaining(ctx.author.id, ctx.guild.id)
@@ -1220,7 +1206,7 @@ class Economy(SupabaseCog):
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
-    @commands.command(name='bail', aliases=['шоронгоосгарах', 'bailout'])
+    @commands.hybrid_command(name='bail', aliases=['шоронгоосгарах', 'bailout'])
     async def bail(self, ctx):
         if not await self.check_registration(ctx): return
         if not await self.is_in_prison(ctx.author.id, ctx.guild.id):
@@ -1242,7 +1228,7 @@ class Economy(SupabaseCog):
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
         await ctx.send(embed=embed)
 
-    @commands.command(name='prison', aliases=['jail'])
+    @commands.hybrid_command(name='prison', aliases=['jail'])
     async def prison_status(self, ctx):
         if not await self.check_registration(ctx): return
         remaining = await self.get_prison_remaining(ctx.author.id, ctx.guild.id)
@@ -1258,7 +1244,7 @@ class Economy(SupabaseCog):
         embed.add_field(name="Хориглогдох", value="Casino, bet game, transfer, crime", inline=False)
         await ctx.send(embed=embed)
 
-    @commands.command(name='prison-work', aliases=['jailwork'])
+    @commands.hybrid_command(name='prison-work', aliases=['jailwork'])
     async def prison_work(self, ctx):
         if not await self.check_registration(ctx): return
         key = f"{ctx.guild.id}:{ctx.author.id}"
@@ -1288,7 +1274,7 @@ class Economy(SupabaseCog):
             color=SUCCESS_COLOR,
         ))
 
-    @commands.command(name='prison-appeal', aliases=['appeal'])
+    @commands.hybrid_command(name='prison-appeal', aliases=['appeal'])
     async def prison_appeal(self, ctx):
         if not await self.check_registration(ctx): return
         if not await self.is_in_prison(ctx.author.id, ctx.guild.id):
@@ -1299,7 +1285,7 @@ class Economy(SupabaseCog):
             color=INFO_COLOR,
         ))
 
-    @commands.command(name='jobs', aliases=['ajil', 'ажил'])
+    @commands.hybrid_command(name='jobs', aliases=['ajil', 'ажил'])
     async def jobs_list(self, ctx):
         """Бүх ажлын түвшин ба цалинг харах."""
         lines = []
@@ -1320,7 +1306,7 @@ class Economy(SupabaseCog):
         embed.set_footer(text=f"Таны одоогийн ажлыг харах: {ctx.prefix}balance")
         await ctx.send(embed=embed)
 
-    @commands.command(name='taxinfo', aliases=['татвар'])
+    @commands.hybrid_command(name='taxinfo', aliases=['татвар'])
     async def tax_info(self, ctx):
         """Татварын системийн мэдээлэл."""
         gid = ctx.guild.id
@@ -1544,8 +1530,9 @@ class CooldownModal(_AdminConfigModal, title="Cooldown тохируулах"):
             # rate limit-ийг бүрэн илгүй болгоно. 0 бол зөвшөөрөгдөнө.
             if sec < 0 or sec > 86400:
                 raise ValueError("cooldown out of range")
+            await interaction.response.defer(ephemeral=True)
             await cog.set_cooldown_cmd(interaction, cmd, sec)
-            await interaction.response.send_message(f"✅ `{cmd}` cooldown {sec}с боллоо.", ephemeral=True)
+            await interaction.followup.send(f"✅ `{cmd}` cooldown {sec}с боллоо.", ephemeral=True)
         except ValueError:
             await interaction.response.send_message("❌ Тоо оруулна уу (жишээ: 3600).", ephemeral=True)
 
@@ -1561,8 +1548,9 @@ class FineModal(_AdminConfigModal, title="Торгууль тохируулах"
             mx = int(self.fine_max.value)
             if mn < 0 or mx < mn:
                 raise ValueError("invalid fine range")
+            await interaction.response.defer(ephemeral=True)
             await cog.set_fine_amount(interaction, cmd, mn, mx)
-            await interaction.response.send_message(f"✅ `{cmd}` торгууль {mn}-{mx} боллоо.", ephemeral=True)
+            await interaction.followup.send(f"✅ `{cmd}` торгууль {mn}-{mx} боллоо.", ephemeral=True)
         except ValueError:
             await interaction.response.send_message("❌ Тоо оруулна уу (жишээ: 100, 500).", ephemeral=True)
 
@@ -1578,8 +1566,9 @@ class PayoutModal(_AdminConfigModal, title="Цалин тохируулах"):
             mx = int(self.payout_max.value)
             if mn < 0 or mx < mn:
                 raise ValueError("invalid payout range")
+            await interaction.response.defer(ephemeral=True)
             await cog.set_payout(interaction, cmd, mn, mx)
-            await interaction.response.send_message(f"✅ `{cmd}` цалин {mn}-{mx} боллоо.", ephemeral=True)
+            await interaction.followup.send(f"✅ `{cmd}` цалин {mn}-{mx} боллоо.", ephemeral=True)
         except ValueError:
             await interaction.response.send_message("❌ Тоо оруулна уу (жишээ: 100, 500).", ephemeral=True)
 
@@ -1595,8 +1584,9 @@ class FailRateModal(_AdminConfigModal, title="Бүтэлгүйтэх магад�
             # шалгалт байгаагүй тул бүтээхэд шалгана.
             if not (0.0 <= r <= 1.0):
                 raise ValueError("fail rate out of range")
+            await interaction.response.defer(ephemeral=True)
             await cog.set_fail_rate(interaction, cmd, r)
-            await interaction.response.send_message(f"✅ `{cmd}` бүтэлгүйтэх {r*100}% боллоо.", ephemeral=True)
+            await interaction.followup.send(f"✅ `{cmd}` бүтэлгүйтэх {r*100}% боллоо.", ephemeral=True)
         except (ValueError, TypeError):
             await interaction.response.send_message("❌ Буруу тоо. 0-1 хооронд оруулна уу (жишээ: 0.5).", ephemeral=True)
 
@@ -1606,8 +1596,9 @@ class CustomReplyModal(_AdminConfigModal, title="Custom Reply нэмэх"):
     text = TextInput(label="Текст", style=discord.TextStyle.paragraph)
     async def on_submit(self, interaction: discord.Interaction):
         cog = interaction.client.get_cog("Economy")
+        await interaction.response.defer(ephemeral=True)
         await cog.add_reply(interaction, self.command.value, self.text.value, self.reply_type.value)
-        await interaction.response.send_message("✅ Custom reply нэмэгдлээ.", ephemeral=True)
+        await interaction.followup.send("✅ Custom reply нэмэгдлээ.", ephemeral=True)
 
 class WorkPhraseView(View):
     def __init__(self, cog, ctx):
@@ -1632,6 +1623,7 @@ class WorkPhraseView(View):
 
     @discord.ui.button(label="📋 Жагсаалт", style=discord.ButtonStyle.blurple)
     async def list_phrases(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer(ephemeral=True)
         rows = await self.cog.bot.db_manager.fetch_all("work_phrases", {"guild_id": str(interaction.guild_id)}, selects="id,phrase")
         if not rows:
             embed = discord.Embed(title="📋 Ажлын өгүүлбэрүүд", description="Хоосон", color=WARNING_COLOR)
@@ -1639,7 +1631,7 @@ class WorkPhraseView(View):
             embed = discord.Embed(title="📋 Ажлын өгүүлбэрүүд", color=INFO_COLOR)
             for r in rows[:20]:
                 embed.add_field(name=f"ID {r['id']}", value=r['phrase'], inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="Бүгдийг устгах", emoji="🧹", style=discord.ButtonStyle.danger)
     async def clear_phrases(self, interaction: discord.Interaction, button: Button):

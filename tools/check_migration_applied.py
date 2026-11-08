@@ -59,7 +59,7 @@ ALL_TABLES = [
     "economy_payouts_config", "game_stats", "giveaway_entries", "giveaways",
     "greeting_config", "greeting_templates", "guild_config", "invite_joins",
     "invite_labels", "invite_log_config", "invite_stats", "level_rewards",
-    "level_roles", "leveling_config", "leveling_exceptions", "levels",
+    "level_roles", "level_role_xp_multipliers", "leveling_config", "leveling_exceptions", "levels",
     "marketplace_listings", "marriage_gifts", "marriage_guild_config",
     "marriage_proposals", "marriage_user_settings", "marriages",
     "pvp_cooldowns", "quest_history", "reaction_roles", "role_income",
@@ -85,6 +85,21 @@ REQUIRED_RPCS = [
     "settle_poker_payout",
     "treasury_pay_once",
 ]
+
+# Columns used by the Engauge-style leveling runtime. A table-only check can
+# pass while an incremental leveling migration is still missing, so verify
+# these through the same read-only PostgREST surface the bot uses.
+REQUIRED_COLUMNS = {
+    "leveling_config": (
+        "xp_message", "xp_voice_talking", "level_message",
+        "xp_drop_redeem_seconds", "xp_drop_cooldown", "xp_drop_max_redeemers",
+        "xp_drop_criteria", "xp_drop_message_count", "xp_drop_contributing_channels",
+        "xp_drop_message",
+    ),
+    "level_roles": ("stacking", "stacking_group", "required_role_ids", "level_message"),
+    "levels": ("message_count", "voice_seconds"),
+    "level_role_xp_multipliers": ("guild_id", "role_id", "multiplier"),
+}
 
 
 def list_live_rpcs(base_url: str, key: str) -> set[str] | None:
@@ -176,6 +191,35 @@ def check_table(base_url: str, key: str, table: str) -> tuple[str, str]:
         return "ERROR", f"Тодорхойгүй алдаа: {e}"
 
 
+def check_columns(base_url: str, key: str, table: str, columns: tuple[str, ...]) -> tuple[str, str]:
+    """Check a table's required columns without reading any user rows."""
+    select = ",".join(columns)
+    url = f"{base_url.rstrip('/')}/rest/v1/{urllib.parse.quote(table)}?limit=0&select={urllib.parse.quote(select)}"
+    req = urllib.request.Request(url, headers={
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return "OK", f"OK ({len(columns)} columns)"
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")[:240]
+        if e.code >= 500:
+            return "UNAVAILABLE", f"Supabase service unavailable (HTTP {e.code})"
+        if e.code in (401, 403):
+            return "PERMISSION", f"Column check permission denied (HTTP {e.code})"
+        if e.code in (400, 404) or "column" in body.lower() or "PGRST" in body:
+            return "MISSING", f"Шаардлагатай column/migration дутуу (HTTP {e.code}): {body}"
+        return "ERROR", f"HTTP {e.code}: {body}"
+    except urllib.error.URLError as e:
+        return "UNAVAILABLE", f"Холбогдох боломжгүй: {e.reason}"
+    except (TimeoutError, ConnectionError) as e:
+        return "UNAVAILABLE", f"Холболтын алдаа: {e}"
+    except Exception as e:
+        logger.exception("Unexpected column-check failure for %s", table)
+        return "ERROR", f"Тодорхойгүй алдаа: {e}"
+
+
 def migration_is_complete(counts: dict[str, int], total: int) -> bool:
     """Only a fully observed OK result may authorize restart/deploy."""
     return (
@@ -239,8 +283,18 @@ def main() -> int:
     print(f"\n[2] Бүрэн schema-ийн {len(ALL_TABLES)} хүснэгт шалгах:")
     counts_all = _report(ALL_TABLES)
 
-    # 3) Bot дуудах RPC функцүүд
-    print(f"\n[3] Bot-ын дуудах {len(REQUIRED_RPCS)} RPC функцийг шалгах:")
+    # 3) Engauge leveling columns
+    print("\n[3] Engauge leveling columns шалгах:")
+    counts_columns = {"OK": 0, "MISSING": 0, "PERMISSION": 0, "UNAVAILABLE": 0, "ERROR": 0}
+    for table, columns in REQUIRED_COLUMNS.items():
+        status, msg = check_columns(url, key, table, columns)
+        counts_columns[status] = counts_columns.get(status, 0) + 1
+        mark = {"OK": "OK ", "MISSING": "X  "}.get(status, "!  ")
+        print(f"  {mark} {table:32s} {msg}")
+    print("Column-ийн үр дүн: " + ", ".join(f"{k}={v}" for k, v in counts_columns.items() if v))
+
+    # 4) Bot дуудах RPC функцүүд
+    print(f"\n[4] Bot-ын дуудах {len(REQUIRED_RPCS)} RPC функцийг шалгах:")
     live_rpcs = list_live_rpcs(url, key)
     counts_rpc = {"OK": 0, "MISSING": 0, "PERMISSION": 0, "UNAVAILABLE": 0, "ERROR": 0}
     for rpc in REQUIRED_RPCS:
@@ -259,9 +313,10 @@ def main() -> int:
     )
     print(summary)
     tables_ok = migration_is_complete(counts_all, len(ALL_TABLES))
+    columns_ok = migration_is_complete(counts_columns, len(REQUIRED_COLUMNS))
     rpcs_ok = migration_is_complete(counts_rpc, len(REQUIRED_RPCS))
-    if tables_ok and rpcs_ok:
-        print("Бүх шалгасан хүснэгт болон RPC байна, унших/дуудах эрхтэй.")
+    if tables_ok and columns_ok and rpcs_ok:
+        print("Бүх шалгасан хүснэгт, leveling column болон RPC байна, унших/дуудах эрхтэй.")
         return 0
     if tables_ok and not rpcs_ok:
         print("-> Хүснэгтүүд бүгд байна, ГЭХДЭЭ RPC дутуу байна. "
@@ -277,6 +332,8 @@ def main() -> int:
         print("-> Зарим хүснэгт тодорхойгүй API алдаагаар шалгагдаагүй; дээрх HTTP алдааг зас.")
     if counts_rpc["MISSING"]:
         print("-> RPC дутуу: bot PGRST202 авч зогсоно (economy/confessions/government).")
+    if not columns_ok:
+        print("-> Leveling columns дутуу: Engauge migration 011–021-ийг шалга.")
     return 1
 
 

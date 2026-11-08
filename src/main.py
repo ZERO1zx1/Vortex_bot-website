@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import os
 import sys
@@ -17,7 +18,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.core.config import load_config, report_key_mismatches_once
-from src.core.exceptions import DatabasePermissionError, DatabaseSchemaError
+from src.core.exceptions import (
+    DatabasePermissionError,
+    DatabaseSchemaError,
+    DatabaseUnavailableError,
+)
 from src.core.logger import get_logger, setup_logging
 from src.database.db_manager import SupabaseManager as DatabaseManager
 from src.utils.cog_loader import ACTIVE_COGS, discover_cogs
@@ -318,6 +323,14 @@ class MyBot(commands.Bot):
             await ctx.send("⛔ Та энэ командыг ашиглах эрхгүй байна.", ephemeral=True)
             return
 
+        if isinstance(error, (DatabaseSchemaError, DatabasePermissionError, DatabaseUnavailableError)):
+            await ctx.send(
+                "⚠️ Database түр ашиглах боломжгүй байна. Админ migration/schema тохиргоогоо шалгана уу.",
+                ephemeral=True,
+            )
+            logger.warning("Command database error [%s]: %s", ctx.command, error)
+            return
+
         # Interaction хугацаа нь дууссан (Unknown interaction) — WARNING л болгох
         if isinstance(error, discord.NotFound) and "10062" in str(error):
             logger.warning("Interaction expired [%s] %s: %s", ctx.command, getattr(ctx.author, "id", "?"), error)
@@ -367,6 +380,13 @@ class MyBot(commands.Bot):
                 interaction, f"⛔ Надад энэ командын эрх байхгүй: {perms}"
             )
             logger.warning("Slash BotMissingPermissions [%s] %s: %s", cmd, interaction.user, perms)
+            return
+        if isinstance(err, (DatabaseSchemaError, DatabasePermissionError, DatabaseUnavailableError)):
+            await self._safe_app_error_reply(
+                interaction,
+                "⚠️ Database түр ашиглах боломжгүй байна. Админ migration/schema тохиргоогоо шалгана уу.",
+            )
+            logger.warning("Slash database error [%s]: %s", cmd, err)
             return
         if isinstance(err, _app.NoPrivateMessage):
             await self._safe_app_error_reply(
@@ -435,6 +455,22 @@ class MyBot(commands.Bot):
             pass
 
     async def close(self):
+        # Stop cog-owned loops before closing Supabase. Otherwise a loop can
+        # wake during shutdown and use a pool that has already been closed.
+        if not getattr(self, "_cogs_unloaded", False):
+            self._cogs_unloaded = True
+            for cog in list(self.cogs.values()):
+                unload = getattr(cog, "cog_unload", None)
+                if unload is None:
+                    continue
+                try:
+                    result = unload()
+                    if inspect.isawaitable(result):
+                        await result
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    logger.debug("Cog shutdown cleanup failed for %s", type(cog).__name__, exc_info=True)
         heartbeat = getattr(self, "_heartbeat_task", None)
         if heartbeat is not None:
             heartbeat.cancel()

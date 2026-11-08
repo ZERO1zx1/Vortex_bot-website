@@ -76,6 +76,7 @@ class GambleView(View):
 
     @discord.ui.button(label="БООЦОО ТАВИХ 🎲", style=ButtonStyle.danger)
     async def roll(self, interaction, button):
+        await interaction.response.defer()
         for child in self.children:
             child.disabled = True
         await self.message.edit(view=self)
@@ -148,6 +149,7 @@ class SlotsView(View):
 
     @discord.ui.button(label="SPIN 🎰", style=ButtonStyle.danger)
     async def spin(self, interaction, button):
+        await interaction.response.defer()
         for child in self.children:
             child.disabled = True
         await self.message.edit(view=self)
@@ -414,6 +416,7 @@ class HighCardView(View):
 
     @discord.ui.button(label="🃏 ХӨЗРӨӨ ИЛРҮҮЛЭХ", style=ButtonStyle.danger)
     async def reveal(self, interaction, button):
+        await interaction.response.defer()
         for child in self.children:
             child.disabled = True
         await self.message.edit(view=self)
@@ -496,6 +499,7 @@ class CrashView(View):
         if not self.running:
             await interaction.response.send_message("⏰ Тоглоом дууссан!", ephemeral=True)
             return
+        await interaction.response.defer()
         self.running = False
         for child in self.children:
             child.disabled = True
@@ -582,7 +586,6 @@ class Games(commands.Cog):
     # ═══ ШАГНАЛ / СТАТИСТИК ═══
     async def give_rewards(self, ctx, money_change: int, xp_amount: int, won: bool = False, bet: int = 0):
         economy = self.bot.get_cog("Economy")
-        level = self.bot.get_cog("Leveling")
         bonus_percent = self.bot.config.get("bonus_percent", 10)
         final_money = money_change
         if won and money_change > 0:
@@ -597,8 +600,6 @@ class Games(commands.Cog):
                 await economy.update_balance(ctx.author.id, ctx.guild.id, bet)
             # Хожигдол (<0): бооцоог эхэнд хасчихсан тул дахин хасахгүй —
             # өмнө нь энд дахин хасаж давхар торгуулж байсан (C7 double-charge)
-        if level and xp_amount > 0 and hasattr(level, 'add_xp'):
-            await level.add_xp(ctx.author.id, ctx.guild.id, xp_amount, member=ctx.author, check_mute=True, channel=ctx.channel)
         await self.update_stats(ctx.author.id, ctx.guild.id, won, bet, final_money if won else 0)
 
         quests_cog = self.bot.get_cog("Quests")
@@ -677,43 +678,43 @@ class Games(commands.Cog):
         embed.set_footer(text=f"Бооцоо: {_format_money(amount)}")
         view.message = await ctx.send(embed=embed, view=view)
 
-    @commands.command(name='gamble', aliases=['gm'])
+    @commands.hybrid_command(name='gamble', aliases=['gm'])
     async def gamble(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
         await self.start_game(ctx, "gamble", amount, GambleView, "🎲 GAMBLE", f"Бооцоо: **{_format_money(amount)}**\n30% хожих магадлалтай.")
 
-    @commands.command(name='coinflipgame', aliases=['cfgame', 'flipgame'])
+    @commands.hybrid_command(name='coinflipgame', aliases=['cfgame', 'flipgame'])
     async def coinflip(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
         await self.start_game(ctx, "coinflip", amount, CoinflipView, "🪙 COINFLIP", f"Бооцоо: **{_format_money(amount)}**\nHeads эсвэл Tails сонго!")
 
-    @commands.command(name='slot', aliases=['sl'])
+    @commands.hybrid_command(name='slot', aliases=['sl'])
     async def slot(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
         await self.start_game(ctx, "slot", amount, SlotsView, "🎰 SLOTS", f"Бооцоо: **{_format_money(amount)}**\nSPIN товчлуурыг дарж эргэлдүүл!")
 
-    @commands.command(name='roulettegame', aliases=['rg'])
+    @commands.hybrid_command(name='roulettegame', aliases=['rg'])
     async def roulette(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
         await self.start_game(ctx, "roulette", amount, RouletteView, "🎡 ROULETTE", f"Бооцоо: **{_format_money(amount)}**\nУлаан, Хар, Ногоон сонго!")
 
-    @commands.command(name='dice')
+    @commands.hybrid_command(name='dice')
     async def dice(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
         await self.start_game(ctx, "dice", amount, DiceView, "🎲 DICE", f"Бооцоо: **{_format_money(amount)}**\n1-6 тоо тааж 6x хожих!")
 
-    @commands.command(name='rps', aliases=['rockpaperscissors'])
+    @commands.hybrid_command(name='rps', aliases=['rockpaperscissors'])
     async def rps(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
         await self.start_game(ctx, "rps", amount, RPSView, "🪨📄✂️ RPS", f"Бооцоо: **{_format_money(amount)}**\nЧулуу, Даавуу, Хайч!")
 
-    @commands.command(name='numberguess', aliases=['numguess'])
+    @commands.hybrid_command(name='numberguess', aliases=['numguess'])
     async def numberguess(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
@@ -725,7 +726,7 @@ class Games(commands.Cog):
         embed.set_footer(text="15 секундын дотор сонго")
         view.message = await ctx.send(embed=embed, view=view)
 
-    @commands.command(name='highcard', aliases=['war'])
+    @commands.hybrid_command(name='highcard', aliases=['war'])
     async def highcard(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
@@ -738,7 +739,7 @@ class Games(commands.Cog):
         embed.set_footer(text=f"Бооцоо: {_format_money(amount)}")
         view.message = await ctx.send(embed=embed, view=view)
 
-    @commands.command(name='crash')
+    @commands.hybrid_command(name='crash')
     async def crash(self, ctx, amount_str: str):
         amount = await self._parse_amount(ctx, amount_str)
         if amount is False: return
@@ -747,7 +748,7 @@ class Games(commands.Cog):
         view = CrashView(self, ctx, amount)
         await view.start()
 
-    @commands.command(name='trivia')
+    @commands.hybrid_command(name='trivia')
     @commands.cooldown(1, 15, commands.BucketType.user)
     async def trivia(self, ctx):
         if ctx.guild is None: return await ctx.send("❌ Серверт ашиглана уу.")
@@ -779,18 +780,14 @@ class Games(commands.Cog):
         except TimeoutError:
             return await ctx.send("⏰ Хугацаа дууссан!")
 
-        xp = random.randint(5, 15)
         if answer_idx == question['correct']:
-            await ctx.send(f"✅ Зөв! {ctx.author.mention} +{xp} XP")
-            level = self.bot.get_cog("Leveling")
-            if level and hasattr(level, 'add_xp'):
-                await level.add_xp(ctx.author.id, ctx.guild.id, xp, member=ctx.author, check_mute=True, channel=ctx.channel)
+            await ctx.send(f"✅ Зөв! {ctx.author.mention}")
         else:
             await ctx.send(f"❌ Буруу. Зөв хариулт: **{question['answers'][question['correct']]}**")
         quests_cog = self.bot.get_cog("Quests")
         if quests_cog: await quests_cog.trigger_event(ctx.author.id, ctx.guild.id, "game_play", 1)
 
-    @commands.command(name='gamestats')
+    @commands.hybrid_command(name='gamestats')
     async def gamestats(self, ctx):
         row = await self.bot.db_manager.fetch_one(
             "game_stats", {"user_id": str(ctx.author.id), "guild_id": str(ctx.guild.id)}

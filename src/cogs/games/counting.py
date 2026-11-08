@@ -338,20 +338,21 @@ class CountingSetupView(ui.View):
     @ui.select(cls=ui.ChannelSelect, channel_types=[discord.ChannelType.text], placeholder="📢 Тоолох сувгаа сонго...", min_values=1, max_values=1, row=0)
     async def select_channel(self, interaction: discord.Interaction, select: ui.ChannelSelect):
         channel = select.values[0]
+        await interaction.response.defer()
         await self.cog.bot.db_manager.upsert(
             "counting_config",
             {"guild_id": str(interaction.guild.id), "channel_id": channel.id, "enabled": 1},
             on_conflict="guild_id",
         )
-        await interaction.response.defer()
         await self.refresh(interaction)
 
     # ---------- ТӨЛӨВ ТОВЧНУУД ----------
     @ui.button(label="Тооллого асаах", style=discord.ButtonStyle.success, emoji="▶️", row=1)
     async def toggle_enabled(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer()
         cfg = await self.cog.get_config(self.guild_id)
         if not cfg:
-            await interaction.response.send_message("❌ Эхлээд сувгаа сонгоно уу.", ephemeral=True)
+            await interaction.followup.send("❌ Эхлээд сувгаа сонгоно уу.", ephemeral=True)
             return
         new_state = not cfg['enabled']
         await self.cog.bot.db_manager.update(
@@ -359,14 +360,14 @@ class CountingSetupView(ui.View):
             {"guild_id": str(interaction.guild.id)},
             {"enabled": int(new_state)},
         )
-        await interaction.response.defer()
         await self.refresh(interaction)
 
     @ui.button(label="Math mode: унтраалттай", style=discord.ButtonStyle.secondary, emoji="🧮", row=1)
     async def toggle_math(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer()
         cfg = await self.cog.get_config(self.guild_id)
         if not cfg:
-            await interaction.response.send_message("❌ Эхлээд сувгаа сонгоно уу.", ephemeral=True)
+            await interaction.followup.send("❌ Эхлээд сувгаа сонгоно уу.", ephemeral=True)
             return
         new_state = not cfg['math_mode']
         await self.cog.bot.db_manager.update(
@@ -374,14 +375,14 @@ class CountingSetupView(ui.View):
             {"guild_id": str(interaction.guild.id)},
             {"math_mode": int(new_state)},
         )
-        await interaction.response.defer()
         await self.refresh(interaction)
 
     @ui.button(label="Устгалт: унтраалттай", style=discord.ButtonStyle.secondary, emoji="🗑️", row=1)
     async def toggle_delete(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer()
         cfg = await self.cog.get_config(self.guild_id)
         if not cfg:
-            await interaction.response.send_message("❌ Эхлээд сувгаа сонгоно уу.", ephemeral=True)
+            await interaction.followup.send("❌ Эхлээд сувгаа сонгоно уу.", ephemeral=True)
             return
         new_state = not cfg['delete_messages']
         await self.cog.bot.db_manager.update(
@@ -389,7 +390,6 @@ class CountingSetupView(ui.View):
             {"guild_id": str(interaction.guild.id)},
             {"delete_messages": int(new_state)},
         )
-        await interaction.response.defer()
         await self.refresh(interaction)
 
     # ---------- РОЛЬ ТОХИРГОО ----------

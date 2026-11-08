@@ -233,6 +233,12 @@ async def run_all():
         name = cmd.name
         try:
             ctx = FakeCtx(bot, cmd)
+            # Required Member parameters are created before the context, so
+            # attach the simulated guild before handlers reach level-up and
+            # moderation paths that use member.guild.
+            for value in params.values():
+                if isinstance(value, FakeMember):
+                    value.guild = ctx.guild
             # cmd.callback is the unbound function (self, ctx, ...); bind the cog.
             await cmd.callback(cmd.cog, ctx, **params)
             results.append((name, "OK"))

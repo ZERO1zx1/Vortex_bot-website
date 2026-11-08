@@ -53,6 +53,45 @@ the Counting progression update. It adds separate spendable/lifetime Counting
 XP, level and save-token state, weekly-shield timestamps, the persisted
 anti-farm participant window, and optional Level 5/20/50 role IDs.
 
+For an existing project, run `011_engauge_voice_xp_defaults.sql` before
+deploying the Engauge-style voice XP update. It changes the default to 4 XP
+per audible voice minute, gives no XP while muted/deafened or alone in a voice
+channel, and migrates the legacy 5/15 silent/talking defaults to 0/4.
+
+For an existing project, run `012_engauge_crate_lifecycle.sql` before using
+the updated XP drop system. It adds the redemption window, post-drop cooldown,
+and optional maximum redeemers settings.
+
+For an existing project, run `013_engauge_activity_xp_defaults.sql` before
+deploying the activity XP update. It disables legacy attachment/reaction XP
+and invite XP defaults so message, audible voice, and explicit crates are the
+only automatic XP sources.
+
+For crate criteria, run `014_engauge_crate_criteria.sql`. It adds time-based,
+message-count, and manual trigger settings plus contributing-channel support.
+
+Finally, run `015_remove_legacy_level_sources.sql` to remove the old Aether
+reaction/media/tier/bonus fields from the leveling schema.
+
+Run `016_engauge_role_xp_multipliers.sql` only for databases that still carry
+the legacy role multiplier column; current installs use the separate
+`level_role_xp_multipliers` table created by migration 018.
+
+Run `017_engauge_role_stacking.sql` to add stacking and stacking-group options
+for level roles.
+
+Run `018_engauge_role_xp_settings.sql` to install the separate role XP
+multiplier table and remove the legacy multiplier column.
+
+Run `019_engauge_message_templates.sql` to add configurable level-up and XP
+crate message templates.
+
+Run `020_engauge_role_requirements.sql` to add required roles and role-specific
+level-up messages.
+
+Run `021_engauge_message_xp.sql` to add the configurable per-message XP
+amount, defaulting to Engauge's 15 XP.
+
 `reference` makes reward and treasury mutations exactly-once. The 005 RPC
 commits the recipient balance and tax distribution in one transaction; replay
 of the same reference returns the committed result without applying tax again.

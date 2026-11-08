@@ -25,6 +25,7 @@ from src.utils.fonts import (
 from src.utils.fonts import (
     load_font as _load_font,
 )
+from src.cogs.games.leveling import get_config, xp_for_level
 
 # Embed accent matching the parchment pages.
 JOURNAL_EMBED_COLOR = 0xC89A3D
@@ -366,8 +367,8 @@ class Cards(commands.Cog):
 
         next_xp = 100 * level
         try:
-            cfg = await lvl.get_config(guild_id)
-            next_xp = lvl.xp_for_level(level, cfg)
+            cfg = await get_config(self.bot.db_manager, guild_id)
+            next_xp = xp_for_level(level, cfg)
         except Exception:
             logger.exception("Operation failed in _gather_user_data")
 
@@ -608,7 +609,7 @@ class Cards(commands.Cog):
         bg_url = None
         if level_cog:
             try:
-                cfg = await level_cog.get_config(ctx.guild.id)
+                cfg = await get_config(self.bot.db_manager, ctx.guild.id)
                 bg_url = cfg.get("background_url")
             except Exception:
                 logger.exception("Operation failed in profilecard")

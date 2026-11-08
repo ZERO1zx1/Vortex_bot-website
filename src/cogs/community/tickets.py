@@ -266,10 +266,11 @@ class Tickets(commands.Cog):
     @app_commands.command(name="ticket_stats", description="Ticket системийн товч статистик")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def ticket_stats(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         rows = await self.bot.db_manager.fetch_all("tickets", {"guild_id": str(interaction.guild_id)})
         opened = sum(1 for r in rows if r.get("status") == "open")
         closed = len(rows) - opened
-        await interaction.response.send_message(embed=accent_embed("🎫 Ticket Statistics", f"**Нээлттэй:** {opened}\n**Хаагдсан:** {closed}\n**Нийт:** {len(rows)}"), ephemeral=True)
+        await interaction.followup.send(embed=accent_embed("🎫 Ticket Statistics", f"**Нээлттэй:** {opened}\n**Хаагдсан:** {closed}\n**Нийт:** {len(rows)}"), ephemeral=True)
 
 
 async def setup(bot):
