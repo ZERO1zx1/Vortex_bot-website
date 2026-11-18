@@ -1,2 +1,0 @@
--- Engauge role XP multipliers live in their own table, independent of level
--- reward roles. The table itself is created by migration 018.
