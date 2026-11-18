@@ -51,7 +51,8 @@ class RateLimiter:
 
     async def acquire(self, amount: int = 1) -> None:
         """`amount` ширхэг request-ийн зайг эзэлнэ (шаардлагатай бол хүлээнэ)."""
-        amount = max(1, amount)
+        if amount < 1:
+            raise ValueError("amount >= 1 байх ёстой")
         if amount > self.capacity:
             raise ValueError(f"amount <= capacity ({self.capacity}) байх ёстой")
         while True:

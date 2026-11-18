@@ -11,6 +11,14 @@ async def test_amount_above_capacity_is_rejected() -> None:
         await limiter.acquire(3)
 
 
+async def test_non_positive_amount_is_rejected() -> None:
+    limiter = RateLimiter(max_rate=2)
+    with pytest.raises(ValueError, match="amount >= 1"):
+        await limiter.acquire(0)
+    with pytest.raises(ValueError, match="amount >= 1"):
+        await limiter.acquire(-1)
+
+
 def test_zero_burst_is_rejected() -> None:
     with pytest.raises(ValueError, match="burst"):
         RateLimiter(max_rate=2, burst=0)
