@@ -1,0 +1,48 @@
+{
+  "dungeons": [
+    {
+      "dungeon_id": "neon_cavern",
+      "name": "Neon Cavern",
+      "icon": "🕳️",
+      "description": "Хотын доорх неон гэрлийн агуй. Эхлэгчдэд тохиромжтой.",
+      "min_level": 1,
+      "danger": 0.20,
+      "min_reward": 120,
+      "max_reward": 280,
+      "xp": 25
+    },
+    {
+      "dungeon_id": "cyber_ruins",
+      "name": "Cyber Ruins",
+      "icon": "🏚️",
+      "description": "Хуучин корпорацийн балгас; цахилгаан урхитай.",
+      "min_level": 4,
+      "danger": 0.35,
+      "min_reward": 300,
+      "max_reward": 650,
+      "xp": 45
+    },
+    {
+      "dungeon_id": "astral_gate",
+      "name": "Astral Gate",
+      "icon": "🌌",
+      "description": "Оддын хаалганы ард энергийн амьтад амьдарна.",
+      "min_level": 8,
+      "danger": 0.50,
+      "min_reward": 800,
+      "max_reward": 1500,
+      "xp": 80
+    },
+    {
+      "dungeon_id": "void_spire",
+      "name": "Void Spire",
+      "icon": "🗼",
+      "description": "Хоосон орчны цамхаг; зөвхөн хүчирхэг аялагчид орно.",
+      "min_level": 12,
+      "danger": 0.65,
+      "min_reward": 1800,
+      "max_reward": 3500,
+      "xp": 140
+    }
+  ]
+}

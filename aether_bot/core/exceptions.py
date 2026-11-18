@@ -142,3 +142,19 @@ class NotJailedError(AetherError):
 
 class GameStateError(AetherError):
     user_message = "✦ Тоглоомын төлөв буруу байна. Дахин эхлүүлнэ үү."
+
+
+class JobNotFoundError(AetherError):
+    user_message = "✦ Ийм ажил байхгүй эсвэл таны түвшинд нээгдээгүй байна."
+
+
+class CrimeNotFoundError(AetherError):
+    user_message = "✦ Ийм гэмт хэрэг байхгүй эсвэл таны түвшинд нээгдээгүй байна."
+
+
+class DungeonNotFoundError(AetherError):
+    user_message = "✦ Ийм dungeon байхгүй эсвэл таны түвшинд нээгдээгүй байна."
+
+
+class BossNotFoundError(AetherError):
+    user_message = "✦ Ийм boss байхгүй эсвэл таны түвшинд нээгдээгүй байна."

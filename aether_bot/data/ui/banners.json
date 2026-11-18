@@ -1,0 +1,10 @@
+{
+  "banners": {
+    "default": "https://cdn.discordapp.com/embed/avatars/0.png",
+    "economy": "https://cdn.discordapp.com/embed/avatars/1.png",
+    "rpg": "https://cdn.discordapp.com/embed/avatars/2.png",
+    "casino": "https://cdn.discordapp.com/embed/avatars/3.png",
+    "games": "https://cdn.discordapp.com/embed/avatars/4.png"
+  },
+  "thumbnail": "https://cdn.discordapp.com/embed/avatars/0.png"
+}

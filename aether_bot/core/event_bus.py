@@ -88,6 +88,20 @@ class CasinoResolved(Event):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class UserJailed(Event):
+    user_id: int
+    until: datetime
+    bail_cost: int
+    reason: str
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class UserReleased(Event):
+    user_id: int
+    reason: str  # bail | expired
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class QuestProgress(Event):
     user_id: int
     quest_key: str

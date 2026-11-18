@@ -1,0 +1,52 @@
+[
+  {
+    "job_id": "courier",
+    "name": "Neon Courier",
+    "icon": "🛵",
+    "description": "Неон гудамжаар багц хүргэж, зэвсэгт эргүүлийн дундуур явна.",
+    "min_level": 1,
+    "min_pay": 80,
+    "max_pay": 150,
+    "xp": 12
+  },
+  {
+    "job_id": "barista",
+    "name": "Astral Barista",
+    "icon": "☕",
+    "description": "Оддын кафед худалдан авагчдад энергийн ундаа хийнэ.",
+    "min_level": 2,
+    "min_pay": 130,
+    "max_pay": 220,
+    "xp": 16
+  },
+  {
+    "job_id": "mechanic",
+    "name": "Cyber Mechanic",
+    "icon": "🔧",
+    "description": "Хуучин дроны хөдөлгүүрийг сэргээж, өндөр цалин авна.",
+    "min_level": 4,
+    "min_pay": 220,
+    "max_pay": 350,
+    "xp": 22
+  },
+  {
+    "job_id": "data_runner",
+    "name": "Data Runner",
+    "icon": "💾",
+    "description": "Корпорацийн серверээс шифрлэгдсэн өгөгдөл зөөнө.",
+    "min_level": 7,
+    "min_pay": 380,
+    "max_pay": 560,
+    "xp": 30
+  },
+  {
+    "job_id": "aether_engineer",
+    "name": "Aether Engineer",
+    "icon": "⚙️",
+    "description": "Оддын энергийн урсгалыг тогтворжуулж, хотод гэрэл өгнө.",
+    "min_level": 10,
+    "min_pay": 600,
+    "max_pay": 900,
+    "xp": 42
+  }
+]

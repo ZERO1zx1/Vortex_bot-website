@@ -149,12 +149,36 @@ ROB_BASE_SUCCESS = 0.35
 ROB_FINE_PCT = 0.15  # баригдвал Wallet-ийн 15% торгууль
 ROB_MAX_STEAL_PCT = 0.30  # зорилтын Wallet-ийн хамгийн ихдээ 30%
 
+TRANSFER_MIN = 1
+TRANSFER_MAX = 10_000_000
+DEPOSIT_MIN = 1
+WITHDRAW_MIN = 1
+
+# ── Crime & Jail ──────────────────────────────────────────────────────────
+CRIME_COOLDOWN_SEC = 45 * 60
+CRIME_FAIL_JAIL_MINUTES = 8
+CRIME_FAIL_BAIL = 600
+ROB_JAIL_MINUTES = 10
+ROB_JAIL_BAIL = 800
+JAIL_MAX_MINUTES = 24 * 60
+
 CASINO_HOUSE_EDGE = 0.04  # 4% — инфляцийн хамгаалалт
 CASINO_MIN_BET = 50
 CASINO_MAX_BET = 250_000
+LOTTERY_TICKET_PRICE = 250
+LOTTERY_MAX_TICKETS_PER_ROUND = 20
+
+# ── Games ─────────────────────────────────────────────────────────────────
+DUEL_MIN_BET = 50
+DUEL_MAX_BET = 100_000
+ADVENTURE_COOLDOWN_SEC = 20 * 60
+HUNT_COOLDOWN_SEC = 15 * 60
+FISH_COOLDOWN_SEC = 15 * 60
+BOSS_COOLDOWN_SEC = 30 * 60
 
 # ── Түвшин ба XP ──────────────────────────────────────────────────────────
 XP_PER_MESSAGE = 8
 XP_MESSAGE_COOLDOWN_SEC = 60
 LEVEL_SKILL_POINTS = 2
 LEVEL_COIN_REWARD_MULT = 200  # level * 200
+MAX_LEVEL = 100
