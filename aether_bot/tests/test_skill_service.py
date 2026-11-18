@@ -92,3 +92,22 @@ async def test_get_tree_creates_user_at_command_boundary(db: Database) -> None:
     assert tree.user_id == 42
     assert tree.skill_points == 0
     assert await db.fetchval("SELECT wallet FROM users WHERE user_id = 42") == 500
+
+
+async def test_modifier_cache_is_not_poisoned_by_rollback(db: Database) -> None:
+    service = SkillService(db, cache_ttl=60.0)
+    await db.execute("INSERT INTO users (user_id, wallet) VALUES (7, 500)")
+    assert (await service.get_modifiers(7)).work_income_mult == pytest.approx(1.0)
+
+    with pytest.raises(RuntimeError, match="rollback"):
+        async with db.transaction():
+            await db.execute(
+                "INSERT INTO user_skills (user_id, skill_id, skill_level) "
+                "VALUES (7, 'golden_touch', 5)"
+            )
+            inside = await service.get_modifiers(7)
+            assert inside.work_income_mult == pytest.approx(1.3)
+            raise RuntimeError("rollback")
+
+    after = await service.get_modifiers(7)
+    assert after.work_income_mult == pytest.approx(1.0)

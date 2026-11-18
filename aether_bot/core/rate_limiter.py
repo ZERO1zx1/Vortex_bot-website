@@ -98,6 +98,10 @@ class RouteLimiter:
     """
 
     def __init__(self, per_route: int = 5, per_seconds: float = 2.0) -> None:
+        if per_route < 1:
+            raise ValueError("per_route >= 1 байх ёстой")
+        if per_seconds <= 0:
+            raise ValueError("per_seconds > 0 байх ёстой")
         self.per_route = per_route
         self.per_seconds = per_seconds
         self._buckets: dict[str, deque[float]] = {}

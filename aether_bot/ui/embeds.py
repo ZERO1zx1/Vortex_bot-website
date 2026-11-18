@@ -11,6 +11,7 @@ import random
 import discord
 
 import config
+from core.skill_catalog import PATHS
 from repositories.user_repo import UserRow
 from services.rpg.skill_service import Modifiers, SkillTree
 
@@ -106,8 +107,10 @@ def skills_embed(tree: SkillTree) -> discord.Embed:
             lines.append(
                 f"{skill.icon} **{skill.name}** — `{state.level}/{skill.max_level}` {status}"
             )
+        path = PATHS.get(path_id)
+        title = f"{path.icon} {path.name}" if path else path_id.title()
         embed.add_field(
-            name=f"{config.SEPARATOR} {path_id.title()}",
+            name=f"{config.SEPARATOR} {title}",
             value="\n".join(lines),
             inline=False,
         )

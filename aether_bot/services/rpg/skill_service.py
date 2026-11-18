@@ -199,6 +199,10 @@ class SkillService:
 
     # ── Унших ─────────────────────────────────────────────────────────
     async def _load_levels(self, user_id: int) -> dict[str, SkillRow]:
+        # Транзакц дотор уншсан утгыг кэшлэхгүй: rollback болвол кэш
+        # commit болоогүй өгөгдлийг 15 секунд барих эрсдэлтэй.
+        if self.db.in_transaction():
+            return await self.skills.get_all(user_id)
         now = utcnow().timestamp()
         cached = self._levels_cache.get(user_id)
         if cached and cached[0] > now:
