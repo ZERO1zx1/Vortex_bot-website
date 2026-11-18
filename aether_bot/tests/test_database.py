@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import aiosqlite
 import pytest
 
 import config
@@ -192,6 +193,33 @@ async def test_migrations_are_recorded_once(db: Database) -> None:
     )
     assert [row["version"] for row in rows] == [1, 2]
     assert all(row["checksum"] and len(row["checksum"]) == 64 for row in rows)
+
+
+async def test_legacy_schema_migrations_row_is_backfilled(tmp_path: Path) -> None:
+    path = tmp_path / "legacy.db"
+    script = (config.MIGRATIONS_DIR / "001_baseline.sql").read_text(encoding="utf-8")
+    async with aiosqlite.connect(path, isolation_level=None) as conn:
+        await conn.executescript(script)
+        await conn.execute(
+            "CREATE TABLE schema_migrations ("
+            "version INTEGER PRIMARY KEY, "
+            "applied_at TEXT NOT NULL DEFAULT (datetime('now')))"
+        )
+        await conn.execute("INSERT INTO schema_migrations (version) VALUES (1)")
+        await conn.commit()
+
+    database = Database(path, migrations_dir=config.MIGRATIONS_DIR)
+    await database.connect()
+    try:
+        rows = await database.fetchall(
+            "SELECT version, name, checksum FROM schema_migrations ORDER BY version"
+        )
+        assert [row["version"] for row in rows] == [1, 2]
+        assert rows[0]["name"] == "baseline"
+        assert rows[0]["checksum"] is not None
+        assert len(rows[0]["checksum"]) == 64
+    finally:
+        await database.close()
 
 
 async def test_seed_changes_do_not_resurrect_on_reconnect(

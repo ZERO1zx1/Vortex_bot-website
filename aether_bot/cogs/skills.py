@@ -8,6 +8,7 @@ from cogs._helpers import reply_error
 from core.exceptions import AetherError
 from core.skill_catalog import SKILLS
 from ui.embeds import base_embed, skills_embed
+from utils.time_utils import humanize_seconds
 
 
 class Skills(commands.Cog):
@@ -64,7 +65,7 @@ class Skills(commands.Cog):
         embed = base_embed(
             f"{result.skill.icon} {result.skill.name} — Идэвхтэй",
             f"Дуусах: <t:{int(result.active_until.timestamp())}:R>\n"
-            f"Cooldown: **{result.cooldown_sec // 60} минут**.",
+            f"Cooldown: **{humanize_seconds(result.cooldown_sec)}**.",
             color=0x00E5FF,
         )
         await ctx.reply(embed=embed, mention_author=False)
