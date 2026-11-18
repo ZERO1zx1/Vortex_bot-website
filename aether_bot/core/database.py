@@ -438,3 +438,26 @@ class Database:
             return default
         value = row[0]
         return default if value is None else value
+
+    async def fetchval_write(
+        self, sql: str, params: Params = (), default: Any = None
+    ) -> Any:
+        """`UPDATE/INSERT … RETURNING`-ийг бичих холболт дээр гүйцэтгэнэ.
+
+        `fetchval()` нь `query_only` унших холболт ашигладаг тул RETURNING-тэй
+        бичих statement-д тохирохгүй. Энэ метод транзакц дотор байвал тухайн
+        транзакцад, эс бөгөөс шинэ `BEGIN IMMEDIATE`-д нэгдэнэ.
+        """
+
+        async def operation(conn: aiosqlite.Connection) -> Any:
+            cursor = await conn.execute(sql, params)
+            try:
+                row = await cursor.fetchone()
+            finally:
+                await cursor.close()
+            if row is None:
+                return default
+            value = row[0]
+            return default if value is None else value
+
+        return await self._write(operation)

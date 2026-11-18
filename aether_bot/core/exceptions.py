@@ -30,8 +30,28 @@ class InvalidAmountError(ValidationError):
     user_message = "✦ Дүн 0-ээс их бүхэл тоо байх ёстой."
 
 
+class InvalidBetError(ValidationError):
+    user_message = "✦ Бооцооны дүн буруу байна."
+
+
 class InsufficientFundsError(AetherError):
     user_message = "✦ Wallet дээр хангалттай Aether Coin байхгүй."
+
+
+class InsufficientInventoryError(AetherError):
+    user_message = "✦ Inventory дээр энэ item хангалттай байхгүй."
+
+
+class ItemNotFoundError(AetherError):
+    user_message = "✦ Ийм item Aether дэлгүүрт бүртгэгдээгүй байна."
+
+
+class ItemNotUsableError(AetherError):
+    user_message = "✦ Энэ item-ийг одоо ашиглах боломжгүй."
+
+
+class TargetProtectedError(AetherError):
+    user_message = "✦ Зорилт нь Aether Shield-ээр хамгаалагдсан байна."
 
 
 class CooldownError(AetherError):
@@ -83,3 +103,42 @@ class SessionExpiredError(AetherError):
 
 class RateLimitedError(AetherError):
     user_message = "✦ Discord API-ийн хязгаарт хүрлээ. Хэсэг хүлээнэ үү."
+
+
+class ActionCooldownError(AetherError):
+    user_message = "✦ Уг үйлдэл хараахан бэлэн болоогүй байна."
+
+    def __init__(self, action: str, remaining_sec: int):
+        self.action = action
+        self.remaining_sec = max(0, int(remaining_sec))
+        super().__init__(
+            f"✦ **{action}** дахин хийхэд "
+            f"`{humanize_seconds(self.remaining_sec)}` үлдсэн."
+        )
+
+
+class JailedError(AetherError):
+    user_message = "✦ Та шоронд байна."
+
+    def __init__(self, remaining_sec: int, bail_cost: int = 0):
+        self.remaining_sec = max(0, int(remaining_sec))
+        self.bail_cost = max(0, int(bail_cost))
+        line = (
+            f"✦ Та шоронд байна. Гарах хүртэл "
+            f"`{humanize_seconds(self.remaining_sec)}` үлдсэн."
+        )
+        if self.bail_cost > 0:
+            line += f" Батлан даалт: **{self.bail_cost:,}** ⛃."
+        super().__init__(line)
+
+
+class AlreadyJailedError(AetherError):
+    user_message = "✦ Та аль хэдийн шоронд байна."
+
+
+class NotJailedError(AetherError):
+    user_message = "✦ Та шоронд биш байна."
+
+
+class GameStateError(AetherError):
+    user_message = "✦ Тоглоомын төлөв буруу байна. Дахин эхлүүлнэ үү."

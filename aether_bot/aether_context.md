@@ -1,395 +1,241 @@
-# AETHER DISCORD BOT — PROJECT CONTEXT & ARCHITECTURE
+# AETHER DISCORD BOT — PROJECT CONTEXT, AUDIT & IMPLEMENTATION PROMPT
 
-> Энэхүү файл нь **Aether** Discord ботыг хөгжүүлэхэд ашиглах үндсэн контекст, архитектурын дүрэм, өгөгдлийн сангийн схем, команд хоорондын холболт, Шорон (Jail) систем болон Skills логикийн техникийн баримт бичиг юм. Төслийн санааг [DarkMooN-SYS/MongolBot](https://github.com/DarkMooN-SYS/MongolBot)-ийн модульчлагдсан бүтцээс уламжлан авч, орчин үеийн Layered Architecture + Atomic Service Layer + Interactive UI болгон шинэчилсэн.
+> Энэхүү баримт бичиг нь `aether_bot.zip` архивын бодит кодын аудит, одоогийн хэрэгжсэн суурь (Baseline v2), дутуу байгаа модулиудын жагсаалт болон үргэлжлүүлэн хөгжүүлэхэд зориулсан **Master Continuation Prompt**-ийг агуулна. Төслийн санааг [DarkMooN-SYS/MongolBot](https://github.com/DarkMooN-SYS/MongolBot)-ийн модульчлагдсан бүтцээс уламжлан авч, орчин үеийн Layered Architecture + Atomic Service Layer + Interactive UI болгон шинэчилсэн.
 
-## 1. ТӨСЛИЙН ЕРӨНХИЙ МЭДЭЭЛЭЛ
+---
 
-* **Ботын нэр:** Aether
+## 1. `aether_bot.zip` КОДЫН АУДИТ (ОДОО БАЙГАА БАЙДАЛ БА ЗӨРҮҮ)
 
-* **Сэдэв / Харагдах байдал:** Anime / Cyber-Fantasy RPG & Economy
+### А. Бүрэн хэрэгжсэн, чанартай суурь (Production-Ready Foundation — 71 тесттэй)
+Архив доторх суурь дэд бүтэц маш сайн бичигдсэн бөгөөд дараах файлуудыг **эвдэхгүйгээр** шууд залгуулан ашиглана:
 
-* **Хэл:** Хэрэглэгчийн бүх UI текст нь цэвэрхэн, загварлаг Монгол хэл дээр (техникийн болон RPG нэршил хосолсон).
+| Модуль / Файл | Статус | Хэрэгжсэн онцлог |
+| :--- | :--- | :--- |
+| `core/database.py` | ✅ Бэлэн | WAL горим, тусдаа `_read_conn` (`query_only=ON`) ба `_write_lock`-той бичих холболт, `BEGIN IMMEDIATE` транзакц, ContextVar leak хамгаалалт, SHA-256 checksum-тай migration runner. |
+| `migrations/001` & `002` | ✅ Бэлэн | `users`, `user_skills`, `shop_items`, `inventory`, `user_effects`, `cooldowns`, `transactions`, `casino_logs`, `game_logs`, `guild_settings` хүснэгтүүд + Append-only (`BEFORE UPDATE/DELETE RAISE(ABORT)`) триггерүүд. |
+| `core/locks.py` | ✅ Бэлэн | Reentrant `PerUserLockManager` (`user_lock`, `multi_user_lock` эрэмбэлэлттэй deadlock хамгаалалт). |
+| `core/rate_limiter.py` | ✅ Бэлэн | 45 req/s глобал sliding-window лимитер + `RouteLimiter` (5 req / 2s) + `install_http_guard`. |
+| `core/event_bus.py` | ✅ Бэлэн | Async pub/sub (`XPGained`, `LevelUp`, `MoneyChanged`, `SkillUpgraded`, `SkillActivated`, `CasinoResolved`, `QuestProgress`). |
+| `core/skill_catalog.py` | ✅ Бэлэн | 3 салбар (`Fortune`, `Shadow`, `Wisdom`), 7 skill (`golden_touch`, `lucky_star`, `merchants_eye`, `shadow_step`, `critical_strike`, `astral_resonance`, `aether_shield`). |
+| `services/rpg/skill_service.py` | ✅ Бэлэн | 15с кэштэй `get_modifiers()`, атомик `upgrade()`, `activate()`, `consume_charge()`, `reset()`. |
+| `repositories/user_repo.py` & `skill_repo.py` | ✅ Бэлэн | `UserRow`, `SkillRow` CRUD ба атомик SP зарцуулалт. |
 
-* **Командын дүрэм (Prefix vs. Slash):**
+### Б. Илэрсэн зөрүү болон Дутуу зүйлс (Gap Analysis)
+Архивыг задлан шалгахад дараах **6 гол зөрүү ба дутуу хэсгүүд** илэрлээ:
 
-  * **Энгийн хэрэглэгчийн командууд:** Бүгд **Prefix** команд байна (Өгөгдмөл угтвар: `a!`, сервер бүрээр өөрчлөх боломжтой, товч alias-тай: `a!bal`, `a!bj`, `a!s` г.м.). `discord.Intents.message_content = True` заавал идэвхтэй байна.
+1. **Командын төрлийн зөрүү (`hybrid_command` vs. Prefix / Slash ялгалт):**
+   * Одоогийн `cogs/economy.py`, `cogs/skills.py`, `cogs/health.py`, `cogs/admin.py` нь бүгд `@commands.hybrid_command` ашигласан байна.
+   * **Шаардлага:** Энгийн тоглогчийн бүх команд **зөвхөн Prefix (`@commands.command`, `a!`)** байх ёстой. Харин Админ командууд **зөвхөн Slash (`@app_commands.command`, `/admin_*`)** байх ёстой.
+2. **Архитектурын дүрмийн зөрчил (`cogs/admin.py` ба `bot.py`):**
+   * `cogs/admin.py` болон `bot.py` дотор `self.bot.db.execute(...)` / `fetchone(...)` гэж **Cog дотроос шууд SQL бичсэн** нь *"cogs дотор SQL бичихгүй"* гэсэн дүрмийг зөрчсөн. Үүнийг `GuildRepository` руу шилжүүлэх ёстой.
+3. **Шоронгийн (Jail) систем DB болон Service дээр огт байхгүй:**
+   * `001_baseline.sql` болон `002_hardening.sql` дээр `users` хүснэгтэд `jail_until`, `jail_bail_cost` баганууд **байхгүй** байна.
+   * **Шийдэл:** `001`, `002`-ийг засах хориотой тул (SHA-256 checksum шалгадаг) шинээр **`migrations/003_jail_and_features.sql`** үүсгэж `jail_until`, `jail_bail_cost`, `log_channel_id` болон сугалааны хүснэгтийг нэмнэ. Мөн `JailedError` болон `@not_jailed()` check декоратор (`core/checks.py`) дутуу байна.
+4. **Интерактив UI (`Button`, `StringSelect`, `Modal`) огт бичигдээгүй:**
+   * `ui/` хавтас дотор зөвхөн `embeds.py` байна. `AetherView` (author_id шалгалт + timeout auto-disable), `Modal`-ууд болон цэсүүд огт хийгдээгүй; `a!upgrade`, `a!activate` зэрэг нь текст аргументаар ажиллаж байна.
+5. **Хоосон хавтаснууд ба Огт бичигдээгүй Сервисүүд:**
+   * `services/economy/`, `services/casino/`, `services/games/`, `data/economy/`, `data/rpg/`, `data/ui/` хавтаснууд **0 файлтай хоосон** байна.
+   * `shop_repo.py`, `cooldown_repo.py`, `guild_repo.py`, `log_repo.py` байхгүй.
+6. **Багцын жин:**
+   * `aether_bot.zip` дотор `.venv/`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/` болон `.env` орсон байгааг `.gitignore`-оор цэвэрлэх шаардлагатай.
 
-  * **Админ командууд:** Бүгд **Slash Command (`/`)** хэлбэртэй байна (`app_commands`, зөвхөн Administrator / Bot Owner эрхтэй).
+---
 
-* **Технологийн стек:**
+## 2. ЗОРИЛТОТ ХАВТАСНЫ БҮТЭЦ (DOMAIN-BASED STRUCTURE)
 
-  * **Runtime:** Python 3.11+
-
-  * **Discord API:** `discord.py` 2.4+ (Prefix Commands + `discord.ui.View`, `Button`, `StringSelect`, `Modal` + Admin Slash Commands)
-
-  * **Database:** `aiosqlite` (WAL mode + Foreign Keys идэвхжүүлсэн). Одоогийн SQL нь SQLite-д тусгайлагдсан (`?` placeholder, `INSERT OR IGNORE`, `lastrowid`, PRAGMA) тул PostgreSQL руу шилжихэд Repository давхаргад dialect layer нэмэх шаардлагатай.
-
-  * **Concurrency & Rate Limit:** `asyncio.Lock` (хэрэглэгч тус бүр дээр race condition хаах), Global Rate Limiter (Discord-ийн 50 req/s хязгаараас сэргийлж **45 req/s** дээр хязгаарлана).
-
-## 2. ХАВТАСНЫ БҮТЭЦ (DOMAIN-BASED FOLDER STRUCTURE)
+Одоо байгаа `core/` болон `migrations/` суурийг хэвээр хадгалж, дутуу файлуудыг дараах ангиллаар гүйцээнэ:
 
 ```text
-aether-bot/
-├── bot.py                          # Entry point, Dynamic Prefix, Cogs auto-loader
-├── config.py                       # Өнгөний палитр, тогтмолууд, .env уншигч
-├── requirements.txt                # discord.py, aiosqlite, python-dotenv, pytest
-├── README.md                       # Суулгах заавар, ботын танилцуулга
-├── .env                            # DISCORD_TOKEN, DB_PATH, DEFAULT_PREFIX, LOG_LEVEL
-├── .gitignore                      # .env, data/db/*.db, logs/, __pycache__/
+aether_bot/
+├── bot.py                          # [ЗАСАХ] Dynamic Cog loader, GuildRepo prefix, EventBus холболт
+├── config.py                       # [ЗАСАХ] CRIME/JAIL/GAME тогтмолууд нэмэх
+├── migrations/
+│   ├── 001_baseline.sql            # [ХӨНДӨХГҮЙ] SHA-256 checksum-тай
+│   ├── 002_hardening.sql           # [ХӨНДӨХГҮЙ] SHA-256 checksum-тай
+│   └── 003_jail_and_features.sql   # [ШИНЭ] users.jail_until, jail_bail_cost, lottery_tickets, log_channel_id
 │
-├── assets/                         # Визуал медиа файлууд
-│   ├── banners/                    # Casino, Shop, Duel, Jail embed баннерууд
-│   └── thumbnails/                 # Aether систем болон NPC дүрийн зургууд
-│
-├── data/                           # Статик тохиргоо ба Өгөгдлийн сан (Ангиллаар)
-│   ├── db/
-│   │   └── aether.db               # SQLite өгөгдлийн сан (WAL mode)
+├── data/                           # [ШИНЭ] Статик тохиргооны JSON файлууд
 │   ├── economy/
 │   │   ├── jobs.json               # Ажлын жагсаалт, шаардагдах level, цалин
 │   │   └── crimes.json             # Гэмт хэргийн төрлүүд, эрсдэл, шоронгийн хугацаа
 │   ├── rpg/
-│   │   ├── skills.json             # 3 салбарын Skill Tree, max level, modifier
-│   │   ├── shop_items.json         # Дэлгүүрийн бараанууд (seed data)
-│   │   ├── dungeons.json           # Adventure өрөөнүүд, унах олз
+│   │   ├── dungeons.json           # Adventure өрөөнүүд, сонголт, олз
 │   │   └── bosses.json             # World Boss-ийн HP, дайралт, шагнал
 │   └── ui/
-│       ├── anime_quotes.json       # Embed footer болон NPC ишлэлүүд
-│       └── banners.json            # Embed зураг/GIF URL-ууд
+│       └── banners.json            # Embed баннер/thumbnail URL-ууд
 │
-├── core/                           # Системийн дэд бүтэц (Infrastructure)
-│   ├── __init__.py
-│   ├── database.py                 # aiosqlite connection manager, WAL mode, migrations
-│   ├── locks.py                    # Per-user asyncio.Lock manager (Race condition хаах)
-│   ├── rate_limiter.py             # Global 45 req/s rate limiter & stats monitor
-│   ├── event_bus.py                # Async EventBus (XP, LevelUp, Jail, Transaction)
-│   ├── checks.py                   # @not_jailed(), @is_admin(), @has_cooldown()
-│   └── exceptions.py               # InsufficientFundsError, CooldownError, JailedError
+├── core/
+│   ├── database.py                 # [БЭЛЭН]
+│   ├── locks.py                    # [БЭЛЭН]
+│   ├── rate_limiter.py             # [БЭЛЭН]
+│   ├── event_bus.py                # [ЗАСАХ] UserJailed, UserReleased event нэмэх
+│   ├── skill_catalog.py            # [БЭЛЭН]
+│   ├── exceptions.py               # [ЗАСАХ] JailedError, ItemNotFoundError нэмэх
+│   └── checks.py                   # [ШИНЭ] @not_jailed(), @is_admin() декораторууд
 │
-├── utils/                          # Ерөнхий туслах функцүүд (Pure helpers)
-│   ├── __init__.py
-│   ├── logger.py                   # Rotating file & console logging
-│   ├── formatters.py               # Тоо форматлах (1,000,000), progress bar (▰▱)
-│   ├── time_utils.py               # Cooldown ба шоронгийн үлдсэн хугацаа форматлах
-│   └── validators.py               # Бооцооны дүн ("all", "half", "10k") задлагч
+├── utils/
+│   ├── time_utils.py               # [БЭЛЭН]
+│   └── validators.py               # [ШИНЭ] "all", "half", "10k", "1.5m" дүн задлагч
 │
-├── repositories/                   # Өгөгдлийн сангийн давхарга (Зөвхөн SQL)
-│   ├── __init__.py
-│   ├── user_repo.py                # users хүснэгтийн CRUD, atomic balance/xp/jail
-│   ├── skill_repo.py               # user_skills хүснэгтийн CRUD
-│   ├── shop_repo.py                # shop_items, inventory хүснэгтүүд
-│   ├── cooldown_repo.py            # cooldowns хүснэгтийн удирдлага
-│   ├── guild_repo.py               # guild_settings (prefix, tax_rate, log_channel)
-│   └── log_repo.py                 # transactions, casino_logs, duel_logs
+├── repositories/
+│   ├── user_repo.py                # [ЗАСАХ] wallet/bank/xp/level/jail atomic update методууд нэмэх
+│   ├── skill_repo.py               # [БЭЛЭН]
+│   ├── shop_repo.py                # [ШИНЭ] shop_items, inventory, user_effects CRUD
+│   ├── cooldown_repo.py            # [ШИНЭ] cooldowns хүснэгт шалгах/тохируулах
+│   ├── guild_repo.py               # [ШИНЭ] guild_settings (prefix, tax_pct, log_channel_id)
+│   └── log_repo.py                 # [ШИНЭ] transactions, casino_logs, game_logs бичих/унших
 │
-├── services/                       # Бизнес логик (Ангиллаар, Discord обьектгүй)
-│   ├── __init__.py
+├── services/
 │   ├── economy/
-│   │   ├── wallet_service.py       # Balance, Deposit, Withdraw, Transfer, Tax, Escrow
-│   │   ├── income_service.py       # Daily Streak, Work
-│   │   ├── crime_service.py        # Crime, Rob магадлал ба тооцоо
-│   │   └── jail_service.py         # Шоронд оруулах, хугацаа шалгах, батлан даалт
+│   │   ├── wallet_service.py       # [ШИНЭ] Balance, Deposit, Withdraw, Transfer (tax_pct), Escrow
+│   │   ├── income_service.py       # [ШИНЭ] Daily Streak, Work
+│   │   ├── crime_service.py        # [ШИНЭ] Crime, Rob (Shield шалгах, бүтэлгүйтвэл Jail)
+│   │   └── jail_service.py         # [ШИНЭ] Шоронд хийх, хугацаа шалгах, Bail (Shadow Step хөнгөлөлт)
 │   ├── rpg/
-│   │   ├── level_service.py        # XP тооцоо, Level-up шалгалт, SP олголт
-│   │   ├── skill_service.py        # Skill Tree, get_modifiers(), Active skill & Cooldown
-│   │   ├── shop_service.py         # Дэлгүүрийн үнэ, Merchant's Eye хөнгөлөлт, Худалдан авалт
-│   │   └── inventory_service.py    # Item ашиглах (Booster, Shield, Scroll), Title зүүх
+│   │   ├── skill_service.py        # [ЗАСАХ] Modifiers дээр jail_reduction_pct нэмэх
+│   │   ├── level_service.py        # [ШИНЭ] XPGained сонсох, Level-up тооцоо (+2 SP, level*200 coin)
+│   │   ├── shop_service.py         # [ШИНЭ] Merchant's Eye хямдрал, худалдан авалт
+│   │   └── inventory_service.py    # [ШИНЭ] Item хэрэглэх (Shield, XP Boost, Stamina, Tome of Rebirth, Title)
 │   ├── casino/
-│   │   ├── slots_service.py        # Slots магадлал, үржүүлэгч, Lucky Star cashback
-│   │   ├── blackjack_service.py    # Хөзрийн тавцан, Dealer логик, Escrow
-│   │   ├── roulette_service.py     # Roulette хүрд ба төлөлт
-│   │   ├── minefield_service.py    # Бөмбөгний байрлал, алхмын үржүүлэгч
-│   │   ├── crash_service.py        # Crash муруй ба санамсаргүй цэг
-│   │   └── lottery_service.py      # Тасалбар, Jackpot сан, тохирол
+│   │   ├── slots_service.py        # [ШИНЭ] 3x3 Slots, Escrow, Lucky Star cashback
+│   │   ├── blackjack_service.py    # [ШИНЭ] Blackjack state machine (Hit/Stand/Double)
+│   │   ├── roulette_service.py     # [ШИНЭ] Улаан/Хар, Тэгш/Сондгой, Тоо (0-36)
+│   │   ├── minefield_service.py    # [ШИНЭ] 4x4 бөмбөгтэй талбай, Cashout үржүүлэгч
+│   │   ├── coinflip_service.py     # [ШИНЭ] Heads/Tails
+│   │   ├── crash_service.py        # [ШИНЭ] Crash үржүүлэгч ба Cashout
+│   │   └── lottery_service.py      # [ШИНЭ] Сугалааны тасалбар ба Jackpot
 │   └── games/
-│       ├── duel_service.py         # 1v1 PvP ээлжит тулааны тооцоо
-│       ├── adventure_service.py    # Dungeon өрөө, сонголт, олз
-│       ├── hunt_fish_service.py    # Ан ба загасчлалын олз, tool нөлөө
-│       └── boss_service.py         # World Boss Raid HP ба шагнал хуваарилалт
+│       ├── duel_service.py         # [ШИНЭ] 1v1 PvP ээлжит тулаан (Critical Strike цэнэг ашиглана)
+│       ├── adventure_service.py    # [ШИНЭ] Dungeon өрөөний сонголт ба олз
+│       ├── hunt_fish_service.py    # [ШИНЭ] Hunt ба Fish мини-тоглоом
+│       └── boss_service.py         # [ШИНЭ] Нийтийн Raid Boss
 │
-├── ui/                             # Anime-Style UI (Ангиллаар)
-│   ├── __init__.py
+├── ui/
+│   ├── embeds.py                   # [ЗАСАХ] Бүх модулийн Anime-style embed функцүүд нэмэх
 │   ├── common/
-│   │   ├── base.py                 # AetherView (author_id шалгалт, timeout disable)
-│   │   ├── embeds.py               # Anime-style Embed builder, Quote & Color helper
-│   │   ├── modals.py               # DepositModal, WithdrawModal, TransferModal, BetModal, BioModal
-│   │   └── paginator.py            # Олон хуудастай жагсаалтын View
-│   ├── economy/
-│   │   ├── balance_view.py         # Wallet/Bank товч ба Modal дуудагч
-│   │   ├── work_view.py            # Ажлын сонголтын StringSelect
-│   │   ├── crime_view.py           # Гэмт хэргийн сонголтын StringSelect
-│   │   └── jail_view.py            # Шоронгийн статус болон [Батлан даалт] товч
-│   ├── rpg/
-│   │   ├── profile_view.py         # Adventurer Card + [Inventory] [Skills] [Bio]
-│   │   ├── skill_view.py           # Skill Tree Branch Select + Upgrade/Use товч
-│   │   ├── shop_view.py            # Ангилал Select, Pagination, Buy Modal
-│   │   └── inventory_view.py       # Item Select + [Ашиглах / Зүүх] товч
-│   ├── casino/
-│   │   ├── slots_view.py           # [Дахин], [2x], [Бооцоо (Modal)]
-│   │   ├── blackjack_view.py       # [Hit], [Stand], [Double Down]
-│   │   ├── roulette_view.py        # Бооцооны төрөл Select & Spin товч
-│   │   ├── minefield_view.py       # 4x4 эсвэл 5x4 Grid Button + [Cashout]
-│   │   └── crash_view.py           # Амьд үржүүлэгч ба [Cashout] товч
-│   └── games/
-│       ├── duel_view.py            # [Зөвшөөрөх/Татгалзах] + [Довтлох/Skill/Хамгаалах]
-│       ├── adventure_view.py       # Өрөөний сонголтын товчнууд
-│       ├── hunt_fish_view.py       # Мини-тоглоомын товчнууд
-│       └── boss_view.py            # Нийтийн Raid Boss [Довтлох] товч
+│   │   ├── base.py                 # [ШИНЭ] AetherView (author_id хамгаалалт + on_timeout auto-disable)
+│   │   ├── modals.py               # [ШИНЭ] AmountModal, TransferModal, BetModal, BuyQuantityModal, BioModal
+│   │   └── paginator.py            # [ШИНЭ] Хуудаслагч View
+│   ├── economy/                    # [ШИНЭ] balance_view.py, work_view.py, crime_view.py, jail_view.py
+│   ├── rpg/                        # [ШИНЭ] profile_view.py, skill_view.py, shop_view.py, inventory_view.py
+│   ├── casino/                     # [ШИНЭ] slots_view.py, blackjack_view.py, roulette_view.py, minefield_view.py, crash_view.py
+│   └── games/                      # [ШИНЭ] duel_view.py, adventure_view.py, boss_view.py
 │
-├── cogs/                           # Discord командууд (Ангиллаар, нэг файл = нэг үүрэг)
-│   ├── __init__.py
-│   ├── system/
-│   │   ├── help.py                 # a!help (Category SelectMenu), a!ping, a!tutorial
-│   │   ├── events.py               # on_message (XP), on_command_error (Jailed/Cooldown)
-│   │   └── admin.py                # /admin_economy, /admin_jail, /admin_shop, /admin_skill, /admin_config
-│   ├── economy/
-│   │   ├── wallet.py               # a!bal, a!dep, a!wd, a!pay
-│   │   ├── income.py               # a!daily, a!work
-│   │   ├── crime.py                # a!crime, a!rob
-│   │   └── jail.py                 # a!jail, a!bail
-│   ├── rpg/
-│   │   ├── profile.py              # a!profile, a!rank, a!lb
-│   │   ├── skills.py               # a!skills
-│   │   ├── shop.py                 # a!shop, a!buy
-│   │   └── inventory.py            # a!inv, a!use, a!equip
-│   ├── casino/
-│   │   ├── slots.py                # a!slots (s)
-│   │   ├── blackjack.py            # a!blackjack (bj)
-│   │   ├── roulette.py             # a!roulette (r)
-│   │   ├── minefield.py            # a!minefield (mf)
-│   │   ├── coinflip.py             # a!coinflip (cf)
-│   │   ├── crash.py                # a!crash (cr)
-│   │   └── lottery.py              # a!lottery (lot)
-│   └── games/
-│       ├── duel.py                 # a!duel
-│       ├── adventure.py            # a!adventure (adv)
-│       ├── hunt.py                 # a!hunt
-│       ├── fish.py                 # a!fish
-│       └── boss.py                 # a!boss
-│
-└── tests/                          # Тест ба Эдийн засгийн баланс симулятор
-    ├── test_economy.py             # Atomic transaction & race condition тест
-    ├── test_skills.py              # Skill modifier & cooldown тест
-    ├── test_jail.py                # Crime/Rob шорон ба bail хөнгөлөлтийн тест
-    └── test_casino_sim.py          # 10,000+ тоглолтын offline магадлал/баланс шалгагч
+└── cogs/
+    ├── system/                     # [ШИНЭ] help.py (a!help, a!ping), events.py (XP & Error handler), admin.py (/admin_*)
+    ├── economy/                    # [ШИНЭ] wallet.py, income.py, crime.py, jail.py
+    ├── rpg/                        # [ШИНЭ] profile.py, skills.py, shop.py, inventory.py
+    ├── casino/                     # [ШИНЭ] slots.py, blackjack.py, roulette.py, minefield.py, coinflip.py, crash.py, lottery.py
+    └── games/                      # [ШИНЭ] duel.py, adventure.py, hunt.py, fish.py, boss.py
 ```
 
-## 3. АРХИТЕКТУРЫН ХАТУУ ДҮРМҮҮД (CRITICAL RULES)
+---
 
-1. **Давхаргат тусгаарлалт:**
+## 3. MIGRATION 003 СХЕМ (`migrations/003_jail_and_features.sql`)
 
-   * `cogs/` болон `ui/` дотор **SQL бичихгүй**, бизнес логик бодож болохгүй. Тэд зөвхөн `services/`-ийг дуудна.
-
-   * `services/` нь `discord` обьекттой шууд харьцахгүй (зөвхөн Python дата бүтэц буцаана).
-
-2. **Prefix + Interactive Modal холболт:**
-
-   * Prefix команд нь `Modal`-ийг шууд нээж чаддаггүй тул prefix команд эхлээд Anime-style Embed + `Button`/`StringSelect`-тэй мессеж илгээнэ. Хэрэглэгч товч дарахад (`Button.callback`) `interaction.response.send_modal()`-аар 3 секундийн дотор (`defer()` хийлгүйгээр) `Modal` нээнэ.
-
-   * Database шалгалтыг `Modal.on_submit()` дотор хийнэ.
-
-3. **Атомик Гүйлгээ ба Escrow:**
-
-   * Мөнгө хасах/нэмэх бүх үйлдэл `async with user_lock(user_id):` болон `BEGIN IMMEDIATE` SQL транзакци дотор хийгдэнэ.
-
-   * Казино болон `a!duel` эхлэхэд бооцоог эхлээд **Escrow** хэлбэрээр суутгаж, тоглоом дуусахад хожигчид шилжүүлнэ.
-
-4. **Шоронгийн (Jail) хамгаалалт:**
-
-   * `@not_jailed()` check нь `work`, `crime`, `rob`, бүх `casino` болон `games` командуудын өмнө ажиллана. Хэрэв хэрэглэгч шоронд байвал үлдсэн хугацаа болон `[Батлан даалтаар гарах]` товчийг харуулна.
-
-5. **UI Хамгаалалт:**
-
-   * Бүх `discord.ui.View` нь `author_id`-г хадгалж, өөр хэрэглэгч товч дарвал `ephemeral=True`-аар `"✦ Энэ цэс зөвхөн эзэндээ нээлттэй."` гэж хариулна.
-
-   * `on_timeout()` үед бүх товч болон select-ийг `disabled=True` болгож мессежийг шинэчилнэ.
-
-## 4. ӨГӨГДЛИЙН САНГИЙН СХЕМ (SQLITE SCHEMA)
+`001_baseline.sql` болон `002_hardening.sql`-ийг огт өөрчлөхгүйгээр дараах `003_jail_and_features.sql` файлаар схемийг гүйцээнэ:
 
 ```sql
-PRAGMA journal_mode = WAL;
-PRAGMA foreign_keys = ON;
+-- ════════════════════════════════════════════════════════════════════════
+-- AETHER — migration 003: jail system, guild log channel & lottery pool
+-- ════════════════════════════════════════════════════════════════════════
 
-CREATE TABLE IF NOT EXISTS users (
-    user_id         INTEGER PRIMARY KEY,
-    wallet          INTEGER NOT NULL DEFAULT 500 CHECK (wallet >= 0),
-    bank            INTEGER NOT NULL DEFAULT 0 CHECK (bank >= 0),
-    xp              INTEGER NOT NULL DEFAULT 0 CHECK (xp >= 0),
-    level           INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1),
-    skill_points    INTEGER NOT NULL DEFAULT 0 CHECK (skill_points >= 0),
-    daily_streak    INTEGER NOT NULL DEFAULT 0,
-    last_daily_at   TIMESTAMP,
-    shield_until    TIMESTAMP,
-    jail_until      TIMESTAMP,
-    jail_bail_cost  INTEGER NOT NULL DEFAULT 0,
-    active_title    TEXT DEFAULT 'Wanderer',
-    bio             TEXT DEFAULT 'Aether ертөнцийн аялагч.',
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+BEGIN;
 
-CREATE TABLE IF NOT EXISTS user_skills (
+ALTER TABLE users ADD COLUMN jail_until TEXT;
+ALTER TABLE users ADD COLUMN jail_bail_cost INTEGER NOT NULL DEFAULT 0 CHECK (jail_bail_cost >= 0);
+
+ALTER TABLE guild_settings ADD COLUMN log_channel_id INTEGER;
+
+CREATE TABLE IF NOT EXISTS lottery_tickets (
+    ticket_id       INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id         INTEGER NOT NULL,
-    skill_id        TEXT NOT NULL,
-    skill_level     INTEGER NOT NULL DEFAULT 0,
-    last_used_at    TIMESTAMP,
-    active_until    TIMESTAMP,
-    PRIMARY KEY (user_id, skill_id),
+    round_id        INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS shop_items (
-    item_id         TEXT PRIMARY KEY,
-    name            TEXT NOT NULL,
-    category        TEXT NOT NULL, -- 'defense', 'booster', 'title', 'scroll', 'tool'
-    price           INTEGER NOT NULL CHECK (price > 0),
-    description     TEXT NOT NULL,
-    effect_type     TEXT NOT NULL,
-    effect_value    REAL NOT NULL DEFAULT 0,
-    duration_sec    INTEGER NOT NULL DEFAULT 0
-);
+CREATE INDEX IF NOT EXISTS idx_lottery_round ON lottery_tickets(round_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_users_jail ON users(jail_until);
 
-CREATE TABLE IF NOT EXISTS inventory (
-    user_id         INTEGER NOT NULL,
-    item_id         TEXT NOT NULL,
-    quantity        INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 0),
-    PRIMARY KEY (user_id, item_id),
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (item_id) REFERENCES shop_items(item_id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS cooldowns (
-    user_id         INTEGER NOT NULL,
-    action_key      TEXT NOT NULL, -- 'work', 'crime', 'rob', 'hunt', 'fish', 'adv', 'xp_chat'
-    expires_at      TIMESTAMP NOT NULL,
-    PRIMARY KEY (user_id, action_key)
-);
-
-CREATE TABLE IF NOT EXISTS guild_settings (
-    guild_id        INTEGER PRIMARY KEY,
-    prefix          TEXT NOT NULL DEFAULT 'a!',
-    tax_rate        REAL NOT NULL DEFAULT 0.05,
-    log_channel_id  INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS transactions (
-    tx_id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id         INTEGER NOT NULL,
-    amount          INTEGER NOT NULL, -- + орлого, - зарлага
-    source          TEXT NOT NULL,    -- 'daily', 'work', 'crime', 'rob', 'bail', 'casino', 'shop'
-    metadata        TEXT,
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+COMMIT;
 ```
 
-## 5. КОМАНД БҮРИЙН ҮҮРЭГ БА ХОЛБОЛТ
+---
 
-### А. Эдийн засаг, Гэмт хэрэг ба Шорон (Prefix: `a!`)
+## 4. АРХИТЕКТУР БА КОМАНДЫН ХАТУУ ДҮРМҮҮД
 
-| Команд (Aliases) | UI Компонент | Холбогдох Сервисүүд | Үндсэн үүрэг ба Өгөгдлийн урсгал | 
-| ----- | ----- | ----- | ----- | 
-| `a!balance` (`bal`) | `Button`, `Modal` | `WalletService`, `LevelService` | Wallet, Bank, Net Worth харуулна. `[Хийх]`, `[Авах]`, `[Шилжүүлэх]` товч нь `Modal` нээж дүн авна. | 
-| `a!deposit <дүн/all>` (`dep`) | `Button` | `WalletService` | Wallet-аас Bank руу шууд мөнгө хийнэ. | 
-| `a!withdraw <дүн/all>` (`wd`) | `Button` | `WalletService` | Bank-аас Wallet руу шууд мөнгө авна. | 
-| `a!transfer @user <дүн>` (`pay`) | `Button` (Confirm) | `WalletService` | Өөр тоглогч руу татвартай (`tax_rate`) мөнгө шилжүүлнэ. | 
-| `a!daily` | `Button` | `IncomeService`, `SkillService`, `LevelService` | 24 цагийн шагнал + Streak. `Level` болон `Golden Touch` skill-ээс хамаарч өснө. | 
-| `a!work` | `StringSelect`, `Button` | `IncomeService`, `SkillService`, `LevelService` | Сонгосон ажлаар Coin болон XP олно (`Golden Touch` ба `Astral Resonance` нөлөөлнө). | 
-| `a!crime` | `StringSelect`, `Button` | `CrimeService`, `JailService`, `SkillService` | Эрсдэлтэй гэмт хэрэг (Хакдах, Хулгай, Контрабанд). Амжилттай бол өндөр шагнал, **бүтэлгүйтвэл торгууль + Шоронд орно**. | 
-| `a!rob @user` | `Button` | `CrimeService`, `JailService`, `SkillService` | Зорилтот хэрэглэгчийн Wallet-аас дээрэмдэнэ. `Aether Shield` эсвэл `shield_until` шалгана. **Бүтэлгүйтвэл шоронд орно**. | 
-| `a!jail` | `Button` (`[Батлан даалт]`) | `JailService` | Шоронгийн үлдсэн хугацаа болон батлан даалтын үнийг харуулна. | 
-| `a!bail` | `Button` (Confirm) | `JailService`, `WalletService`, `SkillService` | Батлан даалтын мөнгө төлж шоронгоос хугацаанаасаа өмнө гарна (`Shadow Step` хөнгөлөлт өгнө). | 
+1. **Prefix vs. Slash хатуу ялгалт:**
+   * Тоглогчийн бүх команд (`economy`, `rpg`, `casino`, `games`, `help`, `ping`) нь `@commands.command(...)` буюу **Prefix (`a!`)** команд байна (`hybrid_command` ашиглахгүй).
+   * Админ командууд (`cogs/system/admin.py`) нь `@app_commands.command(...)` буюу **Slash (`/admin_*`)** команд байна (`@app_commands.default_permissions(administrator=True)`).
+2. **Давхаргат тусгаарлалт ба Одоогийн SQL-ийн дүрэм:**
+   * `cogs/` болон `ui/` нь SQL бичихгүй, зөвхөн `services/` дуудна.
+   * Гүйлгээ бүрд `transactions` хүснэгтийн **`balance_after`** баганыг заавал бөглөнө (`001_baseline.sql` ба `002_hardening.sql`-ийн дагуу).
+   * `transactions`, `casino_logs`, `game_logs` хүснэгтүүд нь append-only тул хэзээ ч `UPDATE` эсвэл `DELETE` хийхгүй.
+3. **Interactive UI (`Button`, `StringSelect`, `Modal`) & 3 секундийн дүрэм:**
+   * Prefix команд нь `Modal` шууд нээж чадахгүй тул эхлээд Anime-style Embed + `AetherView` (Button/Select)-ийг илгээнэ.
+   * Хэрэглэгч товч дарахад `interaction.response.send_modal(...)`-ийг `defer()` хийлгүйгээр шууд дуудна. Бүх DB болон баланс шалгалтыг `Modal.on_submit()` дотор гүйцэтгэнэ.
+   * `AetherView` (`ui/common/base.py`) нь `interaction_check` дотор `interaction.user.id == self.author_id` эсэхийг шалгаж, өөр хүн дарвал `ephemeral=True`-аар `"✦ Энэ цэс зөвхөн эзэндээ нээлттэй."` гэж хариулна.
+4. **Шоронгийн (`Jail`) логик:**
+   * `@not_jailed()` декоратор нь `work`, `crime`, `rob`, бүх `casino` болон `games` командуудыг хамгаална.
+   * `a!crime` эсвэл `a!rob` бүтэлгүйтвэл торгууль суутгаад, `JailService.imprison(user_id, minutes, bail_cost)` дуудаж шоронд хийнэ (`Shadow Step` skill нь шоронгийн хугацаа болон батлан даалтын үнийг түвшин бүрд `5%`, дээд тал нь `25%` бууруулна).
 
-### Б. Профайл, Level, Skills & Дэлгүүр (Prefix: `a!`)
+---
 
-| Команд (Aliases) | UI Компонент | Холбогдох Сервисүүд | Үндсэн үүрэг ба Өгөгдлийн урсгал | 
-| ----- | ----- | ----- | ----- | 
-| `a!profile [@user]` (`p`) | `Button`, `Modal` | `LevelService`, `SkillService`, `WalletService` | Anime Adventurer Card. `[Inventory]`, `[Skills]`, `[Bio засах (Modal)]` товчнуудтай. | 
-| `a!rank [@user]` | — | `LevelService` | Түвшин, XP progress bar болон дараагийн түвшний шагналыг харуулна. | 
-| `a!leaderboard` (`lb`) | `StringSelect` | `WalletService`, `LevelService` | Ангилал: `Хамгийн баян`, `Өндөр Level`, `Шоронгийн ахлагч`. | 
-| `a!skills` (`sk`) | `StringSelect`, `Button` | `SkillService`, `LevelService` | 3 салбарын Skill Tree. `[+1 Сайжруулах]` болон Active skill `[Ашиглах]` товчтой. | 
-| `a!shop` | `StringSelect`, `Button`, `Modal` | `ShopService`, `WalletService`, `SkillService` | Ангилал шүүх, хуудаслах. `Merchant's Eye` хямдрал харуулна. Тоо ширхэгээр авахад `Modal` нээнэ. | 
-| `a!buy <item> [тоо]` | `Button` | `ShopService`, `WalletService` | Дэлгүүрээс шууд нэрээр нь худалдаж авах. | 
-| `a!inventory` (`inv`) | `StringSelect`, `Button` | `InventoryService`, `LevelService`, `SkillService` | Item жагсаалт болон `[Ашиглах / Зүүх]` товч. | 
-| `a!use <item>` / `a!equip <title>` | — | `InventoryService`, `SkillService` | Booster, Shield, Skill Reset Tome эсвэл Anime цолыг шууд идэвхжүүлэх. | 
+## 5. КОМАНД БҮРИЙН БҮРЭН ЖАГСААЛТ БА ХОЛБОЛТ
 
-### В. Казиногийн бие даасан командууд (Prefix: `a!`, `@not_jailed()`)
+| Бүлэг | Командууд (Prefix `a!` + Aliases) | Холбогдох Сервисүүд | Интерактив UI (`ui/`) |
+| :--- | :--- | :--- | :--- |
+| **Economy (Wallet)** | `a!balance` (`bal`), `a!deposit` (`dep`), `a!withdraw` (`wd`), `a!transfer` (`pay`) | `WalletService`, `SkillService` | `BalanceView` (`[Хийх]`, `[Авах]`, `[Шилжүүлэх]` → `Modal`) |
+| **Economy (Income)** | `a!daily`, `a!work` | `IncomeService`, `SkillService`, `LevelService` | `WorkView` (`StringSelect`-ээр ажил сонгох) |
+| **Economy (Crime & Jail)** | `a!crime`, `a!rob @user`, `a!jail`, `a!bail` | `CrimeService`, `JailService`, `WalletService`, `SkillService` | `CrimeView` (`StringSelect`), `JailView` (`[Батлан даалтаар гарах]` Button) |
+| **RPG (Profile & Level)** | `a!profile` (`p`), `a!rank`, `a!leaderboard` (`lb`) | `LevelService`, `WalletService`, `SkillService` | `ProfileView` (`[Inventory]`, `[Skills]`, `[Bio засах (Modal)]`), `LeaderboardView` (`StringSelect`) |
+| **RPG (Skills)** | `a!skills` (`sk`), `a!upgrade`, `a!activate` | `SkillService` | `SkillTreeView` (`StringSelect`-ээр салбар ба skill сонгож `[+1 Сайжруулах]`, `[Идэвхжүүлэх]` Button) |
+| **RPG (Shop & Inv)** | `a!shop`, `a!buy`, `a!inventory` (`inv`), `a!use`, `a!equip` | `ShopService`, `InventoryService`, `WalletService`, `SkillService` | `ShopView` (`StringSelect` ангилал, хуудаслагч, `BuyQuantityModal`), `InventoryView` (`[Ашиглах/Зүүх]`) |
+| **Casino** | `a!slots` (`s`), `a!blackjack` (`bj`), `a!roulette` (`r`), `a!minefield` (`mf`), `a!coinflip` (`cf`), `a!crash` (`cr`), `a!lottery` (`lot`) | Тус бүрийн `CasinoService` + `WalletService` (Escrow) + `SkillService` (`Lucky Star`) | Тоглоом бүрийн интерактив товчнууд (`[Hit]`, `[Stand]`, `[Cashout]`, `[Дахин]`, `[Бооцоо (Modal)]`, 4x4 Grid) |
+| **Games & PvP** | `a!duel @user <bet>`, `a!adventure` (`adv`), `a!hunt`, `a!fish`, `a!boss` | Тус бүрийн `GameService` + `WalletService` + `SkillService` (`Critical Strike`) + `LevelService` | `DuelView` (Accept/Decline + Turn-based `[Довтлох]`, `[Skill]`, `[Хамгаалах]`), `AdventureView`, `BossView` |
+| **System & Help** | `a!help`, `a!ping`, `a!settings` | `GuildRepository` | `HelpView` (`StringSelect` категори сонгогч) |
+| **Admin (Зөвхөн `/`)** | `/admin_economy`, `/admin_jail`, `/admin_shop`, `/admin_skill`, `/admin_config` | Бүх сервис + `GuildRepository` | Ephemeral баталгаажуулалт ба Embed |
 
-| Команд (Aliases) | UI Компонент | Холбогдох Сервисүүд | Үндсэн үүрэг ба Өгөгдлийн урсгал | 
-| ----- | ----- | ----- | ----- | 
-| `a!slots <бооцоо>` (`s`) | `Button` (`[Дахин]`, `[2x]`, `[Бооцоо (Modal)]`) | `SlotsService`, `WalletService`, `SkillService` | Anime/Cyber тэмдэгтүүдтэй 3x3 Slot машин. Хожигдвол `Lucky Star` Cashback буцаана. | 
-| `a!blackjack <бооцоо>` (`bj`) | `Button` (`[Hit]`, `[Stand]`, `[Double Down]`) | `BlackjackService`, `WalletService`, `SkillService` | Сонгодог Blackjack. Бооцоо Escrow-д түгжигдэнэ. | 
-| `a!roulette <бооцоо> <сонголт>` (`r`) | `StringSelect`, `Button` | `RouletteService`, `WalletService`, `SkillService` | Улаан/Хар, Тэгш/Сондгой эсвэл Тоо (0-36) дээр бооцоо тавих. | 
-| `a!minefield <бооцоо>` (`mf`) | `Button` (5x4 эсвэл 4x4 Grid) | `MinefieldService`, `WalletService`, `SkillService` | Тэсрэх бөмбөггүй нүд нээх бүрд үржүүлэгч өснө, `[Cashout]` товчоор мөнгөө авна. | 
-| `a!coinflip <бооцоо> <h/t>` (`cf`) | `Button` (`[Дахин эргүүлэх]`) | `SlotsService` / `WalletService` | Хурдан зоос шидэлт (Heads/Tails). | 
-| `a!crash <бооцоо>` (`cr`) | `Button` (`[Cashout]`) | `CrashService`, `WalletService`, `SkillService` | Үржүүлэгч өсөж байгаад санамсаргүй цэгт унахаас өмнө Cashout хийнэ. | 
-| `a!lottery [тоо]` (`lot`) | `Button` (`[Тасалбар авах (Modal)]`) | `LotteryService`, `WalletService` | Серверийн эсвэл глобал сугалааны сан (Jackpot pool). | 
+---
 
-### Г. Тоглоом ба RPG командууд (Prefix: `a!`, `@not_jailed()`)
+## 6. AI ХӨГЖҮҮЛЭГЧИД ӨГӨХ MASTER CONTINUATION PROMPT
 
-| Команд (Aliases) | UI Компонент | Холбогдох Сервисүүд | Үндсэн үүрэг ба Өгөгдлийн урсгал | 
-| ----- | ----- | ----- | ----- | 
-| `a!duel @user <бооцоо>` | `Button` (Accept + Turn-based Combat) | `DuelService`, `WalletService`, `SkillService` | 1v1 Anime тулаан (`[Довтлох]`, `[Skill ашиглах]`, `[Хамгаалах]`). Бооцоо Escrow-д түгжигдэнэ. | 
-| `a!adventure` (`adv`) | `Button` (Choice-based Story) | `AdventureService`, `LevelService`, `InventoryService` | RPG Dungeon даалгавар. Төгсгөлд нь Coin, XP болон ховор Item унагана. | 
-| `a!hunt` | `Button` | `HuntFishService`, `WalletService`, `LevelService` | Ан хийж олз (материал/мөнгө/XP) олох (Cooldown-тай, Tool item нөлөөлнө). | 
-| `a!fish` | `Button` | `HuntFishService`, `WalletService`, `LevelService` | Загас барих мини-тоглоом (Хорвоогийн ховор олз, мөнгө, XP). | 
-| `a!boss` | `Button` (Co-op Raid) | `BossService`, `SkillService`, `LevelService` | Серверийн нийтийн Raid Boss. Олон тоглогч `[Довтлох]` товчоор оролцож шагнал хуваана. | 
+Доорх промптыг хуулж аваад `aether_bot` хавтас дотор ажиллаж буй AI хөгжүүлэгч (Cursor / Claude Code / AgentCore) руу шууд өгөөрэй:
 
-### Д. Админ командууд (Зөвхөн Slash Command: `/`)
+```markdown
+Бид `aether_bot` төсөл дээр үргэлжлүүлэн ажиллаж байна. Одоогийн байдлаар `core/` (`database.py`, `locks.py`, `rate_limiter.py`, `event_bus.py`, `skill_catalog.py`, `exceptions.py`), `migrations/001_baseline.sql`, `migrations/002_hardening.sql`, `repositories/user_repo.py`, `repositories/skill_repo.py`, `services/rpg/skill_service.py` болон 71 unit тест бүрэн ажиллаж байгаа.
 
-| Команд | Эрх | Үндсэн үүрэг | 
-| ----- | ----- | ----- | 
-| `/admin_economy` | Administrator | Тоглогчид мөнгө/XP нэмэх, хасах, бүртгэл шалгах | 
-| `/admin_jail` | Administrator | Тоглогчийг шоронд хийх эсвэл шоронгоос суллах (`unjail`) | 
-| `/admin_shop` | Administrator | Дэлгүүрт шинэ Item нэмэх, үнэ засах, устгах | 
-| `/admin_skill` | Administrator | Тоглогчийн SP нэмэх эсвэл Skill reset хийх | 
-| `/admin_config` | Administrator | Серверийн угтвар (`prefix`), татварын хувь (`tax_rate`), log суваг тохируулах | 
+### ХАТУУ АНХААРУУЛГА (DO NOT BREAK):
+1. `migrations/001_baseline.sql` болон `migrations/002_hardening.sql` файлуудыг ОГТ ЗАСАЖ БОЛОХГҮЙ (SHA-256 checksum шалгадаг). Шинэ багана, хүснэгтийг зөвхөн `migrations/003_jail_and_features.sql` файлаар нэмнэ.
+2. `transactions`, `casino_logs`, `game_logs` хүснэгтүүд нь append-only триггертэй тул зөвхөн `INSERT` хийнэ (`balance_after` баганыг заавал тооцож бичнэ).
+3. `cogs/` болон `ui/` дотор SQL бичихгүй, бизнес логик бодохгүй. `services/` дотор `discord` импортлохгүй.
+4. Энгийн хэрэглэгчийн бүх команд **Prefix (`@commands.command`, `a!`)** байна (`hybrid_command` биш). Зөвхөн Админ командууд (`cogs/system/admin.py`) **Slash (`@app_commands.command`, `/admin_*`)** байна.
+5. Бүх UI нь Anime/Cyber-Fantasy стилийн Embed + `AetherView` (`Button`, `StringSelect`, `Modal`) ашиглана. `Modal` нь заавал товч дарахад `interaction.response.send_modal()`-аар (`defer()` хийлгүйгээр) нээгдэнэ.
+6. Бүх тест (`pytest -q -W error`), `ruff check .`, `mypy` алдаагүй давдаг хэвээр байх ёстой.
 
-## 6. SKILLS & JAIL СИСТЕМИЙН ЛОГИК БА БАЛАНС
+### ГҮЙЦЭТГЭХ ҮЕ ШАТУУД (ШАТ ДАРААЛАН БИЧИЖ ТЕСТЛЭХ):
 
-* **Level & SP томьёо:**
+#### Ээлж 1: Схем өргөтгөл, Repositories & Core Checks
+1. `migrations/003_jail_and_features.sql` үүсгэ (`users.jail_until`, `users.jail_bail_cost`, `guild_settings.log_channel_id`, `lottery_tickets`).
+2. `core/exceptions.py` дээр `JailedError`, `ItemNotFoundError`, `InvalidBetError` нэм; `core/checks.py` дээр `@not_jailed()` декоратор бич.
+3. `utils/validators.py` (дүн болон бооцоо задлагч: `"all"`, `"half"`, `"10k"`).
+4. `repositories/user_repo.py`-г өргөтгөж (wallet/bank/xp/level/jail_until/casino_net атомик шинэчлэлт), `shop_repo.py`, `cooldown_repo.py`, `guild_repo.py`, `log_repo.py` файлуудыг бүрэн бич.
+5. `services/rpg/skill_service.py`-ийн `Modifiers` дээр `jail_reduction_pct` нэм.
 
-  * Дараагийн түвшинд шаардагдах XP: `required_xp(level) = int(100 * (level ** 1.5))`
+#### Ээлж 2: Economy, Jail & RPG Services
+1. `services/economy/wallet_service.py` (deposit, withdraw, transfer + `guild_settings.tax_pct`, escrow lock/release/refund).
+2. `services/economy/income_service.py` (`daily` streak + `work` + `Golden Touch` bonus + `XPGained` event).
+3. `services/economy/jail_service.py` & `crime_service.py` (`crime`, `rob` — зорилтын `shield_until` болон `Aether Shield` шалгах, бүтэлгүйтвэл торгууль + шоронд хийх, `bail`-ээр гарах).
+4. `services/rpg/level_service.py` (`EventBus` дээр `XPGained` сонсож `required_xp = int(100 * (level ** 1.5))` шалгах, түвшин ахихад +2 SP болон `level * 200` Coin өгч `LevelUp` нийтлэх).
+5. `services/rpg/shop_service.py` & `inventory_service.py` (`Merchant's Eye` хөнгөлөлт, item худалдаж авах, `Aether Shield Charm`, `Astral XP Elixir`, `Tome of Rebirth` -> `skill_service.reset()`, `Shadowstep Elixir`, `Title` зүүх).
 
-  * Түвшин ахих бүрд: **+2 Skill Point (SP)** болон `level * 200` Aether Coin олгоно.
+#### Ээлж 3: Casino & Games Services
+1. `services/casino/`: `slots_service.py`, `blackjack_service.py`, `roulette_service.py`, `minefield_service.py`, `coinflip_service.py`, `crash_service.py`, `lottery_service.py` (бүгд Escrow + 4% House Edge + `Lucky Star` cashback + `casino_logs`).
+2. `services/games/`: `duel_service.py` (1v1 turn-based + `multi_user_lock` + `Critical Strike` consume), `adventure_service.py`, `hunt_fish_service.py`, `boss_service.py`.
 
-* **Шоронгийн (Jail) томьёо:**
-
-  * `a!crime` бүтэлгүйтвэл: `10–25 минут` шорон + батлан даалт `500 + (level * 100)` Coin.
-
-  * `a!rob` бүтэлгүйтвэл: `15–40 минут` шорон + батлан даалт `800 + (level * 150)` Coin.
-
-  * `Shadow Step` skill нь шоронд орох хугацаа болон батлан даалтын үнийг түвшин бүрд `5%` (дээд тал нь `25%`) бууруулна.
-
-* **`SkillService.get_modifiers(user_id)` буцаах бүтэц:**
-
-  * `work_income_mult`: `1.0 + (golden_touch_lv * 0.06)` *(Max +30%)*
-
-  * `casino_cashback_pct`: `lucky_star_lv * 0.02` *(Max 10% cashback; хожих магадлалд нөлөөлөхгүй)*
-
-  * `shop_discount_pct`: `merchants_eye_lv * 0.05` *(Max 15%)*
-
-  * `rob_success_bonus`: `shadow_step_lv * 0.04` *(Max +20%)*
-
-  * `jail_reduction_pct`: `shadow_step_lv * 0.05` *(Max 25%)*
-
-  * `xp_gain_mult`: `1.0 + (astral_resonance_lv * 0.05)` *(Max +25%)*
-
-  * `crit_active`: `bool` (`Critical Strike` идэвхтэй эсэх — `1.5x` damage, 2 цагийн cooldown)
-
-  * `shield_active`: `bool` (`Aether Shield` идэвхтэй эсэх — 3 цаг дээрмээс хамгаална, 6 цагийн cooldown)
-
-## 7. ANIME-STYLE EMBED СТАНДАРТ
-
-* **Өнгөний палитр (`config.py`):**
-
-  * `PRIMARY = 0x8A2BE2` (Aether Violet)
-
-  * `CYAN = 0x00E5FF` (Cyber Cyan)
-
-  * `SUCCESS = 0x2ECC71` (Emerald)
-
-  * `DANGER = 0xFF4757` (Crimson — Алдаа болон Шоронгийн анхааруулга)
-
-  * `GOLD = 0xFFD700` (Astral Gold — Jackpot болон Level Up)
-
-* **Progress Bar функц:** `render_bar(current, total, length=10)` → жишээ нь: `▰▰▰▰▰▰▱▱▱▱ 60%`.
-
-* **Уур амьсгал:** Бүх embed-ийн footer дээр Aether ертөнцийн богино ишлэл эсвэл хэрэглэгчийн идэвхтэй цолыг харуулна (жишээ нь: `✦ Aether System • [Cyber Ronin]`).
+#### Ээлж 4: Interactive Anime UI (`ui/`) & Cogs (`cogs/`)
+1. `ui/common/base.py` (`AetherView`), `ui/common/modals.py` (`AmountModal`, `TransferModal`, `BetModal`, `BuyQuantityModal`, `BioModal`), `ui/common/paginator.py`.
+2. Модуль тус бүрийн View болон Cog-уудыг (`cogs/economy/*`, `cogs/rpg/*`, `cogs/casino/*`, `cogs/games/*`, `cogs/system/*`) үүсгэж `bot.py` дээр ачаал. Хуучин давхардсан `cogs/economy.py`, `cogs/skills.py`, `cogs/admin.py`, `cogs/health.py`-г шинэ ангилсан бүтэц рүү шилжүүл.
+3. Шинэ сервис болон командуудад зориулсан `pytest` тестүүдийг нэмж, бүх шалгалтыг (`pytest`, `ruff`, `mypy`) ажиллуулж баталгаажуул.
+```

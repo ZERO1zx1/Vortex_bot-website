@@ -12,6 +12,7 @@ import aiosqlite
 
 import config
 from core.database import Database
+from core.exceptions import UserNotFoundError
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,10 +29,20 @@ class UserRow:
     shield_until: str | None
     active_title: str
     bio: str
+    jail_until: str | None = None
+    jail_bail_cost: int = 0
+    created_at: str | None = None
+    updated_at: str | None = None
 
     @property
     def net_worth(self) -> int:
         return self.wallet + self.bank
+
+    @property
+    def is_jailed(self) -> bool:
+        # Цагийн харьцуулалтыг service давхарга `from_db()`-ээр хийнэ; энэ
+        # property зөвхөн "тэмдэглэгдсэн эсэх"-ийг хэлнэ.
+        return self.jail_until is not None
 
     @classmethod
     def from_row(cls, row: aiosqlite.Row) -> UserRow:
@@ -48,12 +59,17 @@ class UserRow:
             shield_until=row["shield_until"],
             active_title=row["active_title"],
             bio=row["bio"],
+            jail_until=row["jail_until"],
+            jail_bail_cost=row["jail_bail_cost"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
         )
 
 
 _SELECT = """
     SELECT user_id, wallet, bank, xp, level, skill_points, daily_streak,
-           casino_net, last_daily_at, shield_until, active_title, bio
+           casino_net, last_daily_at, shield_until, active_title, bio,
+           jail_until, jail_bail_cost, created_at, updated_at
       FROM users
 """
 
@@ -90,6 +106,176 @@ class UserRepository:
             )
             result.update({row["user_id"]: UserRow.from_row(row) for row in rows})
         return result
+
+    async def _require(self, user_id: int) -> UserRow:
+        user = await self.get(user_id)
+        if user is None:
+            raise UserNotFoundError()
+        return user
+
+    # ── Wallet / Bank ──────────────────────────────────────────────────
+    async def credit_wallet(self, user_id: int, amount: int) -> int:
+        """Wallet-д нэмж, шинэ утгыг буцаана."""
+        if amount < 0:
+            raise ValueError("amount >= 0 байх ёстой")
+        value = await self.db.fetchval_write(
+            """
+            UPDATE users
+               SET wallet = wallet + ?, updated_at = datetime('now')
+             WHERE user_id = ?
+            RETURNING wallet
+            """,
+            (amount, user_id),
+        )
+        if value is None:
+            raise UserNotFoundError()
+        return int(value)
+
+    async def spend_wallet(self, user_id: int, amount: int) -> bool:
+        """Атомик шалгалт + хасалт. Хангалтгүй бол False."""
+        if amount <= 0:
+            raise ValueError("amount > 0 байх ёстой")
+        affected = await self.db.execute(
+            """
+            UPDATE users
+               SET wallet = wallet - ?, updated_at = datetime('now')
+             WHERE user_id = ? AND wallet >= ?
+            """,
+            (amount, user_id, amount),
+        )
+        return affected == 1
+
+    async def credit_bank(self, user_id: int, amount: int) -> int:
+        if amount < 0:
+            raise ValueError("amount >= 0 байх ёстой")
+        value = await self.db.fetchval_write(
+            """
+            UPDATE users
+               SET bank = bank + ?, updated_at = datetime('now')
+             WHERE user_id = ?
+            RETURNING bank
+            """,
+            (amount, user_id),
+        )
+        if value is None:
+            raise UserNotFoundError()
+        return int(value)
+
+    async def spend_bank(self, user_id: int, amount: int) -> bool:
+        if amount <= 0:
+            raise ValueError("amount > 0 байх ёстой")
+        affected = await self.db.execute(
+            """
+            UPDATE users
+               SET bank = bank - ?, updated_at = datetime('now')
+             WHERE user_id = ? AND bank >= ?
+            """,
+            (amount, user_id, amount),
+        )
+        return affected == 1
+
+    async def move_to_bank(self, user_id: int, amount: int) -> tuple[int, int]:
+        """Wallet → Bank. `(wallet, bank)` шинэ утгыг буцаана."""
+        if not await self.spend_wallet(user_id, amount):
+            return -1, -1
+        bank = await self.credit_bank(user_id, amount)
+        user = await self._require(user_id)
+        return user.wallet, bank
+
+    async def move_to_wallet(self, user_id: int, amount: int) -> tuple[int, int]:
+        """Bank → Wallet. `(wallet, bank)` шинэ утгыг буцаана."""
+        if not await self.spend_bank(user_id, amount):
+            return -1, -1
+        wallet = await self.credit_wallet(user_id, amount)
+        user = await self._require(user_id)
+        return wallet, user.bank
+
+    async def set_shield_until(self, user_id: int, until: str | None) -> None:
+        await self.db.execute(
+            "UPDATE users SET shield_until = ?, updated_at = datetime('now') "
+            "WHERE user_id = ?",
+            (until, user_id),
+        )
+
+    # ── XP / Level ─────────────────────────────────────────────────────
+    async def add_xp(self, user_id: int, amount: int) -> int:
+        if amount < 0:
+            raise ValueError("amount >= 0 байх ёстой")
+        value = await self.db.fetchval_write(
+            """
+            UPDATE users
+               SET xp = xp + ?, updated_at = datetime('now')
+             WHERE user_id = ?
+            RETURNING xp
+            """,
+            (amount, user_id),
+        )
+        if value is None:
+            raise UserNotFoundError()
+        return int(value)
+
+    async def set_level_xp(self, user_id: int, level: int, xp: int) -> None:
+        if level < 1 or xp < 0:
+            raise ValueError("level >= 1, xp >= 0 байх ёстой")
+        await self.db.execute(
+            "UPDATE users SET level = ?, xp = ?, updated_at = datetime('now') "
+            "WHERE user_id = ?",
+            (level, xp, user_id),
+        )
+
+    async def add_casino_net(self, user_id: int, delta: int) -> int:
+        value = await self.db.fetchval_write(
+            """
+            UPDATE users
+               SET casino_net = casino_net + ?, updated_at = datetime('now')
+             WHERE user_id = ?
+            RETURNING casino_net
+            """,
+            (delta, user_id),
+        )
+        if value is None:
+            raise UserNotFoundError()
+        return int(value)
+
+    async def set_daily(self, user_id: int, streak: int, last_daily_at: str) -> None:
+        if streak < 0:
+            raise ValueError("streak >= 0 байх ёстой")
+        await self.db.execute(
+            "UPDATE users SET daily_streak = ?, last_daily_at = ?, "
+            "updated_at = datetime('now') WHERE user_id = ?",
+            (streak, last_daily_at, user_id),
+        )
+
+    # ── Jail ───────────────────────────────────────────────────────────
+    async def set_jail(self, user_id: int, *, until: str, bail_cost: int) -> None:
+        if bail_cost < 0:
+            raise ValueError("bail_cost >= 0 байх ёстой")
+        await self.db.execute(
+            "UPDATE users SET jail_until = ?, jail_bail_cost = ?, "
+            "updated_at = datetime('now') WHERE user_id = ?",
+            (until, bail_cost, user_id),
+        )
+
+    async def clear_jail(self, user_id: int) -> None:
+        await self.db.execute(
+            "UPDATE users SET jail_until = NULL, jail_bail_cost = 0, "
+            "updated_at = datetime('now') WHERE user_id = ?",
+            (user_id,),
+        )
+
+    # ── Profile ────────────────────────────────────────────────────────
+    async def set_title(self, user_id: int, title: str) -> None:
+        await self.db.execute(
+            "UPDATE users SET active_title = ?, updated_at = datetime('now') "
+            "WHERE user_id = ?",
+            (title[:64], user_id),
+        )
+
+    async def set_bio(self, user_id: int, bio: str) -> None:
+        await self.db.execute(
+            "UPDATE users SET bio = ?, updated_at = datetime('now') WHERE user_id = ?",
+            (bio[:300], user_id),
+        )
 
     # ── Skill Point ────────────────────────────────────────────────────
     async def spend_skill_points(self, user_id: int, amount: int) -> bool:

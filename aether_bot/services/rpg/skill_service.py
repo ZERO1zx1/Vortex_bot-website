@@ -78,6 +78,7 @@ class Modifiers:
     shop_discount_pct: float = 0.0
     rob_success_bonus: float = 0.0
     rob_fine_mult: float = 1.0
+    jail_reduction_pct: float = 0.0
     xp_gain_mult: float = 1.0
     crit_active: bool = False
     shield_active: bool = False
@@ -89,6 +90,7 @@ class Modifiers:
             "shop_discount_pct": round(self.shop_discount_pct, 4),
             "rob_success_bonus": round(self.rob_success_bonus, 4),
             "rob_fine_mult": round(self.rob_fine_mult, 4),
+            "jail_reduction_pct": round(self.jail_reduction_pct, 4),
             "xp_gain_mult": round(self.xp_gain_mult, 4),
             "crit_active": self.crit_active,
             "shield_active": self.shield_active,
@@ -116,6 +118,11 @@ class Modifiers:
     def rob_success_chance(self, base: float = config.ROB_BASE_SUCCESS) -> float:
         """Хожих магадлал 92%-иас хэтрэхгүй (эдийн засгийн хамгаалалт)."""
         return min(0.92, base + self.rob_success_bonus)
+
+    @property
+    def jail_time_mult(self) -> float:
+        """Шоронгийн хугацааны үржүүлэгч (Shadow Step)."""
+        return max(0.0, 1.0 - self.jail_reduction_pct)
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,6 +258,7 @@ class SkillService:
             rob_success_bonus=shadow,
             # Баригдвал төлөх торгууль: түвшин бүрт 5%, дээд тал нь 25% бууралт
             rob_fine_mult=1.0 - fine_reduction,
+            jail_reduction_pct=fine_reduction,
             xp_gain_mult=1.0 + resonance,
             crit_active=_is_active(crit.active_until if crit else None),
             shield_active=_is_active(shield.active_until if shield else None),

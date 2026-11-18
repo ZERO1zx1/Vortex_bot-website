@@ -65,6 +65,8 @@ async def test_shadow_step_fine_reduction_comes_from_catalog(db: Database) -> No
     mods = await service.get_modifiers(2)
     assert mods.rob_success_bonus == pytest.approx(0.20)
     assert mods.rob_fine_mult == pytest.approx(0.75)
+    assert mods.jail_reduction_pct == pytest.approx(0.25)
+    assert mods.jail_time_mult == pytest.approx(0.75)
 
 
 async def test_activate_rechecks_unlock_level(db: Database) -> None:

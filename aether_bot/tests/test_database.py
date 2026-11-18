@@ -191,7 +191,7 @@ async def test_migrations_are_recorded_once(db: Database) -> None:
     rows = await db.fetchall(
         "SELECT version, name, checksum FROM schema_migrations ORDER BY version"
     )
-    assert [row["version"] for row in rows] == [1, 2]
+    assert [row["version"] for row in rows] == [1, 2, 3]
     assert all(row["checksum"] and len(row["checksum"]) == 64 for row in rows)
 
 
@@ -214,7 +214,7 @@ async def test_legacy_schema_migrations_row_is_backfilled(tmp_path: Path) -> Non
         rows = await database.fetchall(
             "SELECT version, name, checksum FROM schema_migrations ORDER BY version"
         )
-        assert [row["version"] for row in rows] == [1, 2]
+        assert [row["version"] for row in rows] == [1, 2, 3]
         assert rows[0]["name"] == "baseline"
         assert rows[0]["checksum"] is not None
         assert len(rows[0]["checksum"]) == 64
