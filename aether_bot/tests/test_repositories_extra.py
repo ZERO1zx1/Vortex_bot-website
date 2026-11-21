@@ -157,7 +157,7 @@ async def test_guild_repository(db: Database) -> None:
     await guilds.set_prefix(10, "?")
     await guilds.set_tax(10, 0.05)
     await guilds.set_log_channel(10, 123)
-    row = await guilds.get(10)
+    row = await guilds.get(10)  # type: ignore[assignment]
     assert row and row.prefix == "?"  # type: ignore[union-attr]
     assert row and row.tax_pct == pytest.approx(0.05)  # type: ignore[union-attr]
     assert row and row.log_channel_id == 123  # type: ignore[union-attr]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from datetime import timedelta
 from typing import Any
 
@@ -30,7 +31,7 @@ from services.games.hunt_fish_service import (
 from utils.time_utils import to_db, utcnow
 
 
-class StubRng:
+class StubRng(random.Random):
     def __init__(
         self,
         *,
@@ -39,6 +40,7 @@ class StubRng:
         choice_value: Any = None,
         choices_values: list[Any] | None = None,
     ) -> None:
+        super().__init__()
         self.random_value = random_value
         self.int_value = int_value
         self.choice_value = choice_value
@@ -53,7 +55,9 @@ class StubRng:
     def choice(self, seq: Any) -> Any:
         return self.choice_value if self.choice_value is not None else seq[0]
 
-    def choices(self, population: Any, **kwargs: Any) -> list[Any]:
+    def choices(  # type: ignore[override]
+        self, population: Any, **kwargs: Any
+    ) -> list[Any]:
         if self.choices_values is not None:
             return list(self.choices_values)
         return [population[0]]
