@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from datetime import timedelta
 
 import pytest
@@ -23,7 +24,7 @@ from services.rpg.skill_service import SkillService
 from utils.time_utils import to_db, utcnow
 
 
-class _Rng:
+class _Rng(random.Random):
     """Детерминик тестийн RNG — service-ийн `random.Random`-ыг орлоно."""
 
     def __init__(
@@ -33,6 +34,7 @@ class _Rng:
         integer: int = 100,
         uniform: float = 0.20,
     ) -> None:
+        super().__init__()
         self.roll = roll
         self.integer = integer
         self.uniform_value = uniform

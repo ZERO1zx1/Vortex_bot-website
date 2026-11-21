@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from typing import Any
 
 import pytest
@@ -24,7 +25,7 @@ from services.casino.slots_service import SlotsService
 from services.rpg.skill_service import SkillService
 
 
-class StubRng:
+class StubRng(random.Random):
     """Тестэд зориулсан детерминик RNG."""
 
     def __init__(
@@ -37,6 +38,7 @@ class StubRng:
         sample_values: list[int] | None = None,
         uniform_value: float = 0.5,
     ) -> None:
+        super().__init__()
         self.random_value = random_value
         self.int_value = int_value
         self.choice_value = choice_value
@@ -55,12 +57,16 @@ class StubRng:
             return self.choice_value
         return seq[0]
 
-    def choices(self, population: Any, **kwargs: Any) -> list[Any]:
+    def choices(  # type: ignore[override]
+        self, population: Any, **kwargs: Any
+    ) -> list[Any]:
         if self.choices_values is not None:
             return list(self.choices_values)
         return [population[0]]
 
-    def sample(self, population: Any, k: int) -> list[int]:
+    def sample(  # type: ignore[override]
+        self, population: Any, k: int
+    ) -> list[int]:
         if self.sample_values is not None:
             return list(self.sample_values)[:k]
         return list(population)[:k]
@@ -68,7 +74,7 @@ class StubRng:
     def uniform(self, low: float, high: float) -> float:
         return max(low, min(high, self.uniform_value))
 
-    def shuffle(self, deck: list[Any]) -> None:
+    def shuffle(self, deck: list[Any]) -> None:  # type: ignore[override]
         return None
 
 
