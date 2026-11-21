@@ -18,6 +18,7 @@ from repositories.lottery_repo import LotteryRepository, TicketCount
 from repositories.user_repo import UserRepository
 from services.casino.base import CasinoService
 from services.economy.wallet_service import WalletService
+from utils.validators import parse_quantity
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,30 +79,32 @@ class LotteryService(CasinoService):
     async def buy(
         self,
         user_id: int,
-        quantity: int = 1,
+        quantity: int | str = 1,
         *,
         round_id: int | None = None,
     ) -> LotteryInfo:
-        quantity = int(quantity)
-        if quantity < 1:
-            raise ValidationError("✦ Хамгийн багадаа 1 тасалбар авна.")
+        quantity_value = parse_quantity(
+            quantity,
+            minimum=1,
+            maximum=config.LOTTERY_MAX_TICKETS_PER_ROUND,
+        )
         round_id = await self.current_round() if round_id is None else round_id
 
         async with user_lock("lottery"), user_lock(user_id), self.db.transaction():
             owned = await self.lottery.count_user(user_id, round_id)
-            if owned + quantity > config.LOTTERY_MAX_TICKETS_PER_ROUND:
+            if owned + quantity_value > config.LOTTERY_MAX_TICKETS_PER_ROUND:
                 raise ValidationError(
                     "✦ Нэг round-д дээд тал нь "
                     f"**{config.LOTTERY_MAX_TICKETS_PER_ROUND}** тасалбар авна."
                 )
-            cost = quantity * config.LOTTERY_TICKET_PRICE
+            cost = quantity_value * config.LOTTERY_TICKET_PRICE
             await self.wallet.spend(
                 user_id,
                 cost,
                 "lottery_ticket",
-                metadata={"round": round_id, "quantity": quantity},
+                metadata={"round": round_id, "quantity": quantity_value},
             )
-            await self.lottery.add_tickets(user_id, round_id, quantity)
+            await self.lottery.add_tickets(user_id, round_id, quantity_value)
         return await self.info(round_id)
 
     async def draw(self, round_id: int | None = None) -> LotteryDraw:

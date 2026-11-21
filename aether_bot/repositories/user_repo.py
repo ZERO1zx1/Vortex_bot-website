@@ -73,6 +73,12 @@ _SELECT = """
       FROM users
 """
 
+_LEADERBOARD_SQL = {
+    "level": "level DESC, xp DESC",
+    "wealth": "(wallet + bank) DESC, wallet DESC",
+    "casino": "casino_net DESC, wallet DESC",
+}
+
 
 class UserRepository:
     def __init__(self, db: Database) -> None:
@@ -112,6 +118,15 @@ class UserRepository:
         if user is None:
             raise UserNotFoundError()
         return user
+
+    async def leaderboard(
+        self, category: str = "level", limit: int = 10
+    ) -> list[UserRow]:
+        order = _LEADERBOARD_SQL.get(category)
+        if order is None:
+            raise ValueError(f"Invalid leaderboard category: {category}")
+        rows = await self.db.fetchall(f"{_SELECT} ORDER BY {order} LIMIT ?", (limit,))
+        return [UserRow.from_row(row) for row in rows]
 
     # ── Wallet / Bank ──────────────────────────────────────────────────
     async def credit_wallet(self, user_id: int, amount: int) -> int:

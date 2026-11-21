@@ -179,6 +179,48 @@ class DuelService:
         self._duels.pop(duel_id, None)
         return self._state(duel)
 
+    async def cancel(self, duel_id: str, user_id: int) -> DuelState:
+        """Идэвх байгаа duel-ийн бооцогоог хоёулангаа буцааж, duel-ийг цуцлана.
+
+        Идэвхтэй болоход бооцогоонуудыг `duel_cancel`-аар буцаана; UI
+        on_timeout-д үр ашиглахаас хойш үүссэн далд бооцоо алдахад бүхэл
+        системдэл ашиглахгүй бөгөөс, `wallet.release` нь `InsufficientFundsError`-г
+        шиддэг гэж, үүссэн далд бооцоо бүрд ашиглаж чадсанаас зөрчиж болохгүй.
+        """
+        _ = user_id
+        duel = self._require(duel_id)
+        if duel.status not in {"pending", "active"}:
+            raise GameStateError("✦ Duel эхэлсэн эсвэл тогтол үгүй байна.")
+        if duel.status == "pending":
+            # Урилга бэлэнгүй: ямарч мөнгө үржүүлээгүй.
+            duel.status = "declined"
+            duel.log.append("✖️ Duel цуцлагдана.")
+            self._duels.pop(duel_id, None)
+            return self._state(duel)
+        async with (
+            multi_user_lock(duel.challenger_id, duel.opponent_id),
+            self.db.transaction(),
+        ):
+            for uid in (duel.challenger_id, duel.opponent_id):
+                amount = duel.bet
+                await self.wallet.release(
+                    uid, amount, source="duel_cancel", metadata={"duel_id": duel_id}
+                )
+                await self.logs.record_game(
+                    "duel",
+                    uid,
+                    "flee",
+                    opponent_id=duel.opponent_id,
+                    reward_coin=0,
+                    reward_xp=0,
+                    detail={"duel_id": duel_id, "bet": amount},
+                )
+            duel.status = "declined"
+            duel.winner_id = None
+            duel.log.append("✖️ Duel цуцлагдлаа.")
+            self._duels.pop(duel_id, None)
+        return self._state(duel)
+
     async def attack(
         self, duel_id: str, user_id: int, move: str = "attack"
     ) -> DuelState:

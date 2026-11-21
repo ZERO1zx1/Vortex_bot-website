@@ -156,6 +156,13 @@ class JailService:
             await self.bus.publish(UserReleased(user_id=user_id, reason="bail"))
         return result
 
+    async def release(self, user_id: int, *, reason: str = "admin") -> None:
+        """Admin-rai үр ашгийг ир болгон нэг дэлгэрүүлнэ."""
+        async with user_lock(user_id), self.db.transaction():
+            await self.users.clear_jail(user_id)
+        if self.bus is not None:
+            await self.bus.publish(UserReleased(user_id=user_id, reason=reason))
+
     async def release_if_expired(self, user_id: int) -> bool:
         async with user_lock(user_id), self.db.transaction():
             user = await self.users.get(user_id)

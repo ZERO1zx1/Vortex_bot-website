@@ -149,15 +149,16 @@ class IncomeService:
             jobs = self.jobs_for(user.level)
             if not jobs:
                 raise JobNotFoundError("✦ Танд тохирох ажил одоогоор байхгүй.")
-            if job_id is None:
-                job = self.rng.choice(jobs)
-            else:
-                job = next(
+            job = (
+                self.rng.choice(jobs)
+                if job_id is None
+                else next(
                     (item for item in jobs if item.job_id == job_id.lower()),
                     None,
                 )
-                if job is None:
-                    raise JobNotFoundError()
+            )
+            if job is None:
+                raise JobNotFoundError()
 
             remaining = await self.cooldowns.remaining(user_id, "work")
             if remaining > 0:
