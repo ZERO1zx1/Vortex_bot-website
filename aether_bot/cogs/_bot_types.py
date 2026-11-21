@@ -1,0 +1,103 @@
+"""Type-only protocol describing the runtime services cogs can use.
+
+Keeps mypy clean without importing `bot` at runtime (cogs may be loaded by
+any `commands.Bot`; only the real `AetherBot` has these attributes).
+"""
+
+from __future__ import annotations
+
+from typing import Any, Protocol
+
+from core.database import Database
+from core.event_bus import EventBus
+from repositories.cooldown_repo import CooldownRepository
+from repositories.guild_repo import GuildRepository
+from repositories.log_repo import LogRepository
+from repositories.shop_repo import ShopRepository
+from repositories.skill_repo import SkillRepository
+from repositories.user_repo import UserRepository
+from services.casino.blackjack_service import BlackjackService
+from services.casino.coinflip_service import CoinflipService
+from services.casino.crash_service import CrashService
+from services.casino.lottery_service import LotteryService
+from services.casino.minefield_service import MinefieldService
+from services.casino.roulette_service import RouletteService
+from services.casino.slots_service import SlotsService
+from services.economy.crime_service import CrimeService
+from services.economy.income_service import IncomeService
+from services.economy.jail_service import JailService
+from services.economy.wallet_service import WalletService
+from services.games.adventure_service import AdventureService
+from services.games.boss_service import BossService
+from services.games.duel_service import DuelService
+from services.games.hunt_fish_service import HuntFishService
+from services.rpg.inventory_service import InventoryService
+from services.rpg.level_service import LevelService
+from services.rpg.shop_service import ShopService
+from services.rpg.skill_service import SkillService
+
+
+class AetherBotProtocol(Protocol):
+    @property
+    def db(self) -> Database: ...
+    @property
+    def user_repo(self) -> UserRepository: ...
+    @property
+    def event_bus(self) -> EventBus: ...
+    @property
+    def guild_repo(self) -> GuildRepository: ...
+    @property
+    def logs(self) -> LogRepository: ...
+    @property
+    def cooldowns(self) -> CooldownRepository: ...
+    @property
+    def shop_repo(self) -> ShopRepository: ...
+    @property
+    def skill_repo(self) -> SkillRepository: ...
+    @property
+    def wallet(self) -> WalletService: ...
+    @property
+    def levels(self) -> LevelService: ...
+    @property
+    def skills(self) -> SkillService: ...
+    @property
+    def income(self) -> IncomeService: ...
+    @property
+    def jail(self) -> JailService: ...
+    @property
+    def crime(self) -> CrimeService: ...
+    @property
+    def shop(self) -> ShopService: ...
+    @property
+    def inventory(self) -> InventoryService: ...
+    @property
+    def slots(self) -> SlotsService: ...
+    @property
+    def blackjack(self) -> BlackjackService: ...
+    @property
+    def roulette(self) -> RouletteService: ...
+    @property
+    def minefield(self) -> MinefieldService: ...
+    @property
+    def coinflip(self) -> CoinflipService: ...
+    @property
+    def crash(self) -> CrashService: ...
+    @property
+    def lottery(self) -> LotteryService: ...
+    @property
+    def duel(self) -> DuelService: ...
+    @property
+    def adventure(self) -> AdventureService: ...
+    @property
+    def huntfish(self) -> HuntFishService: ...
+    @property
+    def boss(self) -> BossService: ...
+
+    @property
+    def tree(self) -> Any: ...
+    @property
+    def latency(self) -> float: ...
+
+    def get_channel(self, channel_id: int | None) -> Any: ...
+
+    def get_context(self, message: Any) -> Any: ...

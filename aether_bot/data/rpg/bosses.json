@@ -1,0 +1,37 @@
+{
+  "bosses": [
+    {
+      "boss_id": "chrome_wyrm",
+      "name": "Chrome Wyrm",
+      "icon": "🐉",
+      "description": "Металл хайлмалаар бүрхэгдсэн эртний луу.",
+      "min_level": 3,
+      "hp": 5000,
+      "attack": 120,
+      "coin_reward": 1500,
+      "xp_reward": 100
+    },
+    {
+      "boss_id": "void_oracle",
+      "name": "Void Oracle",
+      "icon": "👁️",
+      "description": "Хоосон орчны ирээдүйг хардаг нүд.",
+      "min_level": 8,
+      "hp": 12000,
+      "attack": 260,
+      "coin_reward": 4000,
+      "xp_reward": 220
+    },
+    {
+      "boss_id": "astral_tyrant",
+      "name": "Astral Tyrant",
+      "icon": "👑",
+      "description": "Оддын хаант улсыг булаан эзэлсэн дарангуйлагч.",
+      "min_level": 15,
+      "hp": 30000,
+      "attack": 550,
+      "coin_reward": 12000,
+      "xp_reward": 600
+    }
+  ]
+}

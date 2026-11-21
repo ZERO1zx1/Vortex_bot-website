@@ -1,0 +1,58 @@
+[
+  {
+    "crime_id": "pickpocket",
+    "name": "Pickpocket",
+    "icon": "🕶️",
+    "description": "Хотын захад бэлтгэлгүй зорчигчийн халааснаас зоос сугална.",
+    "min_level": 1,
+    "success_chance": 0.60,
+    "min_reward": 100,
+    "max_reward": 250,
+    "min_fine": 60,
+    "max_fine": 140,
+    "jail_minutes": 4,
+    "bail_cost": 300
+  },
+  {
+    "crime_id": "shoplift",
+    "name": "Shoplift",
+    "icon": "🛍️",
+    "description": "Неон дэлгүүрээс камерт өртөхгүйгээр бараа гаргана.",
+    "min_level": 3,
+    "success_chance": 0.50,
+    "min_reward": 250,
+    "max_reward": 520,
+    "min_fine": 120,
+    "max_fine": 260,
+    "jail_minutes": 7,
+    "bail_cost": 600
+  },
+  {
+    "crime_id": "heist",
+    "name": "Bank Heist",
+    "icon": "🏦",
+    "description": "Корпорацийн хадгаламжийн сейфыг эвдэж, том олз авна.",
+    "min_level": 7,
+    "success_chance": 0.35,
+    "min_reward": 800,
+    "max_reward": 1600,
+    "min_fine": 350,
+    "max_fine": 700,
+    "jail_minutes": 15,
+    "bail_cost": 1500
+  },
+  {
+    "crime_id": "cyber_hack",
+    "name": "Cyber Hack",
+    "icon": "💻",
+    "description": "Aether сүлжээний зангилааг эвдэж, крипто хэтэвч хоосолно.",
+    "min_level": 10,
+    "success_chance": 0.30,
+    "min_reward": 1600,
+    "max_reward": 3200,
+    "min_fine": 600,
+    "max_fine": 1200,
+    "jail_minutes": 22,
+    "bail_cost": 3000
+  }
+]

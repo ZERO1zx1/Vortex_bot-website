@@ -55,3 +55,6 @@ website/dist/
 
 # Archived source (not for deployment)
 trash/
+
+# Large local archive (not for deployment)
+trash_all/
