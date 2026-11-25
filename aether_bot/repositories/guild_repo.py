@@ -7,10 +7,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import aiosqlite
-
 import config
-from core.database import Database
+from core.database import Database, Row
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +21,7 @@ class GuildSettingsRow:
     updated_at: str
 
     @classmethod
-    def from_row(cls, row: aiosqlite.Row) -> GuildSettingsRow:
+    def from_row(cls, row: Row) -> GuildSettingsRow:
         return cls(
             guild_id=row["guild_id"],
             prefix=row["prefix"],
@@ -50,7 +48,8 @@ class GuildRepository:
 
     async def get_or_create(self, guild_id: int) -> GuildSettingsRow:
         await self.db.execute(
-            "INSERT OR IGNORE INTO guild_settings (guild_id, prefix) VALUES (?, ?)",
+            "INSERT INTO guild_settings (guild_id, prefix) VALUES (?, ?) "
+            "ON CONFLICT (guild_id) DO NOTHING",
             (guild_id, config.DEFAULT_PREFIX),
         )
         row = await self.db.fetchone(f"{_SELECT} WHERE guild_id = ?", (guild_id,))
@@ -74,7 +73,7 @@ class GuildRepository:
             VALUES (?, ?)
             ON CONFLICT(guild_id) DO UPDATE SET
                 prefix = excluded.prefix,
-                updated_at = datetime('now')
+                updated_at = CURRENT_TIMESTAMP
             """,
             (guild_id, prefix),
         )
@@ -88,7 +87,7 @@ class GuildRepository:
             VALUES (?, ?)
             ON CONFLICT(guild_id) DO UPDATE SET
                 tax_pct = excluded.tax_pct,
-                updated_at = datetime('now')
+                updated_at = CURRENT_TIMESTAMP
             """,
             (guild_id, tax_pct),
         )
@@ -100,7 +99,7 @@ class GuildRepository:
             VALUES (?, ?)
             ON CONFLICT(guild_id) DO UPDATE SET
                 log_channel_id = excluded.log_channel_id,
-                updated_at = datetime('now')
+                updated_at = CURRENT_TIMESTAMP
             """,
             (guild_id, channel_id),
         )

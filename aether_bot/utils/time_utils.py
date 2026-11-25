@@ -1,13 +1,10 @@
-"""Цаг хугацааны туслах функцууд.
-
-SQLite дотор бүх timestamp нь UTC ISO-8601 текст (`YYYY-MM-DD HH:MM:SS`)
-хэлбэрээр хадгалагдана. Ингэснээр `datetime()` SQL функц болон Python
-хооронд хөрвүүлэлт алдаагүй ажиллана.
-"""
+"""UTC timestamp conversion for PostgreSQL rows and display strings."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+
+from core.database import DatabaseTimestamp
 
 DB_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -17,21 +14,33 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def to_db(moment: datetime) -> str:
-    """datetime → SQLite текст (UTC)."""
+def to_db(moment: datetime) -> DatabaseTimestamp:
+    """datetime → repository-compatible UTC ISO text."""
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=UTC)
-    return moment.astimezone(UTC).strftime(DB_FORMAT)
+    return DatabaseTimestamp(moment.astimezone(UTC).strftime(DB_FORMAT))
 
 
-def from_db(value: str | None) -> datetime | None:
-    """SQLite текст → timezone-aware UTC datetime.
+def to_db_text(value: str | datetime) -> str:
+    """Normalize asyncpg datetime rows for display-facing models."""
+    if isinstance(value, datetime):
+        return str(to_db(value))
+    return value
+
+
+def from_db(value: str | datetime | None) -> datetime | None:
+    """PostgreSQL datetime эсвэл ISO текст → timezone-aware UTC datetime.
 
     `YYYY-MM-DD HH:MM:SS`, `T` тусгаарлагч, `Z`, эерэг/сөрөг offset,
     микросекунд бүгдийг `datetime.fromisoformat` уншина.
     """
     if not value:
         return None
+    if isinstance(value, datetime):
+        moment = value
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=UTC)
+        return moment.astimezone(UTC)
     try:
         moment = datetime.fromisoformat(value.strip())
     except ValueError:

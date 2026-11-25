@@ -24,7 +24,8 @@ class LotteryRepository:
 
     async def add_ticket(self, user_id: int, round_id: int) -> int:
         return await self.db.insert(
-            "INSERT INTO lottery_tickets (user_id, round_id) VALUES (?, ?)",
+            "INSERT INTO lottery_tickets (user_id, round_id) VALUES (?, ?) "
+            "RETURNING ticket_id",
             (user_id, round_id),
         )
 

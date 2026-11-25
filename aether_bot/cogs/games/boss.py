@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from cogs._bot_types import AetherBotProtocol
 from cogs._helpers import maybe_error, send_view
+from core.checks import not_jailed
 from core.exceptions import AetherError
 from ui.embeds import boss_status_embed
 from ui.games.boss_view import BossView
@@ -16,6 +17,7 @@ class Boss(commands.Cog):
         self.bot: AetherBotProtocol = bot  # type: ignore[assignment]
 
     @commands.command(name="boss", aliases=["wyrm", "raider"])
+    @not_jailed()
     async def boss(self, ctx: commands.Context, boss_id: str | None = None) -> None:
         try:
             user = await self.bot.wallet.balance(ctx.author.id)

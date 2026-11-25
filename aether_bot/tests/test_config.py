@@ -11,17 +11,34 @@ def test_defaults() -> None:
     assert settings.rate_limit_per_second == 45
     assert settings.log_level == "INFO"
     assert settings.default_prefix == "a!"
-    assert settings.db_path == config.BASE_DIR / "data" / "aether.db"
+    assert settings.database_url == ""
 
 
-def test_empty_db_path_falls_back_to_default() -> None:
-    settings = config.load_settings({"AETHER_DB_PATH": "   "})
-    assert settings.db_path == config.BASE_DIR / "data" / "aether.db"
+def test_database_url_is_trimmed() -> None:
+    settings = config.load_settings(
+        {"DATABASE_URL": "  postgresql://postgres:secret@localhost/postgres  "}
+    )
+    assert settings.database_url == "postgresql://postgres:secret@localhost/postgres"
 
 
-def test_relative_db_path_is_anchored_to_base_dir() -> None:
-    settings = config.load_settings({"AETHER_DB_PATH": "data/test.db"})
-    assert settings.db_path == config.BASE_DIR / "data" / "test.db"
+def test_non_postgresql_database_url_is_rejected() -> None:
+    with pytest.raises(config.ConfigError, match="DATABASE_URL"):
+        config.load_settings({"DATABASE_URL": "sqlite:///data/aether.db"})
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["postgresql://", "postgresql:///postgres", "postgresql://localhost:bad/db"],
+)
+def test_malformed_postgresql_database_url_is_rejected(url: str) -> None:
+    with pytest.raises(config.ConfigError, match="DATABASE_URL"):
+        config.load_settings({"DATABASE_URL": url})
+
+
+def test_missing_database_url_fails_at_startup(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "DATABASE_URL", "")
+    with pytest.raises(config.ConfigError, match="DATABASE_URL"):
+        config.require_database_url()
 
 
 def test_invalid_guild_id_has_clear_error() -> None:

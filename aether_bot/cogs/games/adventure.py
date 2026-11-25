@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from cogs._bot_types import AetherBotProtocol
 from cogs._helpers import maybe_error, send_embed, send_view
+from core.checks import not_jailed
 from core.exceptions import AetherError, DungeonNotFoundError
 from ui.embeds import adventure_embed, base_embed
 from ui.games.adventure_view import AdventureView
@@ -16,6 +17,7 @@ class Adventure(commands.Cog):
         self.bot: AetherBotProtocol = bot  # type: ignore[assignment]
 
     @commands.command(name="adventure", aliases=["adv"])
+    @not_jailed()
     async def adventure(
         self, ctx: commands.Context, dungeon: str | None = None
     ) -> None:

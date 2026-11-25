@@ -14,21 +14,20 @@ aether-bot/
 ├── bot.py                     # ✅ entry point, DB + cogs + HTTP guard
 ├── config.py                  # ✅ typed env, өнгө, тэнцвэрийн тогтмолууд
 ├── migrations/
-│   ├── 001_baseline.sql       # ✅ schema + seed
-│   └── 002_hardening.sql      # ✅ constraints, append-only, guild settings
+│   └── 001_baseline.sql       # ✅ PostgreSQL schema + seed + RLS
 ├── requirements.txt           # ✅ pinned runtime deps
 ├── requirements-dev.txt       # ✅ pinned test/lint deps
 ├── README.md                  # ✅ setup, commands, checks
 ├── .env.example               # ✅
 ├── core/
-│   ├── database.py            # ✅ WAL, read/write connections, migrations
+│   ├── database.py            # ✅ asyncpg pool, transactions, migrations
 │   ├── locks.py               # ✅ reentrant per-user / multi-key locks
 │   ├── rate_limiter.py        # ✅ 45 req/s global + route bucket, HTTP guard
 │   ├── event_bus.py           # ✅ typed async pub/sub
 │   ├── exceptions.py          # ✅ Mongolian user_message-тэй домайн алдаанууд
 │   └── skill_catalog.py       # ✅ 3 path, 7 skill
 ├── utils/
-│   └── time_utils.py          # ✅ UTC ↔ SQLite текст, humanize
+│   └── time_utils.py          # ✅ UTC ↔ PostgreSQL timestamp, humanize
 ├── repositories/
 │   ├── user_repo.py           # ✅ users CRUD + atomic SP хасалт
 │   └── skill_repo.py          # ✅ user_skills (түвшин, cooldown, active)
@@ -51,8 +50,8 @@ aether-bot/
 
 ## 2. Database schema
 
-`PRAGMA journal_mode = WAL`, `foreign_keys = ON`, `synchronous = NORMAL`.
-Timestamp бүр UTC ISO-8601 текст (`YYYY-MM-DD HH:MM:SS`).
+Supabase PostgreSQL-д TLS Session pooler-оор холбогдоно. Timestamp баганууд
+`TIMESTAMPTZ`, metadata/detail баганууд `JSONB`, Discord ID-ууд `BIGINT` байна.
 
 | Хүснэгт | Түлхүүр | Үүрэг |
 | :--- | :--- | :--- |
@@ -101,7 +100,7 @@ trigger-ээр хориотой, хэрэглэгчийг устгахад `REST
 ```text
 Slash command (cog)
    ↓ 1. defer / send_modal (3 сек дүрэм)
-   ↓ 2. per-user lock + BEGIN IMMEDIATE транзакц (service дотор)
+   ↓ 2. per-user lock + PostgreSQL транзакц (service дотор)
 Service  ── SkillService.get_modifiers(user_id) ──→ Modifiers (1 удаа, кэш 15с)
    ↓
 Repository (SQL) → Database (commit)
@@ -115,7 +114,7 @@ UI (embed + View) — зөвхөн үр дүнг харуулна
 
 1. `validate` (дүн, эрх, cooldown)
 2. `async with user_lock(user_id):` / `multi_user_lock(a, b):`
-3. `async with db.transaction():` (`BEGIN IMMEDIATE`)
+3. `async with db.transaction():` (нэг asyncpg connection)
 4. `SkillService.get_modifiers()` — бонусийг нэг л удаа уншина
 5. `EconomyService`-ээр мөнгө хөдөлгөх + `transactions` бичих
 6. commit → `EventBus.publish(MoneyChanged / XPGained / CasinoResolved)`

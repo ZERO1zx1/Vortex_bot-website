@@ -7,6 +7,7 @@ from discord.ext import commands
 
 from cogs._bot_types import AetherBotProtocol
 from cogs._helpers import maybe_error, send_view
+from core.checks import not_jailed
 from core.exceptions import AetherError
 from ui.embeds import duel_embed
 from ui.games.duel_view import DuelView
@@ -17,6 +18,7 @@ class Duel(commands.Cog):
         self.bot: AetherBotProtocol = bot  # type: ignore[assignment]
 
     @commands.command(name="duel", aliases=["d"])
+    @not_jailed()
     async def duel(
         self,
         ctx: commands.Context,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -81,3 +82,24 @@ async def test_admin_check_rejects_regular_member_and_dm() -> None:
         await check_is_admin(_interaction(admin=False, guild=object()))
     with pytest.raises(app_commands.CheckFailure, match="сервер"):
         await check_is_admin(_interaction(admin=False, guild=None))
+
+
+def test_jail_restricted_commands_use_guard_decorator() -> None:
+    root = Path(__file__).resolve().parents[1] / "cogs"
+    expected = {
+        "economy/income.py": 1,
+        "casino/blackjack.py": 1,
+        "casino/coinflip.py": 1,
+        "casino/crash.py": 1,
+        "casino/lottery.py": 1,
+        "casino/minefield.py": 1,
+        "casino/roulette.py": 1,
+        "casino/slots.py": 1,
+        "games/adventure.py": 1,
+        "games/boss.py": 1,
+        "games/duel.py": 1,
+        "games/hunt_fish.py": 2,
+    }
+    for relative, guard_count in expected.items():
+        source = (root / relative).read_text(encoding="utf-8")
+        assert source.count("@not_jailed()") == guard_count, relative

@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from cogs._bot_types import AetherBotProtocol
 from cogs._helpers import maybe_error, send_embed, send_view
+from core.checks import not_jailed
 from core.exceptions import AetherError
 from ui.casino.lottery_view import LotteryView
 from ui.embeds import lottery_draw_embed, lottery_embed
@@ -16,6 +17,7 @@ class Lottery(commands.Cog):
         self.bot: AetherBotProtocol = bot  # type: ignore[assignment]
 
     @commands.command(name="lottery", aliases=["lot"])
+    @not_jailed()
     async def lottery(
         self,
         ctx: commands.Context,

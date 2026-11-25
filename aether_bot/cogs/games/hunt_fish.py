@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from cogs._bot_types import AetherBotProtocol
 from cogs._helpers import maybe_error, send_embed
+from core.checks import not_jailed
 from core.exceptions import AetherError
 from ui.embeds import catch_embed
 
@@ -23,10 +24,12 @@ class HuntFish(commands.Cog):
         await send_embed(ctx, catch_embed(result, ctx.author.display_name))
 
     @commands.command(name="hunt")
+    @not_jailed()
     async def hunt(self, ctx: commands.Context) -> None:
         await self._act(ctx, lambda: self.bot.huntfish.hunt(ctx.author.id))
 
     @commands.command(name="fish")
+    @not_jailed()
     async def fish(self, ctx: commands.Context) -> None:
         await self._act(ctx, lambda: self.bot.huntfish.fish(ctx.author.id))
 

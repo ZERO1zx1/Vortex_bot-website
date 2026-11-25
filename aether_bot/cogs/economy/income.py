@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from cogs._bot_types import AetherBotProtocol
 from cogs._helpers import maybe_error, send_embed, send_view
+from core.checks import not_jailed
 from core.exceptions import AetherError
 from ui.economy.work_view import WorkView
 from ui.embeds import base_embed, daily_embed
@@ -25,6 +26,7 @@ class Income(commands.Cog):
         await send_embed(ctx, daily_embed(result, ctx.author.display_name))
 
     @commands.command(name="work", aliases=["w"])
+    @not_jailed()
     async def work(self, ctx: commands.Context, job: str | None = None) -> None:
         try:
             if job:

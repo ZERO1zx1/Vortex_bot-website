@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import aiosqlite
-
-from core.database import Database
+from core.database import Database, Row
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,7 +20,7 @@ class ShopItemRow:
     icon: str
 
     @classmethod
-    def from_row(cls, row: aiosqlite.Row) -> ShopItemRow:
+    def from_row(cls, row: Row) -> ShopItemRow:
         return cls(
             item_id=row["item_id"],
             name=row["name"],
@@ -52,7 +50,7 @@ class EffectRow:
     created_at: str
 
     @classmethod
-    def from_row(cls, row: aiosqlite.Row) -> EffectRow:
+    def from_row(cls, row: Row) -> EffectRow:
         return cls(
             effect_id=row["effect_id"],
             user_id=row["user_id"],
@@ -181,7 +179,7 @@ class ShopRepository:
             INSERT INTO inventory (user_id, item_id, quantity)
             VALUES (?, ?, ?)
             ON CONFLICT(user_id, item_id) DO UPDATE SET
-                quantity = quantity + excluded.quantity
+                quantity = inventory.quantity + excluded.quantity
             RETURNING quantity
             """,
             (user_id, item_id, quantity),
@@ -230,7 +228,7 @@ class ShopRepository:
             """
             SELECT effect_id, user_id, effect_type, value, expires_at, created_at
               FROM user_effects
-             WHERE user_id = ? AND expires_at > datetime('now')
+             WHERE user_id = ? AND expires_at > CURRENT_TIMESTAMP
              ORDER BY expires_at
             """,
             (user_id,),
@@ -242,7 +240,7 @@ class ShopRepository:
             """
             SELECT MAX(value) FROM user_effects
              WHERE user_id = ? AND effect_type = ?
-               AND expires_at > datetime('now')
+               AND expires_at > CURRENT_TIMESTAMP
             """,
             (user_id, effect_type),
         )
@@ -250,5 +248,5 @@ class ShopRepository:
 
     async def purge_expired_effects(self) -> int:
         return await self.db.execute(
-            "DELETE FROM user_effects WHERE expires_at <= datetime('now')"
+            "DELETE FROM user_effects WHERE expires_at <= CURRENT_TIMESTAMP"
         )

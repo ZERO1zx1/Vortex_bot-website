@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
+from urllib.parse import urlsplit
 
 try:  # python-dotenv заавал биш (Docker/CI дээр env шууд ирж болно)
     from dotenv import load_dotenv
@@ -16,6 +16,8 @@ try:  # python-dotenv заавал биш (Docker/CI дээр env шууд ир�
     load_dotenv()
 except ImportError:  # pragma: no cover
     pass
+
+from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 MIGRATIONS_DIR = BASE_DIR / "migrations"
@@ -29,7 +31,7 @@ class ConfigError(RuntimeError):
 class Settings:
     discord_token: str
     guild_id: int
-    db_path: Path
+    database_url: str
     rate_limit_per_second: int
     log_level: str
     default_prefix: str
@@ -61,10 +63,23 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     """Env-ээс тохиргоог цэвэр функцээр уншина (тестлэхэд хялбар)."""
     source = os.environ if env is None else env
 
-    raw_db = (source.get("AETHER_DB_PATH") or "").strip()
-    db_path = Path(raw_db).expanduser() if raw_db else BASE_DIR / "data" / "aether.db"
-    if not db_path.is_absolute():
-        db_path = BASE_DIR / db_path
+    database_url = (source.get("DATABASE_URL") or "").strip()
+    if database_url:
+        try:
+            parsed = urlsplit(database_url)
+            valid_port = parsed.port
+        except ValueError as exc:
+            raise ConfigError(
+                "DATABASE_URL нь хүчинтэй PostgreSQL URL байх ёстой."
+            ) from exc
+        if (
+            parsed.scheme not in {"postgresql", "postgres"}
+            or not parsed.hostname
+            or not parsed.path.strip("/")
+            or valid_port is not None
+            and not 1 <= valid_port <= 65535
+        ):
+            raise ConfigError("DATABASE_URL нь хүчинтэй PostgreSQL URL байх ёстой.")
 
     guild_id = _read_int(source, "GUILD_ID", 0, minimum=0)
     # Discord-ийн 50 req/s хязгаараас доогуур аюулгүй босго.
@@ -85,7 +100,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     return Settings(
         discord_token=(source.get("DISCORD_TOKEN") or "").strip(),
         guild_id=guild_id,
-        db_path=db_path,
+        database_url=database_url,
         rate_limit_per_second=rate_limit,
         log_level=log_level,
         default_prefix=prefix,
@@ -97,7 +112,7 @@ SETTINGS = load_settings()
 # ── Runtime ────────────────────────────────────────────────────────────────
 DISCORD_TOKEN = SETTINGS.discord_token
 GUILD_ID = SETTINGS.guild_id
-DB_PATH = SETTINGS.db_path
+DATABASE_URL = SETTINGS.database_url
 LOG_LEVEL = SETTINGS.log_level
 DEFAULT_PREFIX = SETTINGS.default_prefix
 
@@ -113,6 +128,16 @@ def require_token() -> str:
             "хувьсагчаар Discord bot token өгнө үү."
         )
     return DISCORD_TOKEN
+
+
+def require_database_url() -> str:
+    """Database pool үүсгэхээс өмнө Supabase URL байгаа эсэхийг шалгана."""
+    if not DATABASE_URL:
+        raise ConfigError(
+            "DATABASE_URL тохируулаагүй байна. Supabase Connect цэсний "
+            "Session pooler URL-ийг .env файлд өгнө үү."
+        )
+    return DATABASE_URL
 
 
 # ── Өнгөний систем (Anime / Cyber-Fantasy) ─────────────────────────────────

@@ -2,6 +2,13 @@
 
 > Энэхүү баримт бичиг нь `aether_bot.zip` архивын бодит кодын аудит, одоогийн хэрэгжсэн суурь (Baseline v2), дутуу байгаа модулиудын жагсаалт болон үргэлжлүүлэн хөгжүүлэхэд зориулсан **Master Continuation Prompt**-ийг агуулна. Төслийн санааг [DarkMooN-SYS/MongolBot](https://github.com/DarkMooN-SYS/MongolBot)-ийн модульчлагдсан бүтцээс уламжлан авч, орчин үеийн Layered Architecture + Atomic Service Layer + Interactive UI болгон шинэчилсэн.
 
+> **Одоогийн төлөв (2026-11-25):** Доорх Gap Analysis нь анхны архивын
+> түүхэн аудит. Түүний Economy, Jail, RPG, Casino, Games, UI болон Cog үе
+> шатууд одоо хэрэгжсэн. Production database нь Supabase PostgreSQL болсон;
+> шинэ schema `migrations/001_baseline.sql`-д бүрэн агуулагдана. Бодит
+> Supabase validation нь disposable `AETHER_TEST_DATABASE_URL` өгөх хүртэл
+> хийгдээгүй.
+
 ---
 
 ## 1. `aether_bot.zip` КОДЫН АУДИТ (ОДОО БАЙГАА БАЙДАЛ БА ЗӨРҮҮ)
@@ -133,33 +140,10 @@ aether_bot/
 
 ## 3. MIGRATION 003 СХЕМ (`migrations/003_jail_and_features.sql`)
 
-`001_baseline.sql` болон `002_hardening.sql`-ийг огт өөрчлөхгүйгээр дараах `003_jail_and_features.sql` файлаар схемийг гүйцээнэ:
-
-```sql
--- ════════════════════════════════════════════════════════════════════════
--- AETHER — migration 003: jail system, guild log channel & lottery pool
--- ════════════════════════════════════════════════════════════════════════
-
-BEGIN;
-
-ALTER TABLE users ADD COLUMN jail_until TEXT;
-ALTER TABLE users ADD COLUMN jail_bail_cost INTEGER NOT NULL DEFAULT 0 CHECK (jail_bail_cost >= 0);
-
-ALTER TABLE guild_settings ADD COLUMN log_channel_id INTEGER;
-
-CREATE TABLE IF NOT EXISTS lottery_tickets (
-    ticket_id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id         INTEGER NOT NULL,
-    round_id        INTEGER NOT NULL DEFAULT 1,
-    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_lottery_round ON lottery_tickets(round_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_users_jail ON users(jail_until);
-
-COMMIT;
-```
+Шинэ Supabase database-ийн бүрэн PostgreSQL схемийг
+`migrations/001_baseline.sql` нэг дор үүсгэнэ. Jail, guild log channel болон
+lottery хүснэгтүүд baseline-д багтсан; migration runner нь SHA-256 checksum-ээр
+хэрэглэгдсэн файлыг дахин өөрчлөхөөс хамгаална.
 
 ---
 

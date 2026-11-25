@@ -172,7 +172,7 @@ class EventBus:
         """`publish`-ийн await-гүй хувилбар: handler-уудыг task болгож салгана.
 
         Хоосон context-оор эхлүүлнэ — ингэснээр emit-ийг транзакц дотор
-        дуудсан ч handler нь эцэг task-ийн SQLite холболтыг санамсаргүй
+        дуудсан ч handler нь эцэг task-ийн transaction context-ийг санамсаргүй
         өвлөхгүй. Event-ийг commit-ийн дараа нийтлэх нь зөв хэвээр.
         """
         for handler in self._handlers_for(event):

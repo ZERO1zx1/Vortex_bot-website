@@ -5,15 +5,12 @@ from pathlib import Path
 
 import pytest_asyncio
 
-import config
-from core.database import Database
+from tests.fakes.database import SqliteTestDatabase
 
 
 @pytest_asyncio.fixture
-async def db(tmp_path: Path) -> AsyncIterator[Database]:
-    database = Database(
-        tmp_path / "aether-test.db", migrations_dir=config.MIGRATIONS_DIR
-    )
+async def db(tmp_path: Path) -> AsyncIterator[SqliteTestDatabase]:
+    database = SqliteTestDatabase(tmp_path / "aether-test.db")
     await database.connect()
     try:
         yield database

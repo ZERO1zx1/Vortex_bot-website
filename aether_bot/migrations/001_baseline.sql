@@ -1,141 +1,163 @@
--- ════════════════════════════════════════════════════════════════════════
--- AETHER — migration 001: baseline schema + initial shop seed
--- WAL + Foreign Keys. Бүх мөнгөн гүйлгээ service давхаргад
--- `BEGIN IMMEDIATE` транзакци + per-user asyncio lock дор хийгдэнэ.
--- ════════════════════════════════════════════════════════════════════════
+-- Aether fresh Supabase/PostgreSQL schema. Applied atomically by Database.migrate().
 
-PRAGMA journal_mode = WAL;
-PRAGMA foreign_keys = ON;
-
-BEGIN;
-
--- ── Тоглогч ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS users (
-    user_id         INTEGER PRIMARY KEY,
-    wallet          INTEGER NOT NULL DEFAULT 500 CHECK (wallet >= 0),
-    bank            INTEGER NOT NULL DEFAULT 0   CHECK (bank >= 0),
-    xp              INTEGER NOT NULL DEFAULT 0   CHECK (xp >= 0),
-    level           INTEGER NOT NULL DEFAULT 1   CHECK (level >= 1),
-    skill_points    INTEGER NOT NULL DEFAULT 0   CHECK (skill_points >= 0),
-    daily_streak    INTEGER NOT NULL DEFAULT 0   CHECK (daily_streak >= 0),
-    casino_net      INTEGER NOT NULL DEFAULT 0,  -- leaderboard: казиногийн цэвэр ашиг
-    last_daily_at   TEXT,
-    shield_until    TEXT,                        -- Shop Shield / Aether Shield
-    active_title    TEXT NOT NULL DEFAULT 'Wanderer',
-    bio             TEXT NOT NULL DEFAULT 'Aether ертөнцийн аялагч.',
-    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+CREATE TABLE users (
+    user_id BIGINT PRIMARY KEY,
+    wallet BIGINT NOT NULL DEFAULT 500 CHECK (wallet >= 0),
+    bank BIGINT NOT NULL DEFAULT 0 CHECK (bank >= 0),
+    xp BIGINT NOT NULL DEFAULT 0 CHECK (xp >= 0),
+    level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1),
+    skill_points INTEGER NOT NULL DEFAULT 0 CHECK (skill_points >= 0),
+    daily_streak INTEGER NOT NULL DEFAULT 0 CHECK (daily_streak >= 0),
+    casino_net BIGINT NOT NULL DEFAULT 0,
+    last_daily_at TIMESTAMPTZ,
+    shield_until TIMESTAMPTZ,
+    active_title TEXT NOT NULL DEFAULT 'Wanderer',
+    bio TEXT NOT NULL DEFAULT 'Aether ертөнцийн аялагч.',
+    jail_until TIMESTAMPTZ,
+    jail_bail_cost BIGINT NOT NULL DEFAULT 0 CHECK (jail_bail_cost >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_level   ON users(level DESC, xp DESC);
-CREATE INDEX IF NOT EXISTS idx_users_wealth  ON users(wallet, bank);
-CREATE INDEX IF NOT EXISTS idx_users_casino  ON users(casino_net DESC);
+CREATE INDEX idx_users_level ON users(level DESC, xp DESC);
+CREATE INDEX idx_users_wealth ON users(wallet, bank);
+CREATE INDEX idx_users_casino ON users(casino_net DESC);
+CREATE INDEX idx_users_jail ON users(jail_until);
 
--- ── Skill tree ──────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS user_skills (
-    user_id         INTEGER NOT NULL,
-    skill_id        TEXT    NOT NULL,
-    skill_level     INTEGER NOT NULL DEFAULT 0 CHECK (skill_level >= 0),
-    last_used_at    TEXT,      -- cooldown-ийн эхлэл
-    active_until    TEXT,      -- идэвхтэй эффектийн төгсгөл (NULL = идэвхгүй)
-    PRIMARY KEY (user_id, skill_id),
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+CREATE TABLE user_skills (
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    skill_id TEXT NOT NULL,
+    skill_level INTEGER NOT NULL DEFAULT 0 CHECK (skill_level >= 0),
+    last_used_at TIMESTAMPTZ,
+    active_until TIMESTAMPTZ,
+    PRIMARY KEY (user_id, skill_id)
 );
 
--- ── Дэлгүүр ба Inventory ────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS shop_items (
-    item_id         TEXT PRIMARY KEY,
-    name            TEXT    NOT NULL,
-    category        TEXT    NOT NULL
-                    CHECK (category IN ('defense', 'booster', 'title', 'scroll')),
-    price           INTEGER NOT NULL CHECK (price > 0),
-    description     TEXT    NOT NULL,
-    effect_type     TEXT    NOT NULL,  -- shield / xp_boost / skill_reset / title / stamina
-    effect_value    REAL    NOT NULL DEFAULT 0,
-    duration_sec    INTEGER NOT NULL DEFAULT 0,
-    icon            TEXT    NOT NULL DEFAULT '✦'
+CREATE TABLE shop_items (
+    item_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL CHECK (
+        category IN ('defense', 'booster', 'title', 'scroll', 'tool', 'consumable')
+    ),
+    price BIGINT NOT NULL CHECK (price > 0),
+    description TEXT NOT NULL,
+    effect_type TEXT NOT NULL,
+    effect_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+    duration_sec INTEGER NOT NULL DEFAULT 0,
+    icon TEXT NOT NULL DEFAULT '✦'
 );
 
-CREATE TABLE IF NOT EXISTS inventory (
-    user_id         INTEGER NOT NULL,
-    item_id         TEXT    NOT NULL,
-    quantity        INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 0),
-    PRIMARY KEY (user_id, item_id),
-    FOREIGN KEY (user_id) REFERENCES users(user_id)     ON DELETE CASCADE,
-    FOREIGN KEY (item_id) REFERENCES shop_items(item_id) ON DELETE CASCADE
+CREATE TABLE inventory (
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    item_id TEXT NOT NULL REFERENCES shop_items(item_id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 0),
+    PRIMARY KEY (user_id, item_id)
 );
 
--- Item-ээр олгогдсон түр эффект (XP booster, Shield гэх мэт)
-CREATE TABLE IF NOT EXISTS user_effects (
-    effect_id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id         INTEGER NOT NULL,
-    effect_type     TEXT    NOT NULL,
-    value           REAL    NOT NULL DEFAULT 0,
-    expires_at      TEXT    NOT NULL,
-    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+CREATE TABLE user_effects (
+    effect_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    effect_type TEXT NOT NULL,
+    value DOUBLE PRECISION NOT NULL DEFAULT 0,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_effects_user ON user_effects(user_id, effect_type);
+CREATE INDEX idx_effects_expiry ON user_effects(expires_at);
+
+CREATE TABLE cooldowns (
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    action_key TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (user_id, action_key)
+);
+CREATE INDEX idx_cooldowns_expiry ON cooldowns(expires_at);
+
+CREATE TABLE transactions (
+    tx_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE RESTRICT,
+    amount BIGINT NOT NULL,
+    source TEXT NOT NULL,
+    balance_after BIGINT NOT NULL DEFAULT 0,
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_tx_user ON transactions(user_id, created_at DESC);
+
+CREATE TABLE casino_logs (
+    log_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE RESTRICT,
+    game TEXT NOT NULL CHECK (
+        game IN ('slots', 'blackjack', 'roulette', 'minefield', 'coinflip', 'crash', 'lottery')
+    ),
+    bet BIGINT NOT NULL CHECK (bet > 0),
+    payout BIGINT NOT NULL DEFAULT 0,
+    outcome TEXT NOT NULL CHECK (outcome IN ('win', 'loss', 'push', 'cashout')),
+    detail JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_casino_user ON casino_logs(user_id, created_at DESC);
+CREATE INDEX idx_casino_game ON casino_logs(game, created_at DESC);
+
+CREATE TABLE game_logs (
+    log_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    kind TEXT NOT NULL CHECK (kind IN ('duel', 'adventure', 'hunt', 'fish', 'boss')),
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE RESTRICT,
+    opponent_id BIGINT REFERENCES users(user_id) ON DELETE SET NULL,
+    outcome TEXT NOT NULL CHECK (outcome IN ('win', 'loss', 'draw', 'flee')),
+    reward_coin BIGINT NOT NULL DEFAULT 0,
+    reward_xp BIGINT NOT NULL DEFAULT 0,
+    detail JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_game_user ON game_logs(user_id, kind, created_at DESC);
+
+CREATE TABLE guild_settings (
+    guild_id BIGINT PRIMARY KEY,
+    prefix TEXT NOT NULL DEFAULT 'a!' CHECK (length(prefix) BETWEEN 1 AND 5),
+    tax_pct DOUBLE PRECISION NOT NULL DEFAULT 0 CHECK (tax_pct BETWEEN 0 AND 0.5),
+    log_channel_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_effects_user ON user_effects(user_id, effect_type);
-
--- ── Cooldown ────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS cooldowns (
-    user_id         INTEGER NOT NULL,
-    action_key      TEXT    NOT NULL,  -- 'work', 'rob', 'adventure', 'xp_chat'
-    expires_at      TEXT    NOT NULL,
-    PRIMARY KEY (user_id, action_key),
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+CREATE TABLE lottery_tickets (
+    ticket_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    round_id BIGINT NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX idx_lottery_round ON lottery_tickets(round_id, user_id);
+CREATE INDEX idx_lottery_user ON lottery_tickets(user_id, created_at DESC);
 
--- ── Санхүүгийн бүртгэл (append-only) ────────────────────────────────────
-CREATE TABLE IF NOT EXISTS transactions (
-    tx_id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id         INTEGER NOT NULL,
-    amount          INTEGER NOT NULL,               -- + орлого / - зарлага
-    source          TEXT    NOT NULL,               -- daily, work, casino_win, ...
-    balance_after   INTEGER NOT NULL DEFAULT 0,
-    metadata        TEXT,
-    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
+CREATE OR REPLACE FUNCTION prevent_audit_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION '% is append-only', TG_TABLE_NAME;
+END;
+$$;
 
-CREATE INDEX IF NOT EXISTS idx_tx_user ON transactions(user_id, created_at DESC);
+CREATE TRIGGER transactions_append_only
+BEFORE UPDATE OR DELETE ON transactions
+FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
+CREATE TRIGGER casino_logs_append_only
+BEFORE UPDATE OR DELETE ON casino_logs
+FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
+CREATE TRIGGER game_logs_append_only
+BEFORE UPDATE OR DELETE ON game_logs
+FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
 
--- ── Казино ──────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS casino_logs (
-    log_id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id         INTEGER NOT NULL,
-    game            TEXT    NOT NULL CHECK (game IN ('slots', 'blackjack', 'roulette', 'minefield')),
-    bet             INTEGER NOT NULL CHECK (bet > 0),
-    payout          INTEGER NOT NULL DEFAULT 0,
-    outcome         TEXT    NOT NULL CHECK (outcome IN ('win', 'loss', 'push', 'cashout')),
-    detail          TEXT,                            -- JSON: reels, cards, multiplier
-    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
+CREATE TRIGGER transactions_no_truncate
+BEFORE TRUNCATE ON transactions
+FOR EACH STATEMENT EXECUTE FUNCTION prevent_audit_mutation();
+CREATE TRIGGER casino_logs_no_truncate
+BEFORE TRUNCATE ON casino_logs
+FOR EACH STATEMENT EXECUTE FUNCTION prevent_audit_mutation();
+CREATE TRIGGER game_logs_no_truncate
+BEFORE TRUNCATE ON game_logs
+FOR EACH STATEMENT EXECUTE FUNCTION prevent_audit_mutation();
 
-CREATE INDEX IF NOT EXISTS idx_casino_user ON casino_logs(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_casino_game ON casino_logs(game, created_at DESC);
-
--- ── PvP Duel / Adventure ────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS game_logs (
-    log_id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind            TEXT    NOT NULL CHECK (kind IN ('duel', 'adventure')),
-    user_id         INTEGER NOT NULL,
-    opponent_id     INTEGER,
-    outcome         TEXT    NOT NULL CHECK (outcome IN ('win', 'loss', 'draw', 'flee')),
-    reward_coin     INTEGER NOT NULL DEFAULT 0,
-    reward_xp       INTEGER NOT NULL DEFAULT 0,
-    detail          TEXT,                            -- JSON: rounds, item drop
-    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id)     REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (opponent_id) REFERENCES users(user_id) ON DELETE SET NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_game_user ON game_logs(user_id, kind, created_at DESC);
-
--- ── Seed: дэлгүүрийн анхны бараа ────────────────────────────────────────
-INSERT OR IGNORE INTO shop_items
+INSERT INTO shop_items
     (item_id, name, category, price, description, effect_type, effect_value, duration_sec, icon)
 VALUES
     ('aether_shield_charm', 'Aether Shield Charm', 'defense', 1200,
@@ -149,6 +171,17 @@ VALUES
     ('cyber_ronin_title', 'Cyber Ronin', 'title', 5000,
      'Неон илдтэй тэнүүчлэгч — профайл дээр харагдах цол.', 'title', 0, 0, '⚔️'),
     ('astral_princess_title', 'Astral Princess', 'title', 5000,
-     'Оддын хаант улсын өв залгамжлагч — профайл дээр харагдах цол.', 'title', 0, 0, '👑');
+     'Оддын хаант улсын өв залгамжлагч — профайл дээр харагдах цол.', 'title', 0, 0, '👑')
+ON CONFLICT (item_id) DO NOTHING;
 
-COMMIT;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_skills ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shop_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_effects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cooldowns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE casino_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE game_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE guild_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lottery_tickets ENABLE ROW LEVEL SECURITY;

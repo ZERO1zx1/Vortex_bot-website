@@ -9,9 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import aiosqlite
-
-from core.database import Database
+from core.database import Database, Row
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +21,7 @@ class SkillRow:
     active_until: str | None
 
     @classmethod
-    def from_row(cls, row: aiosqlite.Row) -> SkillRow:
+    def from_row(cls, row: Row) -> SkillRow:
         return cls(
             user_id=row["user_id"],
             skill_id=row["skill_id"],

@@ -7,6 +7,7 @@ from discord.ext import commands
 
 from cogs._bot_types import AetherBotProtocol
 from cogs._helpers import maybe_error, send_view
+from core.checks import not_jailed
 from core.exceptions import AetherError
 from ui.casino.minefield_view import MinefieldView
 from ui.casino.panel import BetPanelView
@@ -33,6 +34,7 @@ class Minefield(commands.Cog):
         )
 
     @commands.command(name="minefield", aliases=["mf"])
+    @not_jailed()
     async def minefield(self, ctx: commands.Context, bet: str | None = None) -> None:
         if bet is None:
             panel = BetPanelView(ctx.author.id, "Minefield", self._start)

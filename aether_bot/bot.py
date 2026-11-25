@@ -96,7 +96,9 @@ class AetherBot(commands.Bot):
             help_command=None,
             case_insensitive=True,
         )
-        self.db = Database(config.DB_PATH, migrations_dir=config.MIGRATIONS_DIR)
+        self.db = Database(
+            config.require_database_url(), migrations_dir=config.MIGRATIONS_DIR
+        )
         self.user_repo = UserRepository(self.db)
         self.event_bus = EventBus()
         self.guild_repo = GuildRepository(self.db)

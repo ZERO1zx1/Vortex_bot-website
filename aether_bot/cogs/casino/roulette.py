@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from cogs._bot_types import AetherBotProtocol
 from cogs._helpers import maybe_error, send_embed, send_view
+from core.checks import not_jailed
 from core.exceptions import AetherError
 from ui.casino.roulette_view import RouletteView
 from ui.embeds import roulette_embed, start_casino_embed
@@ -16,6 +17,7 @@ class Roulette(commands.Cog):
         self.bot: AetherBotProtocol = bot  # type: ignore[assignment]
 
     @commands.command(name="roulette", aliases=["rou"])
+    @not_jailed()
     async def roulette(
         self, ctx: commands.Context, bet: str | None = None, bet_type: str = "red"
     ) -> None:

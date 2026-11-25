@@ -108,6 +108,7 @@ class IncomeService:
 
     async def daily(self, user_id: int) -> DailyResult:
         async with user_lock(user_id), self.db.transaction():
+            await self.db.advisory_xact_lock(user_id)
             user = await self.users.get_or_create(user_id)
             last = user.last_daily_at
             elapsed = seconds_since(from_db(last))

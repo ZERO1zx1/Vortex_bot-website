@@ -1,12 +1,12 @@
 # Aether Discord Bot
 
 Anime / cyber-fantasy RPG & economy bot for Discord, written in Python 3.13 with
-`discord.py`, `aiosqlite`, and a layered service architecture.
+`discord.py`, Supabase PostgreSQL, and a layered service architecture.
 
-> **Status:** the infrastructure and skill-tree slice are implemented and
-> tested. Economy, shop, casino, and game services are the next stage. The bot
-> currently ships `ping`, `balance`, `skills`, `upgrade`, `activate`,
-> `setprefix`, and `settings`.
+> **Status:** the layered infrastructure, economy, jail, RPG, shop, casino,
+> games, interactive UI, prefix player commands, and slash-only admin commands
+> are implemented and covered by the offline test suite. Live Supabase schema
+> validation remains opt-in and requires a disposable database URL.
 
 ## Requirements
 
@@ -24,9 +24,14 @@ source .venv/bin/activate
 pip install -r requirements-dev.txt
 
 cp .env.example .env
-# edit .env and set DISCORD_TOKEN and (optionally) GUILD_ID
+# edit .env and set DISCORD_TOKEN, DATABASE_URL, and optionally GUILD_ID
 python bot.py
 ```
+
+Create a new Supabase project, open **Connect**, select **Session pooler**
+(port `5432`), copy its PostgreSQL URL, replace the password placeholder, and
+store it as `DATABASE_URL` in `.env`. The password must be URL-encoded when it
+contains reserved characters. Never commit or paste the completed URL.
 
 For development, set `GUILD_ID` to your test server ID so slash commands sync
 instantly. Without it, commands sync globally and can take up to an hour to
@@ -38,24 +43,25 @@ appear.
 | :--- | :--- | :--- |
 | `DISCORD_TOKEN` | — | Required to start the bot |
 | `GUILD_ID` | `0` | `0` = global slash-command sync |
-| `AETHER_DB_PATH` | `data/aether.db` | Relative paths are anchored to `aether_bot/` |
+| `DATABASE_URL` | — | Required Supabase Session pooler PostgreSQL URL |
 | `RATE_LIMIT_PER_SECOND` | `45` | Clamped to 1–45; Discord's global limit is 50/s |
 | `DEFAULT_PREFIX` | `a!` | 1–5 characters |
 | `LOG_LEVEL` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` |
 
 ## Commands
 
-Both prefix and slash forms are available through hybrid commands.
+Player commands are prefix-only. Admin commands are slash-only.
 
-| Command | Description |
+| Group | Commands |
 | :--- | :--- |
-| `a!ping` / `/ping` | Gateway latency |
-| `a!balance [@user]` / `/balance [member]` | Wallet, bank, level, SP, title |
-| `a!skills` / `/skills` | Skill tree and cooldowns |
-| `a!upgrade <skill_id>` / `/upgrade <skill_id>` | Spend 1 SP to level a skill |
-| `a!activate <skill_id>` / `/activate <skill_id>` | Activate an active skill |
-| `a!setprefix <prefix>` / `/setprefix <prefix>` | Change the server prefix (Manage Server) |
-| `a!settings` / `/settings` | Show server prefix and tax |
+| System | `a!help`, `a!ping`, `a!settings` |
+| Economy | `a!balance`, `a!deposit`, `a!withdraw`, `a!transfer`, `a!daily`, `a!work`, `a!crime`, `a!rob`, `a!jail`, `a!bail` |
+| RPG | `a!profile`, `a!rank`, `a!leaderboard`, `a!skills`, `a!upgrade`, `a!activate`, `a!shop`, `a!buy`, `a!inventory`, `a!use`, `a!equip` |
+| Casino | `a!slots`, `a!blackjack`, `a!roulette`, `a!minefield`, `a!coinflip`, `a!crash`, `a!lottery` |
+| Games | `a!duel`, `a!adventure`, `a!hunt`, `a!fish`, `a!boss` |
+| Admin | `/admin_economy`, `/admin_jail`, `/admin_shop`, `/admin_skill`, `/admin_config` |
+
+`a!work`, crime, casino, and game commands reject users who are currently jailed.
 
 Valid skill IDs are defined in `core/skill_catalog.py`:
 `golden_touch`, `lucky_star`, `merchants_eye`, `shadow_step`,
@@ -70,8 +76,8 @@ aether_bot/
 ├── migrations/         # ordered SQL migrations with checksums
 ├── core/               # database, locks, rate limiter, event bus, exceptions
 ├── repositories/       # SQL only
-├── services/rpg/       # domain logic (no discord imports)
-├── ui/                 # embeds and future views
+├── services/           # economy, RPG, casino, and games domain logic
+├── ui/                 # embeds, views, buttons, selects, and modals
 ├── cogs/               # Discord command layer
 └── tests/              # pytest + pytest-asyncio
 ```
@@ -92,16 +98,15 @@ The CI workflow runs exactly these checks.
 
 ## Database and migrations
 
-SQLite runs in WAL mode with foreign keys enabled. Every money-moving service
-takes a per-user lock and a `BEGIN IMMEDIATE` transaction. Reads use a separate
-`query_only` connection so one task's rollback cannot erase another task's
-writes.
+The bot uses an `asyncpg` application pool over Supabase's TLS Session pooler.
+Every money-moving service takes a per-user lock and a PostgreSQL transaction;
+nested repository calls share the same connection and roll back together.
 
 Migrations are ordered files in `migrations/`:
 
 - `001_baseline.sql` — schema + initial shop seed
-- `002_hardening.sql` — expanded CHECK constraints, append-only financial
-  logs, `guild_settings`, expiry indexes
+The fresh baseline creates all tables, indexes, RLS protection, immutable audit
+triggers, and the initial shop catalog.
 
 The runner stores each file's SHA-256 in `schema_migrations`. **Never edit an
 applied migration**; add a new `NNN_description.sql` instead. A checksum
@@ -110,6 +115,8 @@ mismatch fails startup with a clear error.
 ## Security
 
 - `.env` and database files are git-ignored.
+- Public tables have RLS enabled with no client policies; the bot connects as
+  the database role through TLS rather than exposing the password to Discord users.
 - If a real token or password was ever committed, rotate it in the Discord /
   database console, then purge history with `git filter-repo` or BFG. Removing
   the file in a later commit does not invalidate the leaked credential.

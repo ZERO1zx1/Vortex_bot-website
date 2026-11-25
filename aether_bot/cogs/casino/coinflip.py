@@ -7,6 +7,7 @@ from discord.ext import commands
 
 from cogs._bot_types import AetherBotProtocol
 from cogs._helpers import maybe_error, send_embed, send_view
+from core.checks import not_jailed
 from core.exceptions import AetherError
 from ui.casino.panel import BetPanelView
 from ui.embeds import coinflip_embed, start_casino_embed
@@ -23,6 +24,7 @@ class Coinflip(commands.Cog):
         )
 
     @commands.command(name="coinflip", aliases=["cf"])
+    @not_jailed()
     async def coinflip(
         self,
         ctx: commands.Context,

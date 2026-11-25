@@ -37,6 +37,7 @@ def _wire(db: Database) -> tuple[EventBus, LevelService, IncomeService]:
 async def test_daily_reward_streak_and_cooldown(db: Database) -> None:
     _, _, income = _wire(db)
     result = await income.daily(1)
+    assert db.advisory_locks == [1]  # type: ignore[attr-defined]
     assert result.streak == 1
     assert result.reward >= 250
     assert result.xp == 40

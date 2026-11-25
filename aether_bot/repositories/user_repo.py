@@ -8,10 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import aiosqlite
-
 import config
-from core.database import Database
+from core.database import Database, Row
 from core.exceptions import UserNotFoundError
 
 
@@ -45,7 +43,7 @@ class UserRow:
         return self.jail_until is not None
 
     @classmethod
-    def from_row(cls, row: aiosqlite.Row) -> UserRow:
+    def from_row(cls, row: Row) -> UserRow:
         return cls(
             user_id=row["user_id"],
             wallet=row["wallet"],
@@ -90,7 +88,8 @@ class UserRepository:
 
     async def get_or_create(self, user_id: int) -> UserRow:
         await self.db.execute(
-            "INSERT OR IGNORE INTO users (user_id, wallet) VALUES (?, ?)",
+            "INSERT INTO users (user_id, wallet) VALUES (?, ?) "
+            "ON CONFLICT (user_id) DO NOTHING",
             (user_id, config.STARTING_WALLET),
         )
         row = await self.db.fetchone(f"{_SELECT} WHERE user_id = ?", (user_id,))
@@ -101,7 +100,7 @@ class UserRepository:
     async def get_many(self, user_ids: list[int]) -> dict[int, UserRow]:
         if not user_ids:
             return {}
-        # SQLite-ийн variable limit-ээс зайлсхийхийн тулд chunk-лана.
+        # Маш том IN query болон packet үүсгэхгүйгээр хэсэгчлэн уншина.
         unique = list(dict.fromkeys(user_ids))
         result: dict[int, UserRow] = {}
         for start in range(0, len(unique), 500):
@@ -136,7 +135,7 @@ class UserRepository:
         value = await self.db.fetchval_write(
             """
             UPDATE users
-               SET wallet = wallet + ?, updated_at = datetime('now')
+               SET wallet = wallet + ?, updated_at = CURRENT_TIMESTAMP
              WHERE user_id = ?
             RETURNING wallet
             """,
@@ -153,7 +152,7 @@ class UserRepository:
         affected = await self.db.execute(
             """
             UPDATE users
-               SET wallet = wallet - ?, updated_at = datetime('now')
+               SET wallet = wallet - ?, updated_at = CURRENT_TIMESTAMP
              WHERE user_id = ? AND wallet >= ?
             """,
             (amount, user_id, amount),
@@ -166,7 +165,7 @@ class UserRepository:
         value = await self.db.fetchval_write(
             """
             UPDATE users
-               SET bank = bank + ?, updated_at = datetime('now')
+               SET bank = bank + ?, updated_at = CURRENT_TIMESTAMP
              WHERE user_id = ?
             RETURNING bank
             """,
@@ -182,7 +181,7 @@ class UserRepository:
         affected = await self.db.execute(
             """
             UPDATE users
-               SET bank = bank - ?, updated_at = datetime('now')
+               SET bank = bank - ?, updated_at = CURRENT_TIMESTAMP
              WHERE user_id = ? AND bank >= ?
             """,
             (amount, user_id, amount),
@@ -207,7 +206,7 @@ class UserRepository:
 
     async def set_shield_until(self, user_id: int, until: str | None) -> None:
         await self.db.execute(
-            "UPDATE users SET shield_until = ?, updated_at = datetime('now') "
+            "UPDATE users SET shield_until = ?, updated_at = CURRENT_TIMESTAMP "
             "WHERE user_id = ?",
             (until, user_id),
         )
@@ -219,7 +218,7 @@ class UserRepository:
         value = await self.db.fetchval_write(
             """
             UPDATE users
-               SET xp = xp + ?, updated_at = datetime('now')
+               SET xp = xp + ?, updated_at = CURRENT_TIMESTAMP
              WHERE user_id = ?
             RETURNING xp
             """,
@@ -233,7 +232,7 @@ class UserRepository:
         if level < 1 or xp < 0:
             raise ValueError("level >= 1, xp >= 0 байх ёстой")
         await self.db.execute(
-            "UPDATE users SET level = ?, xp = ?, updated_at = datetime('now') "
+            "UPDATE users SET level = ?, xp = ?, updated_at = CURRENT_TIMESTAMP "
             "WHERE user_id = ?",
             (level, xp, user_id),
         )
@@ -242,7 +241,7 @@ class UserRepository:
         value = await self.db.fetchval_write(
             """
             UPDATE users
-               SET casino_net = casino_net + ?, updated_at = datetime('now')
+               SET casino_net = casino_net + ?, updated_at = CURRENT_TIMESTAMP
              WHERE user_id = ?
             RETURNING casino_net
             """,
@@ -257,7 +256,7 @@ class UserRepository:
             raise ValueError("streak >= 0 байх ёстой")
         await self.db.execute(
             "UPDATE users SET daily_streak = ?, last_daily_at = ?, "
-            "updated_at = datetime('now') WHERE user_id = ?",
+            "updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
             (streak, last_daily_at, user_id),
         )
 
@@ -267,28 +266,28 @@ class UserRepository:
             raise ValueError("bail_cost >= 0 байх ёстой")
         await self.db.execute(
             "UPDATE users SET jail_until = ?, jail_bail_cost = ?, "
-            "updated_at = datetime('now') WHERE user_id = ?",
+            "updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
             (until, bail_cost, user_id),
         )
 
     async def clear_jail(self, user_id: int) -> None:
         await self.db.execute(
             "UPDATE users SET jail_until = NULL, jail_bail_cost = 0, "
-            "updated_at = datetime('now') WHERE user_id = ?",
+            "updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
             (user_id,),
         )
 
     # ── Profile ────────────────────────────────────────────────────────
     async def set_title(self, user_id: int, title: str) -> None:
         await self.db.execute(
-            "UPDATE users SET active_title = ?, updated_at = datetime('now') "
+            "UPDATE users SET active_title = ?, updated_at = CURRENT_TIMESTAMP "
             "WHERE user_id = ?",
             (title[:64], user_id),
         )
 
     async def set_bio(self, user_id: int, bio: str) -> None:
         await self.db.execute(
-            "UPDATE users SET bio = ?, updated_at = datetime('now') WHERE user_id = ?",
+            "UPDATE users SET bio = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
             (bio[:300], user_id),
         )
 
@@ -301,7 +300,7 @@ class UserRepository:
             """
             UPDATE users
                SET skill_points = skill_points - ?,
-                   updated_at   = datetime('now')
+                   updated_at   = CURRENT_TIMESTAMP
              WHERE user_id = ? AND skill_points >= ?
             """,
             (amount, user_id, amount),
@@ -313,7 +312,7 @@ class UserRepository:
         if amount < 0:
             raise ValueError("amount >= 0 байх ёстой")
         await self.db.execute(
-            "UPDATE users SET skill_points = skill_points + ?, updated_at = datetime('now') WHERE user_id = ?",
+            "UPDATE users SET skill_points = skill_points + ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
             (amount, user_id),
         )
         return int(

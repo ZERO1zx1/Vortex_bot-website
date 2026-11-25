@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from cogs._bot_types import AetherBotProtocol
 from cogs._helpers import maybe_error, send_view
+from core.checks import not_jailed
 from core.exceptions import AetherError
 from ui.casino.slots_view import SlotsView
 from ui.embeds import slots_embed, start_casino_embed
@@ -16,6 +17,7 @@ class Slots(commands.Cog):
         self.bot: AetherBotProtocol = bot  # type: ignore[assignment]
 
     @commands.command(name="slots", aliases=["s"])
+    @not_jailed()
     async def slots(self, ctx: commands.Context, bet: str | None = None) -> None:
         if bet is None:
             view = SlotsView(ctx.author.id, self.bot.slots, ctx.author.display_name)

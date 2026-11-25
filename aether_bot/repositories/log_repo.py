@@ -10,9 +10,8 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-import aiosqlite
-
-from core.database import Database
+from core.database import Database, Row
+from utils.time_utils import to_db_text
 
 
 def _json(value: Any | None) -> str | None:
@@ -34,7 +33,7 @@ class TransactionRow:
     created_at: str
 
     @classmethod
-    def from_row(cls, row: aiosqlite.Row) -> TransactionRow:
+    def from_row(cls, row: Row) -> TransactionRow:
         return cls(
             tx_id=row["tx_id"],
             user_id=row["user_id"],
@@ -42,7 +41,7 @@ class TransactionRow:
             source=row["source"],
             balance_after=row["balance_after"],
             metadata=row["metadata"],
-            created_at=row["created_at"],
+            created_at=to_db_text(row["created_at"]),
         )
 
 
@@ -56,6 +55,19 @@ class CasinoLogRow:
     outcome: str
     detail: str | None
     created_at: str
+
+    @classmethod
+    def from_row(cls, row: Row) -> CasinoLogRow:
+        return cls(
+            log_id=row["log_id"],
+            user_id=row["user_id"],
+            game=row["game"],
+            bet=row["bet"],
+            payout=row["payout"],
+            outcome=row["outcome"],
+            detail=row["detail"],
+            created_at=to_db_text(row["created_at"]),
+        )
 
     @property
     def net(self) -> int:
@@ -179,19 +191,7 @@ class LogRepository:
             """,
             (user_id, max(1, int(limit))),
         )
-        return [
-            CasinoLogRow(
-                log_id=row["log_id"],
-                user_id=row["user_id"],
-                game=row["game"],
-                bet=row["bet"],
-                payout=row["payout"],
-                outcome=row["outcome"],
-                detail=row["detail"],
-                created_at=row["created_at"],
-            )
-            for row in rows
-        ]
+        return [CasinoLogRow.from_row(row) for row in rows]
 
     async def casino_net(self, user_id: int) -> int:
         return int(

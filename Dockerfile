@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY aether_bot ./aether_bot
 
-# requirements.txt үндэслэлтэй, doctor нэгэн-хоёртоо дуртай холбоосууд
+# Runtime dependencies only; DATABASE_URL and DISCORD_TOKEN come from env.
 RUN pip install --no-cache-dir -r aether_bot/requirements.txt
 
 CMD ["python", "aether_bot/bot.py"]

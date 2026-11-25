@@ -65,5 +65,5 @@ class CooldownRepository:
 
     async def purge_expired(self) -> int:
         return await self.db.execute(
-            "DELETE FROM cooldowns WHERE expires_at <= datetime('now')"
+            "DELETE FROM cooldowns WHERE expires_at <= CURRENT_TIMESTAMP"
         )

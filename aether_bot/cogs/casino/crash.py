@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from cogs._bot_types import AetherBotProtocol
 from cogs._helpers import maybe_error, send_view
+from core.checks import not_jailed
 from core.exceptions import AetherError
 from ui.casino.crash_view import CrashView
 from ui.embeds import crash_embed, start_casino_embed
@@ -16,6 +17,7 @@ class Crash(commands.Cog):
         self.bot: AetherBotProtocol = bot  # type: ignore[assignment]
 
     @commands.command(name="crash", aliases=["cr"])
+    @not_jailed()
     async def crash(self, ctx: commands.Context, bet: str | None = None) -> None:
         if bet is not None:
             try:
